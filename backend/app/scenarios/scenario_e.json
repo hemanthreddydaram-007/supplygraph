@@ -1,0 +1,195 @@
+{
+  "scenario_id": "E",
+  "label": "DEMO \u2014 SYNTHETIC TEST CASE",
+  "title": "CI/CD Risk",
+  "description": "Suspicious CI/CD pipeline downloading external scripts with excessive permissions.",
+  "is_demo": true,
+  "is_simulated": false,
+  "repository": {
+    "id": "demo-repo-a",
+    "github_url": "https://github.com/demo/supply-chain-demo-a",
+    "owner": "demo",
+    "name": "supply-chain-demo-a",
+    "default_branch": "main",
+    "description": "DEMO: Application with vulnerable transitive dependency",
+    "stars": 0,
+    "is_private": false,
+    "language": "JavaScript"
+  },
+  "components": [],
+  "dependencies": [
+    {
+      "from_bom_ref": "demo-app-a",
+      "to_bom_ref": "lodash-4.17.20",
+      "is_direct": true
+    },
+    {
+      "from_bom_ref": "lodash-4.17.20",
+      "to_bom_ref": "mixin-deep-1.3.1",
+      "is_direct": false
+    }
+  ],
+  "vulnerabilities": [],
+  "findings": [
+    {
+      "id": "33bd632f-6903-4e2f-a70c-8597d704a795",
+      "scan_id": "1b000e03-560a-5f28-8694-e34cfd9bb933",
+      "entity_type": "Pipeline",
+      "finding_type": "CICD_RISK",
+      "severity": "HIGH",
+      "title": "Suspicious CI/CD Workflow",
+      "description": "GitHub Actions workflow 'build.yml' uses write-all permissions and downloads external untrusted scripts.",
+      "origin_candidate": "build.yml",
+      "status": "open",
+      "created_at": "2026-09-25T13:36:03.583065+00:00",
+      "confidence": {
+        "score": 0.88,
+        "score_percent": 88.0,
+        "evidence_count": 2,
+        "label": "Heuristic Confidence Score",
+        "disclaimer": "This is a heuristic score and NOT a probability of compromise."
+      },
+      "impact": {
+        "package_count": 0,
+        "service_count": 1,
+        "api_count": 0,
+        "production_deployment_count": 1,
+        "blast_radius_score": 65.0
+      },
+      "evidence": [
+        {
+          "id": "883282c6-0a0e-4bd7-a410-318b58fa2a85",
+          "source": "cicd",
+          "evidence_type": "CICD_FINDING",
+          "classification": "HEURISTIC",
+          "description": "Workflow contains excessive permissions (write-all).",
+          "confidence_contribution": 0.5,
+          "is_simulated": false,
+          "timestamp": "2026-09-25T13:36:03.583065+00:00",
+          "raw_data": {
+            "file": ".github/workflows/build.yml"
+          }
+        },
+        {
+          "id": "1397ea8a-ee8f-41d3-a7c6-940d0f80a219",
+          "source": "cicd",
+          "evidence_type": "CICD_FINDING",
+          "classification": "HEURISTIC",
+          "description": "Workflow downloads script from raw.githubusercontent.com/unknown-user.",
+          "confidence_contribution": 0.8,
+          "is_simulated": false,
+          "timestamp": "2026-09-25T13:36:03.583065+00:00",
+          "raw_data": {
+            "file": ".github/workflows/build.yml",
+            "url": "raw.githubusercontent.com/unknown-user"
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "id": "8c976a5d-17c1-4732-a798-21cd7e4f7c5e",
+          "action_type": "AUDIT_WORKFLOW",
+          "title": "Restrict permissions",
+          "description": "Change write-all permissions to read-all.",
+          "why": "Prevents unauthorized code pushes.",
+          "expected_effect": "Lowers blast radius.",
+          "priority": "high"
+        }
+      ],
+      "propagation_path": [],
+      "affected_assets": []
+    }
+  ],
+  "attack_paths": [],
+  "assets": [
+    {
+      "id": "4493b5f1-0dfc-51f4-81f0-4c8c474b0981",
+      "name": "supply-chain-demo-a",
+      "asset_type": "repository",
+      "criticality": "medium",
+      "is_production": false,
+      "metadata": {
+        "label": "DEMO APPLICATION"
+      },
+      "scan_id": "9759785f-95f6-554a-ba7a-c3e586ec5609"
+    }
+  ],
+  "gemini_prompt_context": {
+    "instruction": "You are analyzing a software supply-chain security scan. Using ONLY the structured evidence provided below, generate a human-readable explanation. Do NOT invent vulnerabilities, packages, versions, or attack paths not present in the evidence.",
+    "finding_summary": "mixin-deep@1.3.1 has a known prototype pollution vulnerability (GHSA-4xc9-xhrj-v574, CVE-2019-10746). It is a transitive dependency of lodash@4.17.20, which is a direct dependency of the application. The vulnerability is at transitive depth 2.",
+    "origin": "mixin-deep@1.3.1",
+    "propagation": "mixin-deep@1.3.1 \u2192 lodash@4.17.20 \u2192 application",
+    "confidence": "80% heuristic confidence score",
+    "recommendation": "Upgrade mixin-deep to 2.0.0 or later"
+  },
+  "scan": {
+    "id": "1b000e03-560a-5f28-8694-e34cfd9bb933",
+    "repository_id": "21797286-717a-54a3-8d40-833fd4585652",
+    "repository_url": "https://github.com/demo/supply-chain-demo-e",
+    "status": "completed",
+    "scan_type": "demo",
+    "scenario_id": "E",
+    "started_at": "2026-09-25T10:15:02.752680Z",
+    "completed_at": "2026-09-25T10:15:02.752680Z",
+    "total_components": 3,
+    "total_vulnerabilities": 0,
+    "total_findings": 1,
+    "max_confidence": 0.8,
+    "blast_radius_score": 65.0
+  },
+  "graph": {
+    "scan_id": "1b000e03-560a-5f28-8694-e34cfd9bb933",
+    "nodes": [
+      {
+        "id": "app",
+        "type": "Repository",
+        "position": {
+          "x": 250,
+          "y": 0
+        },
+        "data": {
+          "label": "demo-app",
+          "node_type": "Repository",
+          "is_suspicious": false,
+          "is_affected": true
+        }
+      },
+      {
+        "id": "pipeline",
+        "type": "Pipeline",
+        "position": {
+          "x": 250,
+          "y": 150
+        },
+        "data": {
+          "label": "build.yml",
+          "node_type": "Pipeline",
+          "is_suspicious": true,
+          "is_origin_candidate": true,
+          "severity": "HIGH",
+          "finding_count": 1
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "app-pipeline",
+        "source": "app",
+        "target": "pipeline",
+        "type": "default",
+        "animated": true,
+        "data": {
+          "edge_type": "CONTAINS",
+          "label": "has workflow",
+          "is_attack_path": true,
+          "is_direct": true
+        }
+      }
+    ],
+    "node_count": 2,
+    "edge_count": 1,
+    "suspicious_node_count": 1
+  },
+  "api_version": "v1",
+  "gemini_explanation": "SupplyGraph's CI/CD analyzer identified a severely misconfigured GitHub Actions workflow (`build.yml`). \n\nThe workflow requests global `write-all` permissions, and actively downloads an untrusted script from a suspicious external repository using `curl | bash`. An attacker could replace the script to inject a backdoor into the resulting build artifact."
+}

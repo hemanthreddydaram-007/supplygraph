@@ -22,7 +22,7 @@ async def analyze_demo(request: DemoRequest):
         os.path.dirname(__file__), 
         "..", 
         "scenarios", 
-        f"scenario_{request.scenario_id}.json"
+        f"scenario_{request.scenario_id.lower()}.json"
     )
     if not os.path.exists(scenario_path):
         raise HTTPException(status_code=404, detail="Scenario not found")

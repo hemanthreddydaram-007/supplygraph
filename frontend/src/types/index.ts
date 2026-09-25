@@ -59,4 +59,5 @@ export interface AnalysisResponse {
   attack_paths: any[];
   assets: any[];
   is_demo?: boolean;
+  gemini_explanation?: string;
 }

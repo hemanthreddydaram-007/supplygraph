@@ -9,8 +9,6 @@ import {
   MarkerType,
   Edge,
   Node,
-  useNodesState,
-  useEdgesState
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { nodeTypes } from "./CustomNodes";
@@ -23,65 +21,52 @@ interface GraphCanvasProps {
 export function GraphCanvas({ graph }: GraphCanvasProps) {
   // Map our generic nodes to React Flow nodes
   const initialNodes: Node[] = useMemo(() => {
-    return graph.nodes.map((n) => ({
+    return graph.nodes.map(n => ({
       id: n.id,
-      type: n.type || "default",
-      position: n.position,
-      data: n.data,
+      position: { x: n.position.x, y: n.position.y },
+      data: n.data as any,
+      type: "default", // We use default and map it to BaseNode in nodeTypes
     }));
   }, [graph.nodes]);
 
   // Map our generic edges to React Flow edges
   const initialEdges: Edge[] = useMemo(() => {
-    return graph.edges.map((e) => ({
+    return graph.edges.map(e => ({
       id: e.id,
       source: e.source,
       target: e.target,
-      animated: e.data?.is_attack_path || e.animated,
-      style: {
-        stroke: e.data?.is_attack_path ? "#dc2626" : "#94a3b8",
-        strokeWidth: e.data?.is_attack_path ? 3 : 2,
+      animated: e.animated || e.data.is_attack_path,
+      label: e.data.label,
+      style: { 
+        stroke: e.data.is_attack_path ? "#ef4444" : "#3f3f46", 
+        strokeWidth: e.data.is_attack_path ? 2 : 1 
       },
+      labelStyle: { fill: "#a1a1aa", fontSize: 10, fontWeight: 500 },
+      labelBgStyle: { fill: "transparent" },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: e.data?.is_attack_path ? "#dc2626" : "#94a3b8",
+        width: 15,
+        height: 15,
+        color: e.data.is_attack_path ? "#ef4444" : "#3f3f46",
       },
     }));
   }, [graph.edges]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-
-  // Update state when graph prop changes
-  React.useEffect(() => {
-    setNodes(initialNodes);
-    setEdges(initialEdges);
-  }, [initialNodes, initialEdges, setNodes, setEdges]);
-
   return (
-    <div className="w-full h-full bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.1}
-        maxZoom={1.5}
-      >
-        <Background color="#cbd5e1" gap={20} size={1} />
-        <Controls showInteractive={false} />
-        <MiniMap 
-          nodeColor={(n) => {
-            if (n.data?.is_suspicious) return '#ef4444';
-            if (n.data?.is_affected) return '#fb923c';
-            return '#cbd5e1';
-          }}
-          maskColor="rgba(248, 250, 252, 0.7)"
-        />
-      </ReactFlow>
-    </div>
+    <ReactFlow
+      nodes={initialNodes}
+      edges={initialEdges}
+      nodeTypes={nodeTypes}
+      fitView
+      fitViewOptions={{ padding: 0.2 }}
+      className="bg-[#0a0a0a]"
+      colorMode="dark"
+    >
+      <Background color="#27272a" gap={20} size={1} />
+      <Controls 
+        className="bg-card border border-border fill-muted-foreground shadow-lg rounded-md overflow-hidden" 
+        showInteractive={false}
+      />
+    </ReactFlow>
   );
 }

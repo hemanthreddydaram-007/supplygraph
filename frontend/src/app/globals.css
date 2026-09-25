@@ -4,14 +4,56 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Linear-inspired dark theme */
+    --background: 240 10% 4%;
+    --foreground: 0 0% 95%;
+    
+    --card: 240 10% 6%;
+    --card-foreground: 0 0% 95%;
+    
+    --popover: 240 10% 6%;
+    --popover-foreground: 0 0% 95%;
+    
+    --primary: 240 5% 90%;
+    --primary-foreground: 240 10% 4%;
+    
+    --secondary: 240 5% 15%;
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 5% 65%;
+    
+    --accent: 240 5% 15%;
+    --accent-foreground: 0 0% 98%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 5% 16%;
+    --input: 240 5% 16%;
+    --ring: 240 5% 90%;
+
+    --radius: 0.5rem;
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    @apply antialiased;
     margin: 0;
     padding: 0;
     overflow: hidden;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
   }
 }
