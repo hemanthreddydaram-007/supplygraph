@@ -7,7 +7,7 @@
   "is_simulated": true,
   "simulated_signal_disclaimer": "Runtime signals in this scenario are SIMULATED \u2014 synthetic observations created for demonstration purposes. They do not represent production telemetry.",
   "repository": {
-    "id": "demo-repo-d",
+    "id": "f966a551-5051-514b-9893-b827a2700ce0",
     "github_url": "https://github.com/demo/supply-chain-demo-d",
     "owner": "demo",
     "name": "supply-chain-demo-d",
@@ -104,7 +104,7 @@
         "port": 8080,
         "label": "DEMO SERVICE"
       },
-      "scan_id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4"
+      "scan_id": "ea789770-0703-5748-8d9b-c735d17cb036"
     },
     {
       "id": "bf80648b-dc31-56da-b2c0-1022307031c0",
@@ -116,7 +116,7 @@
         "endpoint": "/api/v1",
         "label": "DEMO API"
       },
-      "scan_id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4"
+      "scan_id": "ea789770-0703-5748-8d9b-c735d17cb036"
     },
     {
       "id": "cf1755a6-9eb1-5b9d-a496-503287c3204e",
@@ -128,12 +128,12 @@
         "environment": "production",
         "label": "DEMO DEPLOYMENT"
       },
-      "scan_id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4"
+      "scan_id": "ea789770-0703-5748-8d9b-c735d17cb036"
     }
   ],
   "findings": [
     {
-      "id": "6e17023c-8d0f-5fde-836c-26a43c71874f",
+      "id": "7764eecc-1526-599e-89f1-b1e4e27941da",
       "entity_id": "4ef2e410-faad-50f2-8733-6189f4662e72",
       "entity_type": "Version",
       "finding_type": "SUSPICIOUS",
@@ -313,12 +313,12 @@
           "id": "5fce5cae-969e-5503-90bf-b88b0562f2d7"
         }
       ],
-      "scan_id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4"
+      "scan_id": "ea789770-0703-5748-8d9b-c735d17cb036"
     }
   ],
   "attack_paths": [
     {
-      "id": "4a08ef83-fc87-53ca-af63-0f1fcc2e6a43",
+      "id": "3584ad53-3788-5555-b7a2-034f110c8930",
       "origin_node_id": "malicious-logger-0.9.1",
       "target_node_id": "asset-d-003",
       "path_nodes": [
@@ -349,13 +349,17 @@
       "is_direct": false,
       "is_transitive": true,
       "blast_radius": {
-        "score": 98.0,
-        "label": "Heuristic Blast-Radius Score"
+        "package_count": 4,
+        "service_count": 1,
+        "api_count": 1,
+        "production_deployment_count": 1,
+        "blast_radius_score": 98.0
       },
       "label": "Potential Attack Path \u2014 Multi-Level Propagation",
       "explanation": "malicious-logger@0.9.1 (likely origin, depth 4) \u2192 package-c@1.5.0 \u2192 package-b@2.1.0 \u2192 package-a@3.0.0 \u2192 application \u2192 service-x \u2192 api-gateway \u2192 production-deployment. Total path length: 7 hops from origin to production deployment.",
-      "scan_id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4",
-      "finding_id": "6e17023c-8d0f-5fde-836c-26a43c71874f"
+      "scan_id": "ea789770-0703-5748-8d9b-c735d17cb036",
+      "finding_id": "6e17023c-8d0f-5fde-836c-26a43c71874f",
+      "affected_asset_count": 3
     }
   ],
   "runtime_observations": [
@@ -370,7 +374,7 @@
     }
   ],
   "scan": {
-    "id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4",
+    "id": "ea789770-0703-5748-8d9b-c735d17cb036",
     "repository_id": "5b9b474e-b083-5ed3-bf94-b2cc1fb5a4d3",
     "repository_url": "https://github.com/demo/supply-chain-demo-d",
     "status": "completed",
@@ -382,10 +386,13 @@
     "total_vulnerabilities": 0,
     "total_findings": 1,
     "max_confidence": 0.82,
-    "blast_radius_score": 98.0
+    "blast_radius_score": 98.0,
+    "total_direct_dependencies": 1,
+    "total_transitive_dependencies": 3,
+    "total_attack_paths": 1
   },
   "graph": {
-    "scan_id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4",
+    "scan_id": "ea789770-0703-5748-8d9b-c735d17cb036",
     "nodes": [
       {
         "id": "demo-app-d",
@@ -586,7 +593,10 @@
           "is_attack_path": true
         }
       }
-    ]
+    ],
+    "node_count": 8,
+    "edge_count": 7,
+    "attack_path_count": 1
   },
   "api_version": "v1"
 }

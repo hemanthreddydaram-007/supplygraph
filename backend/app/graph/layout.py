@@ -97,14 +97,13 @@ def compute_layout(
 def _bfs_layering(graph: nx.DiGraph) -> list[set[Any]]:
     """
     BFS-based layer assignment for cyclic graphs.
-    Assigns each node to the deepest layer reachable from root nodes.
-    Cycle-safe: visited set prevents infinite loops.
+    Cycle-safe: each node is assigned a layer exactly once.
     """
     # Root nodes: those with no predecessors
-    roots = [n for n in graph.nodes() if graph.in_degree(n) == 0]
+    roots = sorted([n for n in graph.nodes() if graph.in_degree(n) == 0], key=str)
     if not roots:
-        # All nodes have predecessors — pick arbitrary start
-        roots = [next(iter(graph.nodes()))]
+        # All nodes have predecessors - pick arbitrary start deterministically
+        roots = [sorted(list(graph.nodes()), key=str)[0]]
 
     layer_map: Dict[Any, int] = {}
     from collections import deque
@@ -117,10 +116,9 @@ def _bfs_layering(graph: nx.DiGraph) -> list[set[Any]]:
     while queue:
         node = queue.popleft()
         current_layer = layer_map[node]
-        for successor in graph.successors(node):
-            new_layer = current_layer + 1
-            if successor not in layer_map or layer_map[successor] < new_layer:
-                layer_map[successor] = new_layer
+        for successor in sorted(graph.successors(node), key=str):
+            if successor not in layer_map:
+                layer_map[successor] = current_layer + 1
                 queue.append(successor)
 
     # Assign any unreachable nodes to layer 0
