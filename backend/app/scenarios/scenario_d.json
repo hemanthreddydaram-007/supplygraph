@@ -1,0 +1,592 @@
+{
+  "scenario_id": "D",
+  "label": "DEMO \u2014 SYNTHETIC TEST CASE",
+  "title": "Multi-Level Supply-Chain Propagation",
+  "description": "Demonstrates multi-level transitive attack path: malicious-logger is 4 dependency levels away from the application, yet propagates through Package A \u2192 B \u2192 C to reach the application, then onward to a service, API gateway, and production deployment. Simulated runtime signals are clearly labeled as SIMULATED.",
+  "is_demo": true,
+  "is_simulated": true,
+  "simulated_signal_disclaimer": "Runtime signals in this scenario are SIMULATED \u2014 synthetic observations created for demonstration purposes. They do not represent production telemetry.",
+  "repository": {
+    "id": "demo-repo-d",
+    "github_url": "https://github.com/demo/supply-chain-demo-d",
+    "owner": "demo",
+    "name": "supply-chain-demo-d",
+    "default_branch": "main",
+    "description": "DEMO: Multi-level supply-chain propagation scenario",
+    "stars": 0,
+    "is_private": false,
+    "language": "Python"
+  },
+  "components": [
+    {
+      "bom_ref": "demo-app-d",
+      "name": "supply-chain-demo-d",
+      "version": "2.1.0",
+      "ecosystem": "pypi",
+      "purl": "pkg:pypi/supply-chain-demo-d@2.1.0",
+      "is_direct": false,
+      "is_transitive": false,
+      "depth": 0
+    },
+    {
+      "bom_ref": "package-a-3.0.0",
+      "name": "package-a",
+      "version": "3.0.0",
+      "ecosystem": "pypi",
+      "purl": "pkg:pypi/package-a@3.0.0",
+      "is_direct": true,
+      "is_transitive": false,
+      "depth": 1
+    },
+    {
+      "bom_ref": "package-b-2.1.0",
+      "name": "package-b",
+      "version": "2.1.0",
+      "ecosystem": "pypi",
+      "purl": "pkg:pypi/package-b@2.1.0",
+      "is_direct": false,
+      "is_transitive": true,
+      "depth": 2
+    },
+    {
+      "bom_ref": "package-c-1.5.0",
+      "name": "package-c",
+      "version": "1.5.0",
+      "ecosystem": "pypi",
+      "purl": "pkg:pypi/package-c@1.5.0",
+      "is_direct": false,
+      "is_transitive": true,
+      "depth": 3
+    },
+    {
+      "bom_ref": "malicious-logger-0.9.1",
+      "name": "malicious-logger",
+      "version": "0.9.1",
+      "ecosystem": "pypi",
+      "purl": "pkg:pypi/malicious-logger@0.9.1",
+      "is_direct": false,
+      "is_transitive": true,
+      "depth": 4,
+      "description": "DEMO: Synthetic suspicious package"
+    }
+  ],
+  "dependencies": [
+    {
+      "from_bom_ref": "demo-app-d",
+      "to_bom_ref": "package-a-3.0.0",
+      "is_direct": true
+    },
+    {
+      "from_bom_ref": "package-a-3.0.0",
+      "to_bom_ref": "package-b-2.1.0",
+      "is_direct": false
+    },
+    {
+      "from_bom_ref": "package-b-2.1.0",
+      "to_bom_ref": "package-c-1.5.0",
+      "is_direct": false
+    },
+    {
+      "from_bom_ref": "package-c-1.5.0",
+      "to_bom_ref": "malicious-logger-0.9.1",
+      "is_direct": false
+    }
+  ],
+  "vulnerabilities": [],
+  "assets": [
+    {
+      "id": "a54fa3b2-2e17-564d-aa4b-f74250f7e61e",
+      "name": "service-x",
+      "asset_type": "service",
+      "criticality": "high",
+      "is_production": true,
+      "metadata": {
+        "port": 8080,
+        "label": "DEMO SERVICE"
+      },
+      "scan_id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4"
+    },
+    {
+      "id": "bf80648b-dc31-56da-b2c0-1022307031c0",
+      "name": "api-gateway",
+      "asset_type": "api",
+      "criticality": "critical",
+      "is_production": true,
+      "metadata": {
+        "endpoint": "/api/v1",
+        "label": "DEMO API"
+      },
+      "scan_id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4"
+    },
+    {
+      "id": "cf1755a6-9eb1-5b9d-a496-503287c3204e",
+      "name": "production-deployment",
+      "asset_type": "deployment",
+      "criticality": "critical",
+      "is_production": true,
+      "metadata": {
+        "environment": "production",
+        "label": "DEMO DEPLOYMENT"
+      },
+      "scan_id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4"
+    }
+  ],
+  "findings": [
+    {
+      "id": "6e17023c-8d0f-5fde-836c-26a43c71874f",
+      "entity_id": "4ef2e410-faad-50f2-8733-6189f4662e72",
+      "entity_type": "Version",
+      "finding_type": "SUSPICIOUS",
+      "severity": "HIGH",
+      "title": "Suspicious package at transitive depth 4: malicious-logger@0.9.1",
+      "description": "malicious-logger@0.9.1 is 4 dependency levels away from the application. Static analysis reveals a subprocess call with shell=True and a base64-encoded string that decodes to a network connection command. A simulated runtime signal shows an outbound connection attempt to a suspicious domain. Evidence is multi-source: AST finding + SIMULATED runtime signal.",
+      "origin_candidate": "pkg:pypi/malicious-logger@0.9.1",
+      "propagation_path": [
+        {
+          "node_id": "malicious-logger-0.9.1",
+          "node_type": "Version",
+          "label": "malicious-logger@0.9.1 (LIKELY ORIGIN)",
+          "edge_type": "DEPENDS_ON",
+          "evidence": [
+            "AST: subprocess shell=True",
+            "AST: base64 encoded string",
+            "SIMULATED: outbound connection"
+          ]
+        },
+        {
+          "node_id": "package-c-1.5.0",
+          "node_type": "Version",
+          "label": "package-c@1.5.0",
+          "edge_type": "DEPENDS_ON",
+          "evidence": []
+        },
+        {
+          "node_id": "package-b-2.1.0",
+          "node_type": "Version",
+          "label": "package-b@2.1.0",
+          "edge_type": "DEPENDS_ON",
+          "evidence": []
+        },
+        {
+          "node_id": "package-a-3.0.0",
+          "node_type": "Version",
+          "label": "package-a@3.0.0",
+          "edge_type": "DEPENDS_ON",
+          "evidence": []
+        },
+        {
+          "node_id": "demo-app-d",
+          "node_type": "Repository",
+          "label": "supply-chain-demo-d@2.1.0 (application)",
+          "edge_type": "DEPENDS_ON",
+          "evidence": []
+        },
+        {
+          "node_id": "asset-d-001",
+          "node_type": "Service",
+          "label": "service-x (production service)",
+          "edge_type": "DEPLOYED_AS",
+          "evidence": []
+        },
+        {
+          "node_id": "asset-d-002",
+          "node_type": "API",
+          "label": "api-gateway (production API)",
+          "edge_type": "CALLS",
+          "evidence": []
+        },
+        {
+          "node_id": "asset-d-003",
+          "node_type": "Deployment",
+          "label": "production-deployment",
+          "edge_type": "DEPLOYED_AS",
+          "evidence": []
+        }
+      ],
+      "affected_assets": [
+        "asset-d-001",
+        "asset-d-002",
+        "asset-d-003"
+      ],
+      "confidence": {
+        "score": 0.82,
+        "score_percent": 82.0,
+        "evidence_count": 3,
+        "simulated_evidence_count": 1,
+        "synthetic_discount_applied": 0.15,
+        "label": "Heuristic Confidence Score",
+        "disclaimer": "This is a heuristic score and NOT a probability of compromise. One of 3 evidence items is SIMULATED."
+      },
+      "impact": {
+        "package_count": 4,
+        "service_count": 1,
+        "api_count": 1,
+        "production_deployment_count": 1,
+        "blast_radius_score": 98.0,
+        "label": "Heuristic Blast-Radius Score",
+        "breakdown": {
+          "packages": {
+            "count": 4,
+            "weight": 2.0,
+            "subtotal": 8.0
+          },
+          "services": {
+            "count": 1,
+            "weight": 15.0,
+            "subtotal": 15.0
+          },
+          "apis": {
+            "count": 1,
+            "weight": 25.0,
+            "subtotal": 25.0
+          },
+          "deployments": {
+            "count": 1,
+            "weight": 50.0,
+            "subtotal": 50.0
+          }
+        }
+      },
+      "evidence": [
+        {
+          "source": "ast",
+          "evidence_type": "CODE_FINDING",
+          "classification": "HEURISTIC",
+          "description": "subprocess.call() with shell=True found in malicious-logger@0.9.1/logger.py at line 47. This pattern can be used to execute arbitrary system commands.",
+          "source_location": {
+            "file": "logger.py",
+            "line": 47
+          },
+          "confidence_contribution": 0.6,
+          "is_simulated": false,
+          "id": "1713e383-4abc-5ee9-8ce6-d962e64ddc4c"
+        },
+        {
+          "source": "ast",
+          "evidence_type": "CODE_FINDING",
+          "classification": "HEURISTIC",
+          "description": "Base64-encoded string detected in malicious-logger@0.9.1/logger.py at line 52. Decoded value contains a network endpoint reference. This pattern is used in some obfuscation techniques.",
+          "source_location": {
+            "file": "logger.py",
+            "line": 52
+          },
+          "confidence_contribution": 0.55,
+          "is_simulated": false,
+          "id": "e476c818-8e84-5ec8-b92f-937de0c57540"
+        },
+        {
+          "source": "runtime",
+          "evidence_type": "RUNTIME_SIGNAL",
+          "classification": "SIMULATED",
+          "description": "[SIMULATED RUNTIME SIGNAL] Outbound connection attempt to suspicious-c2-demo.example.com:443 attributed to malicious-logger module. This is a SYNTHETIC observation for demonstration purposes \u2014 not production telemetry.",
+          "confidence_contribution": 0.3,
+          "is_simulated": true,
+          "id": "a360bd68-9370-5e1b-a09c-268d126fa974"
+        }
+      ],
+      "recommendations": [
+        {
+          "action_type": "REMOVE_DEPENDENCY",
+          "title": "Remove malicious-logger from dependency tree",
+          "description": "Remove malicious-logger@0.9.1 and identify an alternative logging library. Update package-c to use a safe substitute.",
+          "why": "AST analysis reveals suspicious subprocess and obfuscation patterns in malicious-logger@0.9.1. A simulated runtime signal suggests potential C2 communication.",
+          "expected_effect": "Eliminate the suspicious package from the dependency graph.",
+          "priority": "critical",
+          "id": "20f6eab2-b648-513c-9cc6-d4be888a68cd"
+        },
+        {
+          "action_type": "ISOLATE_SERVICE",
+          "title": "Isolate service-x until dependency is resolved",
+          "description": "Consider restricting network access from service-x until malicious-logger is removed and the service is rebuilt.",
+          "why": "service-x is downstream of malicious-logger@0.9.1 via 4 transitive dependency levels and is in production.",
+          "expected_effect": "Reduce blast radius by isolating the potentially affected production service.",
+          "priority": "high",
+          "id": "23ef7be7-aea1-5fc8-90e6-550e8b7d7b0f"
+        },
+        {
+          "action_type": "REBUILD",
+          "title": "Rebuild and redeploy after dependency remediation",
+          "description": "After removing malicious-logger, rebuild the application and redeploy to production.",
+          "why": "The production deployment may have been built with the suspicious package present.",
+          "expected_effect": "Production artifact no longer includes malicious-logger.",
+          "priority": "high",
+          "id": "5fce5cae-969e-5503-90bf-b88b0562f2d7"
+        }
+      ],
+      "scan_id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4"
+    }
+  ],
+  "attack_paths": [
+    {
+      "id": "4a08ef83-fc87-53ca-af63-0f1fcc2e6a43",
+      "origin_node_id": "malicious-logger-0.9.1",
+      "target_node_id": "asset-d-003",
+      "path_nodes": [
+        "malicious-logger-0.9.1",
+        "package-c-1.5.0",
+        "package-b-2.1.0",
+        "package-a-3.0.0",
+        "demo-app-d",
+        "asset-d-001",
+        "asset-d-002",
+        "asset-d-003"
+      ],
+      "path_edges": [
+        "dep-c-logger",
+        "dep-b-c",
+        "dep-a-b",
+        "dep-app-a",
+        "deploy-app-service",
+        "call-service-api",
+        "deploy-api-prod"
+      ],
+      "path_length": 7,
+      "confidence": {
+        "score": 0.82,
+        "score_percent": 82.0,
+        "label": "Heuristic Confidence Score"
+      },
+      "is_direct": false,
+      "is_transitive": true,
+      "blast_radius": {
+        "score": 98.0,
+        "label": "Heuristic Blast-Radius Score"
+      },
+      "label": "Potential Attack Path \u2014 Multi-Level Propagation",
+      "explanation": "malicious-logger@0.9.1 (likely origin, depth 4) \u2192 package-c@1.5.0 \u2192 package-b@2.1.0 \u2192 package-a@3.0.0 \u2192 application \u2192 service-x \u2192 api-gateway \u2192 production-deployment. Total path length: 7 hops from origin to production deployment.",
+      "scan_id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4",
+      "finding_id": "6e17023c-8d0f-5fde-836c-26a43c71874f"
+    }
+  ],
+  "runtime_observations": [
+    {
+      "id": "runtime-d-001",
+      "observation_type": "OUTBOUND_CONNECTION",
+      "target": "suspicious-c2-demo.example.com:443",
+      "description": "SIMULATED RUNTIME SIGNAL: Outbound HTTPS connection attempt attributed to malicious-logger module. Domain does not appear in the application's known external service list.",
+      "is_simulated": true,
+      "severity": "HIGH",
+      "simulation_label": "SIMULATED \u2014 This observation is a synthetic signal created for demonstration. It does not represent production telemetry."
+    }
+  ],
+  "scan": {
+    "id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4",
+    "repository_id": "5b9b474e-b083-5ed3-bf94-b2cc1fb5a4d3",
+    "repository_url": "https://github.com/demo/supply-chain-demo-d",
+    "status": "completed",
+    "scan_type": "demo",
+    "scenario_id": "D",
+    "started_at": "2026-09-25T10:15:02.755681Z",
+    "completed_at": "2026-09-25T10:15:02.755681Z",
+    "total_components": 5,
+    "total_vulnerabilities": 0,
+    "total_findings": 1,
+    "max_confidence": 0.82,
+    "blast_radius_score": 98.0
+  },
+  "graph": {
+    "scan_id": "1205e4de-b60b-576f-a7ff-4e9e9b79b4e4",
+    "nodes": [
+      {
+        "id": "demo-app-d",
+        "type": "repositoryNode",
+        "data": {
+          "label": "supply-chain-demo-d",
+          "node_type": "Repository",
+          "is_affected": true,
+          "is_origin_candidate": false
+        },
+        "position": {
+          "x": 100,
+          "y": 0
+        }
+      },
+      {
+        "id": "package-a-3.0.0",
+        "type": "packageNode",
+        "data": {
+          "label": "package-a@3.0.0",
+          "node_type": "Version",
+          "is_affected": true,
+          "is_origin_candidate": false,
+          "purl": "pkg:pypi/package-a@3.0.0"
+        },
+        "position": {
+          "x": 100,
+          "y": 100
+        }
+      },
+      {
+        "id": "package-b-2.1.0",
+        "type": "packageNode",
+        "data": {
+          "label": "package-b@2.1.0",
+          "node_type": "Version",
+          "is_affected": true,
+          "is_origin_candidate": false,
+          "purl": "pkg:pypi/package-b@2.1.0"
+        },
+        "position": {
+          "x": 100,
+          "y": 200
+        }
+      },
+      {
+        "id": "package-c-1.5.0",
+        "type": "packageNode",
+        "data": {
+          "label": "package-c@1.5.0",
+          "node_type": "Version",
+          "is_affected": true,
+          "is_origin_candidate": false,
+          "purl": "pkg:pypi/package-c@1.5.0"
+        },
+        "position": {
+          "x": 100,
+          "y": 300
+        }
+      },
+      {
+        "id": "malicious-logger-0.9.1",
+        "type": "packageNode",
+        "data": {
+          "label": "malicious-logger@0.9.1",
+          "node_type": "Version",
+          "is_suspicious": true,
+          "is_origin_candidate": true,
+          "severity": "HIGH",
+          "finding_count": 1,
+          "purl": "pkg:pypi/malicious-logger@0.9.1"
+        },
+        "position": {
+          "x": 100,
+          "y": 400
+        }
+      },
+      {
+        "id": "asset-d-001",
+        "type": "serviceNode",
+        "data": {
+          "label": "service-x (production)",
+          "node_type": "Service",
+          "is_affected": true,
+          "is_origin_candidate": false
+        },
+        "position": {
+          "x": 100,
+          "y": 500
+        }
+      },
+      {
+        "id": "asset-d-002",
+        "type": "apiNode",
+        "data": {
+          "label": "api-gateway (production)",
+          "node_type": "API",
+          "is_affected": true,
+          "is_origin_candidate": false
+        },
+        "position": {
+          "x": 100,
+          "y": 600
+        }
+      },
+      {
+        "id": "asset-d-003",
+        "type": "deploymentNode",
+        "data": {
+          "label": "production-deployment",
+          "node_type": "Deployment",
+          "is_affected": true,
+          "is_origin_candidate": false
+        },
+        "position": {
+          "x": 100,
+          "y": 700
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "dep-app-a",
+        "source": "demo-app-d",
+        "target": "package-a-3.0.0",
+        "type": "dependencyEdge",
+        "data": {
+          "edge_type": "DEPENDS_ON",
+          "is_direct": true,
+          "depth": 1,
+          "is_attack_path": true
+        }
+      },
+      {
+        "id": "dep-a-b",
+        "source": "package-a-3.0.0",
+        "target": "package-b-2.1.0",
+        "type": "dependencyEdge",
+        "data": {
+          "edge_type": "DEPENDS_ON",
+          "is_direct": false,
+          "depth": 2,
+          "is_attack_path": true
+        }
+      },
+      {
+        "id": "dep-b-c",
+        "source": "package-b-2.1.0",
+        "target": "package-c-1.5.0",
+        "type": "dependencyEdge",
+        "data": {
+          "edge_type": "DEPENDS_ON",
+          "is_direct": false,
+          "depth": 3,
+          "is_attack_path": true
+        }
+      },
+      {
+        "id": "dep-c-logger",
+        "source": "package-c-1.5.0",
+        "target": "malicious-logger-0.9.1",
+        "type": "dependencyEdge",
+        "animated": true,
+        "data": {
+          "edge_type": "DEPENDS_ON",
+          "is_direct": false,
+          "depth": 4,
+          "is_attack_path": true
+        }
+      },
+      {
+        "id": "deploy-app-service",
+        "source": "demo-app-d",
+        "target": "asset-d-001",
+        "type": "deploymentEdge",
+        "data": {
+          "edge_type": "DEPLOYED_AS",
+          "is_attack_path": true
+        }
+      },
+      {
+        "id": "call-service-api",
+        "source": "asset-d-001",
+        "target": "asset-d-002",
+        "type": "callEdge",
+        "data": {
+          "edge_type": "CALLS",
+          "is_attack_path": true
+        }
+      },
+      {
+        "id": "deploy-api-prod",
+        "source": "asset-d-002",
+        "target": "asset-d-003",
+        "type": "deploymentEdge",
+        "data": {
+          "edge_type": "DEPLOYED_AS",
+          "is_attack_path": true
+        }
+      }
+    ]
+  },
+  "api_version": "v1"
+}

@@ -1,0 +1,335 @@
+{
+  "scenario_id": "A",
+  "label": "DEMO \u2014 SYNTHETIC TEST CASE",
+  "title": "Vulnerable Transitive Dependency",
+  "description": "Application depends on lodash which depends on mixin-deep@1.3.1, a package with a known prototype pollution vulnerability. Demonstrates transitive vulnerability detection and attack-path tracing.",
+  "is_demo": true,
+  "is_simulated": false,
+  "repository": {
+    "id": "demo-repo-a",
+    "github_url": "https://github.com/demo/supply-chain-demo-a",
+    "owner": "demo",
+    "name": "supply-chain-demo-a",
+    "default_branch": "main",
+    "description": "DEMO: Application with vulnerable transitive dependency",
+    "stars": 0,
+    "is_private": false,
+    "language": "JavaScript"
+  },
+  "components": [
+    {
+      "bom_ref": "demo-app-a",
+      "name": "supply-chain-demo-a",
+      "version": "1.0.0",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/supply-chain-demo-a@1.0.0",
+      "is_direct": false,
+      "is_transitive": false,
+      "depth": 0,
+      "description": "Demo application (DEMO)"
+    },
+    {
+      "bom_ref": "lodash-4.17.20",
+      "name": "lodash",
+      "version": "4.17.20",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/lodash@4.17.20",
+      "is_direct": true,
+      "is_transitive": false,
+      "depth": 1,
+      "description": "JavaScript utility library"
+    },
+    {
+      "bom_ref": "mixin-deep-1.3.1",
+      "name": "mixin-deep",
+      "version": "1.3.1",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/mixin-deep@1.3.1",
+      "is_direct": false,
+      "is_transitive": true,
+      "depth": 2,
+      "description": "Deeply mix the properties of objects into the first object"
+    }
+  ],
+  "dependencies": [
+    {
+      "from_bom_ref": "demo-app-a",
+      "to_bom_ref": "lodash-4.17.20",
+      "is_direct": true
+    },
+    {
+      "from_bom_ref": "lodash-4.17.20",
+      "to_bom_ref": "mixin-deep-1.3.1",
+      "is_direct": false
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "osv_id": "GHSA-4xc9-xhrj-v574",
+      "aliases": [
+        "CVE-2019-10746"
+      ],
+      "summary": "Prototype pollution in mixin-deep",
+      "details": "mixin-deep before 2.0.0 is vulnerable to prototype pollution. The mergeDeep function can be abused to add or modify properties of Object.prototype, enabling an attacker to corrupt the application's object prototype.",
+      "severity": "HIGH",
+      "cvss_score": 7.4,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N",
+      "affected_ecosystems": [
+        "npm"
+      ],
+      "fixed_versions": {
+        "npm/mixin-deep": "2.0.0"
+      },
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/jonschlinkert/mixin-deep/issues/17"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://github.com/advisories/GHSA-4xc9-xhrj-v574"
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "91240e60-0f33-54c0-9bba-f82b67a23f10",
+      "entity_id": "8caf020c-3b5b-51ac-b080-c6e8a0f60132",
+      "entity_type": "Version",
+      "finding_type": "VULNERABLE",
+      "severity": "HIGH",
+      "title": "Known vulnerability in transitive dependency mixin-deep@1.3.1",
+      "description": "mixin-deep@1.3.1 has a known prototype pollution vulnerability (GHSA-4xc9-xhrj-v574). This package is a transitive dependency of lodash@4.17.20, which is a direct dependency of the application.",
+      "origin_candidate": "pkg:npm/mixin-deep@1.3.1",
+      "propagation_path": [
+        {
+          "node_id": "mixin-deep-1.3.1",
+          "node_type": "Version",
+          "label": "mixin-deep@1.3.1 (origin candidate)",
+          "edge_type": "DEPENDS_ON",
+          "evidence": [
+            "GHSA-4xc9-xhrj-v574"
+          ]
+        },
+        {
+          "node_id": "lodash-4.17.20",
+          "node_type": "Version",
+          "label": "lodash@4.17.20",
+          "edge_type": "DEPENDS_ON",
+          "evidence": []
+        },
+        {
+          "node_id": "demo-app-a",
+          "node_type": "Repository",
+          "label": "supply-chain-demo-a@1.0.0 (application)",
+          "edge_type": "DEPENDS_ON",
+          "evidence": []
+        }
+      ],
+      "affected_assets": [
+        "demo-app-a"
+      ],
+      "confidence": {
+        "score": 0.8,
+        "score_percent": 80.0,
+        "evidence_count": 1,
+        "simulated_evidence_count": 0,
+        "label": "Heuristic Confidence Score",
+        "disclaimer": "This is a heuristic score and NOT a probability of compromise."
+      },
+      "impact": {
+        "package_count": 2,
+        "service_count": 0,
+        "api_count": 0,
+        "production_deployment_count": 0,
+        "blast_radius_score": 4.0,
+        "label": "Heuristic Blast-Radius Score"
+      },
+      "evidence": [
+        {
+          "source": "osv",
+          "evidence_type": "VULNERABILITY",
+          "classification": "FACT",
+          "description": "GHSA-4xc9-xhrj-v574: Prototype pollution in mixin-deep < 2.0.0. Source: OSV vulnerability database.",
+          "confidence_contribution": 0.8,
+          "is_simulated": false,
+          "id": "cf081dbb-55eb-5e0d-b953-9fbed4b8e28d"
+        }
+      ],
+      "recommendations": [
+        {
+          "action_type": "PIN_VERSION",
+          "title": "Upgrade mixin-deep to 2.0.0 or later",
+          "description": "Update mixin-deep to a version that is not affected by GHSA-4xc9-xhrj-v574. The fix was introduced in version 2.0.0.",
+          "why": "mixin-deep@1.3.1 contains a prototype pollution vulnerability that could be exploited by an attacker to modify Object.prototype.",
+          "expected_effect": "Eliminate the known vulnerability in the transitive dependency.",
+          "priority": "high",
+          "id": "ebe81d63-0be3-5395-a0c4-cae8aef4e811"
+        },
+        {
+          "action_type": "REANALYZE",
+          "title": "Re-analyze after upgrading mixin-deep",
+          "description": "Run a new scan after updating the dependency to confirm the vulnerability is no longer present.",
+          "why": "Confirm that the updated transitive dependency resolves the finding.",
+          "expected_effect": "Finding resolved in next scan.",
+          "priority": "medium",
+          "id": "1a7ead3a-1ff2-5124-bce2-e6545850623b"
+        }
+      ],
+      "scan_id": "9759785f-95f6-554a-ba7a-c3e586ec5609"
+    }
+  ],
+  "attack_paths": [
+    {
+      "id": "ff2bba0b-2152-55b6-8efa-d72dbcaeadb6",
+      "origin_node_id": "mixin-deep-1.3.1",
+      "target_node_id": "demo-app-a",
+      "path_nodes": [
+        "mixin-deep-1.3.1",
+        "lodash-4.17.20",
+        "demo-app-a"
+      ],
+      "path_edges": [
+        "dep-mixin-lodash",
+        "dep-lodash-app"
+      ],
+      "path_length": 2,
+      "confidence": {
+        "score": 0.8,
+        "score_percent": 80.0,
+        "label": "Heuristic Confidence Score"
+      },
+      "is_direct": false,
+      "is_transitive": true,
+      "blast_radius": {
+        "score": 4.0,
+        "label": "Heuristic Blast-Radius Score"
+      },
+      "label": "Potential Attack Path",
+      "explanation": "mixin-deep@1.3.1 (known vulnerable) \u2192 lodash@4.17.20 (DEPENDS_ON) \u2192 supply-chain-demo-a (application). Depth: 2 transitive levels.",
+      "scan_id": "9759785f-95f6-554a-ba7a-c3e586ec5609",
+      "finding_id": "91240e60-0f33-54c0-9bba-f82b67a23f10"
+    }
+  ],
+  "assets": [
+    {
+      "id": "4493b5f1-0dfc-51f4-81f0-4c8c474b0981",
+      "name": "supply-chain-demo-a",
+      "asset_type": "repository",
+      "criticality": "medium",
+      "is_production": false,
+      "metadata": {
+        "label": "DEMO APPLICATION"
+      },
+      "scan_id": "9759785f-95f6-554a-ba7a-c3e586ec5609"
+    }
+  ],
+  "gemini_prompt_context": {
+    "instruction": "You are analyzing a software supply-chain security scan. Using ONLY the structured evidence provided below, generate a human-readable explanation. Do NOT invent vulnerabilities, packages, versions, or attack paths not present in the evidence.",
+    "finding_summary": "mixin-deep@1.3.1 has a known prototype pollution vulnerability (GHSA-4xc9-xhrj-v574, CVE-2019-10746). It is a transitive dependency of lodash@4.17.20, which is a direct dependency of the application. The vulnerability is at transitive depth 2.",
+    "origin": "mixin-deep@1.3.1",
+    "propagation": "mixin-deep@1.3.1 \u2192 lodash@4.17.20 \u2192 application",
+    "confidence": "80% heuristic confidence score",
+    "recommendation": "Upgrade mixin-deep to 2.0.0 or later"
+  },
+  "scan": {
+    "id": "9759785f-95f6-554a-ba7a-c3e586ec5609",
+    "repository_id": "21797286-717a-54a3-8d40-833fd4585652",
+    "repository_url": "https://github.com/demo/supply-chain-demo-a",
+    "status": "completed",
+    "scan_type": "demo",
+    "scenario_id": "A",
+    "started_at": "2026-09-25T10:15:02.752680Z",
+    "completed_at": "2026-09-25T10:15:02.752680Z",
+    "total_components": 3,
+    "total_vulnerabilities": 1,
+    "total_findings": 1,
+    "max_confidence": 0.8,
+    "blast_radius_score": 4.0
+  },
+  "graph": {
+    "scan_id": "9759785f-95f6-554a-ba7a-c3e586ec5609",
+    "nodes": [
+      {
+        "id": "demo-app-a",
+        "type": "repositoryNode",
+        "data": {
+          "label": "supply-chain-demo-a",
+          "node_type": "Repository",
+          "is_suspicious": false,
+          "is_origin_candidate": false,
+          "is_affected": true,
+          "finding_count": 1
+        },
+        "position": {
+          "x": 100,
+          "y": 0
+        }
+      },
+      {
+        "id": "lodash-4.17.20",
+        "type": "packageNode",
+        "data": {
+          "label": "lodash@4.17.20",
+          "node_type": "Version",
+          "is_suspicious": false,
+          "is_origin_candidate": false,
+          "is_affected": true,
+          "finding_count": 0,
+          "purl": "pkg:npm/lodash@4.17.20"
+        },
+        "position": {
+          "x": 100,
+          "y": 100
+        }
+      },
+      {
+        "id": "mixin-deep-1.3.1",
+        "type": "packageNode",
+        "data": {
+          "label": "mixin-deep@1.3.1",
+          "node_type": "Version",
+          "is_suspicious": true,
+          "is_origin_candidate": true,
+          "is_affected": false,
+          "severity": "HIGH",
+          "finding_count": 1,
+          "vulnerability_count": 1,
+          "purl": "pkg:npm/mixin-deep@1.3.1"
+        },
+        "position": {
+          "x": 100,
+          "y": 200
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "dep-app-lodash",
+        "source": "demo-app-a",
+        "target": "lodash-4.17.20",
+        "type": "dependencyEdge",
+        "data": {
+          "edge_type": "DEPENDS_ON",
+          "is_direct": true,
+          "depth": 1,
+          "is_attack_path": true
+        }
+      },
+      {
+        "id": "dep-mixin-lodash",
+        "source": "lodash-4.17.20",
+        "target": "mixin-deep-1.3.1",
+        "type": "dependencyEdge",
+        "data": {
+          "edge_type": "DEPENDS_ON",
+          "is_direct": false,
+          "depth": 2,
+          "is_attack_path": true
+        }
+      }
+    ]
+  },
+  "api_version": "v1"
+}
