@@ -6,7 +6,7 @@ import { AnalysisResponse } from "@/types";
 import { GraphCanvas } from "@/components/graph/GraphCanvas";
 import { 
   PackageSearch, Play, AlertCircle, ShieldAlert, 
-  Loader2, Sparkles, Activity, ShieldCheck, Cpu, Database
+  Loader2, Sparkles, Activity, ShieldCheck, Cpu, Database, Download
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -210,9 +210,27 @@ export default function Dashboard() {
                   {/* AI EXPLANATION */}
                   {data?.gemini_explanation && (
                     <div className="space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <Sparkles className="w-3.5 h-3.5 text-primary" />
-                        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">AI Explanation</h4>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Sparkles className="w-3.5 h-3.5 text-primary" />
+                          <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">AI Explanation</h4>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const blob = new Blob([data.gemini_explanation], { type: 'text/plain' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'supplygraph-ai-explanation.txt';
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }}
+                          className="flex items-center space-x-1 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer bg-transparent border-none p-0"
+                          title="Download Explanation"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download</span>
+                        </button>
                       </div>
                       <div className="bg-primary/5 border border-primary/10 rounded-lg p-3 text-xs text-foreground/90 leading-relaxed shadow-inner">
                         <div dangerouslySetInnerHTML={{ __html: data.gemini_explanation.replace(/\n/g, '<br />') }} />
@@ -298,3 +316,4 @@ export default function Dashboard() {
     </div>
   );
 }
+
