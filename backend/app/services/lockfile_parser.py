@@ -38,6 +38,7 @@ class LockfileParser:
                     purl_obj = PURL(ecosystem=Ecosystem.NPM, name=name, version=version)
                     components.append(
                         SBOMComponent(
+                            bom_ref=str(purl_obj),
                             name=name,
                             version=version,
                             ecosystem=Ecosystem.NPM,
@@ -52,8 +53,9 @@ class LockfileParser:
                     if version:
                         purl_obj = PURL(ecosystem=Ecosystem.NPM, name=name, version=version)
                         components.append(
-                            SBOMComponent(
-                                name=name,
+                        SBOMComponent(
+                            bom_ref=str(purl_obj),
+                            name=name,
                                 version=version,
                                 ecosystem=Ecosystem.NPM,
                                 purl=str(purl_obj)
@@ -88,8 +90,9 @@ class LockfileParser:
             if name and version:
                 purl_obj = PURL(ecosystem=Ecosystem.PYPI, name=name, version=version)
                 components.append(
-                    SBOMComponent(
-                        name=name,
+                        SBOMComponent(
+                            bom_ref=str(purl_obj),
+                            name=name,
                         version=version,
                         ecosystem=Ecosystem.PYPI,
                         purl=str(purl_obj)
@@ -117,8 +120,9 @@ class LockfileParser:
                 version = parts[1].strip()
                 purl_obj = PURL(ecosystem=Ecosystem.PYPI, name=name, version=version)
                 components.append(
-                    SBOMComponent(
-                        name=name,
+                        SBOMComponent(
+                            bom_ref=str(purl_obj),
+                            name=name,
                         version=version,
                         ecosystem=Ecosystem.PYPI,
                         purl=str(purl_obj)
@@ -132,6 +136,7 @@ class LockfileParser:
                     purl_obj = PURL(ecosystem=Ecosystem.PYPI, name=name, version=version)
                     components.append(
                         SBOMComponent(
+                            bom_ref=str(purl_obj),
                             name=name,
                             version=version,
                             ecosystem=Ecosystem.PYPI,
@@ -140,3 +145,4 @@ class LockfileParser:
                     )
                     
         return components
+
