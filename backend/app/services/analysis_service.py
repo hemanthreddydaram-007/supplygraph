@@ -47,7 +47,7 @@ class AnalysisService:
         
         # 3. List files in root and detect lockfiles
         root_files = self.github_service.list_files(request.github_url, ref=request.branch)
-        supported_lockfiles = ["package-lock.json", "poetry.lock", "requirements.txt"]
+        supported_lockfiles = ["package-lock.json", "poetry.lock", "requirements.txt", "package.json"]
         found_lockfiles = [f for f in root_files if any(f.endswith(ext) for ext in supported_lockfiles)]
         
         scan_metadata.lockfile_detected = len(found_lockfiles) > 0

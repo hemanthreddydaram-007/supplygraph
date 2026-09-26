@@ -13,6 +13,9 @@ class LockfileParser:
             return self._parse_poetry_lock(content)
         elif filename.endswith("requirements.txt"):
             return self._parse_requirements_txt(content)
+        elif filename.endswith("package.json"):
+            return self._parse_package_json(content)
+            return self._parse_requirements_txt(content)
         else:
             raise ValueError(f"Unsupported lockfile format: {filename}")
 
@@ -146,3 +149,27 @@ class LockfileParser:
                     
         return components
 
+
+
+    def _parse_package_json(self, content: str) -> List[SBOMComponent]:
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            return []
+
+        components = []
+        deps = {**data.get('dependencies', {}), **data.get('devDependencies', {})}
+        for name, version_constraint in deps.items():
+            clean_version = re.sub(r'^[\^~>=<v]+', '', version_constraint).strip()
+            if clean_version:
+                purl_obj = PURL(ecosystem=Ecosystem.NPM, name=name, version=clean_version)
+                components.append(
+                    SBOMComponent(
+                        bom_ref=str(purl_obj),
+                        name=name,
+                        version=clean_version,
+                        ecosystem=Ecosystem.NPM,
+                        purl=str(purl_obj)
+                    )
+                )
+        return components
