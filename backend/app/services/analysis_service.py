@@ -91,12 +91,12 @@ class AnalysisService:
                     entity_type="Version",
                     title=f"Vulnerability in {purl_str}",
                     description=vuln.summary or vuln.details or "Known vulnerability",
-                    severity=vuln.severity if vuln.severity else Severity.HIGH,
+                    severity=vuln.severity if (vuln.severity and vuln.severity != Severity.UNKNOWN) else Severity.HIGH,
                     finding_type=FindingType.VULNERABLE,
                     origin_candidate=purl_str,
                     affected_assets=[],
-                    impact=None,
-                    confidence=None,
+                    impact=compute_blast_radius(package_count=1, service_count=1, api_count=0, production_deployment_count=0),
+                    confidence=compute_confidence([ConfidenceFactor(evidence_type="OSV_MATCH", source="osv", raw_weight=0.9, reliability=1.0)]),
                     evidence=[
                         EvidenceItem(
                             source=EvidenceSource.OSV,
@@ -109,10 +109,7 @@ class AnalysisService:
                     recommendations=[]
                 )
                 
-                factors = [ConfidenceFactor(evidence_type="OSV_MATCH", source="osv", raw_weight=0.9, reliability=1.0)]
-                conf_dict = compute_confidence(factors)
-                finding.confidence = conf_dict
-                finding.impact = compute_blast_radius(package_count=1, service_count=1, api_count=0, production_deployment_count=0)
+                
                 
                 findings.append(finding)
         
@@ -125,7 +122,9 @@ class AnalysisService:
         graph.scan_id = scan_id
         
         # 9. PathEngine.find_attack_paths()
-        attack_paths = self.path_engine.find_attack_paths(graph, findings, target_assets)
+        origin_ids = [str(f.entity_id) if f.entity_id else f.origin_candidate for f in findings if f.entity_id or f.origin_candidate]
+        target_ids = [str(a.id) for a in target_assets]
+        attack_paths = self.path_engine.find_attack_paths(graph, origin_ids, target_ids)
         for ap in attack_paths:
             ap.scan_id = scan_id
         
@@ -140,6 +139,7 @@ class AnalysisService:
         scan_metadata.total_vulnerabilities = len(all_vulnerabilities)
         scan_metadata.total_findings = len(findings)
         scan_metadata.total_attack_paths = len(attack_paths)
+        scan_metadata.blast_radius_score = min(100.0, sum(p.blast_radius.blast_radius_score for p in attack_paths) or 0.0)
         
         explanation = f"SupplyGraph analyzed {repo_name}. Detected {len(sbom.components)} components and {len(findings)} security findings."
         if len(findings) > 0:
@@ -160,3 +160,8 @@ class AnalysisService:
             gemini_available=True,
             is_demo=False
         )
+
+
+
+
+

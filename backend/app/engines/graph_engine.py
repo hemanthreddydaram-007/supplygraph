@@ -66,7 +66,7 @@ class GraphEngine:
                         vuln_node_id = vuln.osv_id
                         break
                         
-                target_node_id = str(finding.entity_id) if finding.entity_id else None
+                target_node_id = str(finding.entity_id) if finding.entity_id else finding.origin_candidate
                 
                 if vuln_node_id and target_node_id and G.has_node(vuln_node_id) and G.has_node(target_node_id):
                     G.add_edge(vuln_node_id, target_node_id, data=GraphEdgeData(
@@ -123,3 +123,4 @@ class GraphEngine:
             edges=edges,
             has_cycles=stats.get("has_cycles", False)
         )
+

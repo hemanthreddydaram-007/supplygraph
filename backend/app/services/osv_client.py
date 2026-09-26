@@ -1,4 +1,3 @@
-# SupplyGraph - OSV Intelligence Engine
 from app.models.core import VulnerabilityModel, PURL, Severity
 from app.core.config import get_settings
 from typing import List, Dict, Any, Optional
@@ -22,8 +21,28 @@ class OSVClient:
         if not components:
             return results
             
+        queries = []
+        for c in components:
+            # Map PURL ecosystems to exact OSV API schema ecosystems
+            eco_map = {
+                "npm": "npm",
+                "pypi": "PyPI",
+                "maven": "Maven",
+                "golang": "Go",
+                "cargo": "crates.io",
+                "nuget": "NuGet"
+            }
+            ecosystem_str = eco_map.get(c.ecosystem.value, c.ecosystem.value)
+            
+            q = {
+                "package": {"name": c.name, "ecosystem": ecosystem_str}
+            }
+            if c.version:
+                q["version"] = c.version
+            queries.append(q)
+            
         payload = {
-            "queries": [{"package": {"purl": c.canonical}} for c in components]
+            "queries": queries
         }
         
         async with httpx.AsyncClient() as client:
@@ -50,7 +69,8 @@ class OSVClient:
                             
                     if vuln_models:
                         results[purl_str] = vuln_models
-            except Exception:
+            except Exception as e:
+                print(f"OSV Client error: {e}")
                 pass
                 
         return results
