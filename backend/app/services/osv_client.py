@@ -34,8 +34,10 @@ class OSVClient:
             }
             ecosystem_str = eco_map.get(c.ecosystem.value, c.ecosystem.value)
             
+            package_name = f"{c.namespace}/{c.name}" if c.namespace else c.name
+            
             q = {
-                "package": {"name": c.name, "ecosystem": ecosystem_str}
+                "package": {"name": package_name, "ecosystem": ecosystem_str}
             }
             if c.version:
                 q["version"] = c.version
