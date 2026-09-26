@@ -217,11 +217,60 @@ export default function Dashboard() {
                         </div>
                         <button 
                           onClick={() => {
-                            const blob = new Blob([data.gemini_explanation || ''], { type: 'text/plain' });
+                            let downloadText = `--- SUPPLYGRAPH ANALYSIS REPORT ---
+
+`;
+                            downloadText += `AI EXPLANATION:
+${data.gemini_explanation || 'No explanation generated.'}
+
+`;
+                            downloadText += `--- DETERMINISTIC FINDINGS (${data.findings?.length || 0}) ---
+
+`;
+                            
+                            if (data.findings && data.findings.length > 0) {
+                              data.findings.forEach((f: any, idx: number) => {
+                                downloadText += `[FINDING ${idx + 1}] ${f.title}
+`;
+                                downloadText += `Severity: ${f.severity}
+`;
+                                downloadText += `Description: ${f.description}
+`;
+                                
+                                if (f.evidence && f.evidence.length > 0) {
+                                  downloadText += `
+Evidence:
+`;
+                                  f.evidence.forEach((ev: any) => {
+                                    downloadText += `  - [${ev.classification}] (${ev.source}) ${ev.description}
+`;
+                                  });
+                                }
+                                
+                                if (f.recommendations && f.recommendations.length > 0) {
+                                  downloadText += `
+Containment:
+`;
+                                  f.recommendations.forEach((rec: any) => {
+                                    downloadText += `  - [${rec.action_type}] ${rec.title}: ${rec.description}
+`;
+                                  });
+                                }
+                                downloadText += `
+----------------------------------------
+
+`;
+                              });
+                            } else {
+                              downloadText += `No security findings detected.
+`;
+                            }
+
+                            const blob = new Blob([downloadText], { type: 'text/plain' });
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement('a');
                             a.href = url;
-                            a.download = 'supplygraph-ai-explanation.txt';
+                            a.download = 'supplygraph-analysis-report.txt';
                             a.click();
                             URL.revokeObjectURL(url);
                           }}
