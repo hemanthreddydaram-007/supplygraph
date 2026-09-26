@@ -89,7 +89,7 @@ export default function Dashboard() {
       <div className="flex-1 flex overflow-hidden">
         
         {/* LEFT SIDEBAR: SCENARIO SELECTOR */}
-        <aside className="w-64 border-r border-border bg-card/50 flex flex-col shrink-0">
+        <aside className="w-64 border-r border-border bg-card/50 flex flex-col shrink-0 overflow-y-auto">
           <div className="p-4 border-b border-border">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Scenarios</h2>
             <div className="space-y-1">
