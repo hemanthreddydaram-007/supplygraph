@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { fetchDemoAnalysis } from "@/lib/api";
+import { fetchDemoAnalysis, fetchRepositoryAnalysis } from "@/lib/api";
 import { AnalysisResponse } from "@/types";
 import { GraphCanvas } from "@/components/graph/GraphCanvas";
 import { 
@@ -20,16 +20,39 @@ const SCENARIOS = [
 
 export default function Dashboard() {
   const [scenario, setScenario] = useState("A");
+  const [githubUrl, setGithubUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleAnalyze = async () => {
+  const handleAnalyzeDemo = async () => {
     setLoading(true);
     setError(null);
     setData(null);
     try {
       const result = await fetchDemoAnalysis(scenario);
+      setData(result);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAnalyzeRepo = async () => {
+    const trimmedUrl = githubUrl.trim();
+    if (!trimmedUrl) return;
+    
+    if (!/^https:\/\/github\.com\/[^\/]+\/[^\/]+/.test(trimmedUrl)) {
+      setError("Please enter a valid GitHub repository URL (e.g., https://github.com/user/repo)");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setData(null);
+    try {
+      const result = await fetchRepositoryAnalysis(trimmedUrl);
       setData(result);
     } catch (err: any) {
       setError(err.message);
@@ -92,14 +115,35 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
+          <div className="p-4 border-b border-border">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center"><PackageSearch className="w-3.5 h-3.5 mr-2" /> Analyze Repository</h2>
+            <div className="space-y-3">
+              <input 
+                type="text" 
+                placeholder="https://github.com/user/repo" 
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                className="w-full bg-background border border-border text-xs px-3 py-2 rounded-md focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+              />
+              <button
+                onClick={handleAnalyzeRepo}
+                disabled={loading || !githubUrl.trim()}
+                className="w-full flex items-center justify-center space-x-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border px-4 py-2 rounded-md font-medium text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading && githubUrl ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3 fill-current" />}
+                <span>{loading && githubUrl ? "Analyzing..." : "Analyze Repository"}</span>
+              </button>
+            </div>
+          </div>
+
           <div className="p-4 mt-auto">
             <button
-              onClick={handleAnalyze}
+              onClick={handleAnalyzeDemo}
               disabled={loading}
               className="w-full flex items-center justify-center space-x-2 bg-foreground text-background hover:bg-foreground/90 px-4 py-2 rounded-md font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,255,255,0.1)]"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-              <span>{loading ? "Analyzing..." : "Run Analysis"}</span>
+              {loading && !githubUrl ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+              <span>{loading && !githubUrl ? "Analyzing..." : "Run Demo"}</span>
             </button>
           </div>
         </aside>
@@ -112,7 +156,7 @@ export default function Dashboard() {
               <AlertCircle className="w-8 h-8 text-destructive mb-3" />
               <h2 className="text-sm font-semibold text-foreground mb-1">Analysis failed</h2>
               <p className="text-xs text-muted-foreground text-center mb-4">{error}</p>
-              <button onClick={handleAnalyze} className="text-xs font-medium bg-background border border-border px-3 py-1.5 rounded-md hover:bg-accent transition-colors">
+              <button onClick={githubUrl ? handleAnalyzeRepo : handleAnalyzeDemo} className="text-xs font-medium bg-background border border-border px-3 py-1.5 rounded-md hover:bg-accent transition-colors">
                 Retry
               </button>
             </div>

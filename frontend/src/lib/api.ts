@@ -17,3 +17,24 @@ export async function fetchDemoAnalysis(scenarioId: string): Promise<AnalysisRes
 
   return response.json();
 }
+
+export async function fetchRepositoryAnalysis(githubUrl: string): Promise<AnalysisResponse> {
+  const response = await fetch(`${API_BASE}/api/v1/analyze`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ github_url: githubUrl }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = response.statusText;
+    try {
+        const errorBody = await response.json();
+        if (errorBody.detail) errorDetail = errorBody.detail;
+    } catch (e) {}
+    throw new Error(`API error: ${errorDetail}`);
+  }
+
+  return response.json();
+}

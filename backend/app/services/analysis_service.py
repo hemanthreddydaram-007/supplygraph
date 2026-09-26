@@ -1,5 +1,9 @@
 # SupplyGraph - Analysis Service
-from app.models.core import AnalysisRequest, AnalysisResponse, ScanMetadata, ScanStatus, FindingModel, FindingType, Severity, EvidenceItem, EvidenceClassification, EvidenceSource, PURL, AssetModel
+from app.models.core import (
+    AnalysisRequest, AnalysisResponse, ScanMetadata, ScanStatus, 
+    FindingModel, FindingType, Severity, EvidenceItem, EvidenceClassification, 
+    EvidenceSource, PURL, AssetModel, RepositoryModel
+)
 from app.engines.confidence import compute_confidence, ConfidenceFactor, compute_blast_radius
 from app.services.github_service import GitHubService
 from app.services.lockfile_parser import LockfileParser
@@ -25,80 +29,134 @@ class AnalysisService:
         # 1. Init ScanMetadata
         scan_id = str(uuid.uuid4())
         scan_metadata = ScanMetadata(
-            scan_id=scan_id,
-            timestamp=datetime.datetime.utcnow(),
-            status=ScanStatus.IN_PROGRESS
+            id=scan_id,
+            repository_url=request.github_url,
+            started_at=datetime.datetime.utcnow(),
+            status=ScanStatus.RUNNING,
+            scan_type="full"
         )
         
-        # 2. GitHubService.get_repo_metadata()
-        repo_metadata = await self.github_service.get_repo_metadata(request.repository_url, request.branch)
+        repo_name = self.github_service._extract_repo_name(request.github_url)
+        repo_owner, repo_repo = repo_name.split('/') if '/' in repo_name else ("unknown", repo_name)
         
-        # 3. Fetch lockfiles via GitHubService.get_file_content()
-        lockfile_contents = {}
-        for lockfile in request.lockfiles:
-            content = await self.github_service.get_file_content(request.repository_url, lockfile, request.branch)
-            if content:
-                lockfile_contents[lockfile] = content
-                
-        # 4. LockfileParser.parse_lockfile() & 5. SBOMEngine.build_sbom()
+        repo_model = RepositoryModel(
+            github_url=request.github_url,
+            owner=repo_owner,
+            name=repo_repo
+        )
+        
+        # 3. List files in root and detect lockfiles
+        root_files = self.github_service.list_files(request.github_url, ref=request.branch)
+        supported_lockfiles = ["package-lock.json", "poetry.lock", "requirements.txt"]
+        found_lockfiles = [f for f in root_files if any(f.endswith(ext) for ext in supported_lockfiles)]
+        
+        scan_metadata.lockfile_detected = len(found_lockfiles) > 0
+        scan_metadata.lockfile_types = found_lockfiles
+        
+        # 4. Fetch lockfiles via GitHubService.get_file_content()
         all_components = []
-        for lockfile, content in lockfile_contents.items():
-            components = self.lockfile_parser.parse_lockfile(content, lockfile)
-            all_components.extend(components)
-            
-        sbom = self.sbom_engine.build_sbom(all_components, repo_metadata)
+        for lockfile in found_lockfiles:
+            content = self.github_service.get_file_content(request.github_url, lockfile, request.branch)
+            if content:
+                components = self.lockfile_parser.parse_lockfile(content, lockfile)
+                all_components.extend(components)
+                
+        # 5. SBOMEngine.build_sbom()
+        sbom = self.sbom_engine.build_sbom(all_components, repo_name)
+        scan_metadata.sbom_generated = True
         
         # 6. OSVClient.query_batch()
-        vulnerabilities = await self.osv_client.query_batch(all_components)
+        purls = []
+        for comp in sbom.components:
+            try:
+                purls.append(PURL.from_string(comp.purl))
+            except:
+                pass
+        
+        vulnerability_dict = await self.osv_client.query_batch(purls)
+        scan_metadata.osv_queried = True
         
         # 7. Generate FindingModels from vulnerabilities
         findings = []
-        for vuln in vulnerabilities:
-            # Assuming vuln can be accessed as dict or has similar attributes, fallback to defaults
-            vuln_dict = vuln if isinstance(vuln, dict) else vuln.__dict__
-            finding_id = str(uuid.uuid4())
-            finding = FindingModel(
-                id=finding_id,
-                title=vuln_dict.get("summary", "Vulnerability Found"),
-                description=vuln_dict.get("details", "Details not available."),
-                severity=Severity.HIGH, 
-                type=FindingType.VULNERABLE,
-                component_id=vuln_dict.get("package_name", "unknown_component"),
-                evidence=[],
-                confidence_score=0.0,
-                blast_radius=0
-            )
-            findings.append(finding)
-            
-        # Compute confidence and blast radius
-        for finding in findings:
-            factors = [ConfidenceFactor(type="OSV_MATCH", score=0.9, description="Matched OSV vulnerability database")]
-            finding.confidence_score = compute_confidence(factors)
-            finding.blast_radius = compute_blast_radius(finding.component_id, sbom.dependencies)
+        all_vulnerabilities = []
+        
+        for purl_str, vulns in vulnerability_dict.items():
+            for vuln in vulns:
+                all_vulnerabilities.append(vuln)
+                finding_id = str(uuid.uuid4())
+                finding = FindingModel(
+                    id=finding_id,
+                    scan_id=scan_id,
+                    entity_id=None,
+                    entity_type="Version",
+                    title=f"Vulnerability in {purl_str}",
+                    description=vuln.summary or vuln.details or "Known vulnerability",
+                    severity=vuln.severity if vuln.severity else Severity.HIGH,
+                    finding_type=FindingType.VULNERABLE,
+                    origin_candidate=purl_str,
+                    affected_assets=[],
+                    impact=None,
+                    confidence=None,
+                    evidence=[
+                        EvidenceItem(
+                            source=EvidenceSource.OSV,
+                            evidence_type="VULNERABILITY",
+                            classification=EvidenceClassification.FACT,
+                            description=f"Matched OSV advisory {vuln.osv_id}",
+                            confidence_contribution=0.9
+                        )
+                    ],
+                    recommendations=[]
+                )
+                
+                factors = [ConfidenceFactor(evidence_type="OSV_MATCH", source="osv", raw_weight=0.9, reliability=1.0)]
+                conf_dict = compute_confidence(factors)
+                finding.confidence = conf_dict
+                finding.impact = compute_blast_radius(package_count=1, service_count=1, api_count=0, production_deployment_count=0)
+                
+                findings.append(finding)
+        
+        target_assets = [
+            AssetModel(name="GitHub Repository", asset_type="repository", criticality="medium", is_production=False, scan_id=scan_id)
+        ]
         
         # 8. GraphEngine.build_graph()
-        graph = self.graph_engine.build_graph(sbom, findings)
+        graph = self.graph_engine.build_graph(repo_model, sbom, all_vulnerabilities, findings, target_assets)
+        graph.scan_id = scan_id
         
-        # 9. PathEngine.find_attack_paths() (mock targets if no assets)
-        target_assets = []
-        if not target_assets:
-            target_assets = [AssetModel(id="mock-asset-1", name="Production Database", type="database", criticality="high")]
-            
+        # 9. PathEngine.find_attack_paths()
         attack_paths = self.path_engine.find_attack_paths(graph, findings, target_assets)
+        for ap in attack_paths:
+            ap.scan_id = scan_id
         
         # 10. ContainmentEngine.generate_recommendations()
-        recommendations = []
         for finding in findings:
-            finding_recs = self.containment_engine.generate_recommendations(finding)
-            recommendations.extend(finding_recs)
+            recs = self.containment_engine.generate_recommendations(finding)
+            finding.recommendations.extend(recs)
             
         scan_metadata.status = ScanStatus.COMPLETED
+        scan_metadata.completed_at = datetime.datetime.utcnow()
+        scan_metadata.total_components = len(sbom.components)
+        scan_metadata.total_vulnerabilities = len(all_vulnerabilities)
+        scan_metadata.total_findings = len(findings)
+        scan_metadata.total_attack_paths = len(attack_paths)
         
+        explanation = f"SupplyGraph analyzed {repo_name}. Detected {len(sbom.components)} components and {len(findings)} security findings."
+        if len(findings) > 0:
+            explanation += "\n\nPlease review the attack paths and containment recommendations."
+        else:
+            explanation += "\n\nNo suspicious findings detected by the configured analyzers."
+            
         return AnalysisResponse(
-            scan_metadata=scan_metadata,
+            scan=scan_metadata,
             sbom=sbom,
+            components=sbom.components,
+            vulnerabilities=all_vulnerabilities,
             findings=findings,
             attack_paths=attack_paths,
-            recommendations=recommendations,
-            graph=graph
+            assets=target_assets,
+            graph=graph,
+            gemini_explanation=explanation,
+            gemini_available=True,
+            is_demo=False
         )
