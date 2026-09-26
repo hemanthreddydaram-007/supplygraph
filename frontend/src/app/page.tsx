@@ -217,7 +217,7 @@ export default function Dashboard() {
                         </div>
                         <button 
                           onClick={() => {
-                            const blob = new Blob([data.gemini_explanation], { type: 'text/plain' });
+                            const blob = new Blob([data.gemini_explanation || ''], { type: 'text/plain' });
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement('a');
                             a.href = url;
