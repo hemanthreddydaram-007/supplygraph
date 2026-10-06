@@ -5,7 +5,6 @@ import {
   ReactFlow, 
   Controls, 
   Background, 
-  MiniMap,
   MarkerType,
   Edge,
   Node,
@@ -19,54 +18,59 @@ interface GraphCanvasProps {
 }
 
 export function GraphCanvas({ graph }: GraphCanvasProps) {
-  // Map our generic nodes to React Flow nodes
   const initialNodes: Node[] = useMemo(() => {
     return graph.nodes.map(n => ({
       id: n.id,
       position: { x: n.position.x, y: n.position.y },
       data: n.data as any,
-      type: "default", // We use default and map it to BaseNode in nodeTypes
+      type: "default",
     }));
   }, [graph.nodes]);
 
-  // Map our generic edges to React Flow edges
   const initialEdges: Edge[] = useMemo(() => {
-    return graph.edges.map(e => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      animated: e.animated || e.data.is_attack_path,
-      label: e.data.label,
-      style: { 
-        stroke: e.data.is_attack_path ? "#ef4444" : "#3f3f46", 
-        strokeWidth: e.data.is_attack_path ? 2 : 1 
-      },
-      labelStyle: { fill: "#a1a1aa", fontSize: 10, fontWeight: 500 },
-      labelBgStyle: { fill: "transparent" },
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        width: 15,
-        height: 15,
-        color: e.data.is_attack_path ? "#ef4444" : "#3f3f46",
-      },
-    }));
+    return graph.edges.map(e => {
+      const isAttack = Boolean(e.data?.is_attack_path);
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        animated: isAttack || Boolean(e.animated),
+        label: e.data?.label,
+        style: { 
+          stroke: isAttack ? "#ef4444" : "#27272a", 
+          strokeWidth: isAttack ? 2.5 : 1.2,
+          filter: isAttack ? "drop-shadow(0 0 6px rgba(239, 68, 68, 0.6))" : "none"
+        },
+        labelStyle: { fill: isAttack ? "#fca5a5" : "#71717a", fontSize: 9, fontFamily: "monospace" },
+        labelBgStyle: { fill: "#09090b", fillOpacity: 0.8 },
+        labelBgPadding: [4, 2],
+        labelBgBorderRadius: 4,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 14,
+          height: 14,
+          color: isAttack ? "#ef4444" : "#3f3f46",
+        },
+      };
+    });
   }, [graph.edges]);
 
   return (
-    <ReactFlow
-      nodes={initialNodes}
-      edges={initialEdges}
-      nodeTypes={nodeTypes}
-      fitView
-      fitViewOptions={{ padding: 0.2 }}
-      className="bg-[#0a0a0a]"
-      colorMode="dark"
-    >
-      <Background color="#27272a" gap={20} size={1} />
-      <Controls 
-        className="bg-card border border-border fill-muted-foreground shadow-lg rounded-md overflow-hidden" 
-        showInteractive={false}
-      />
-    </ReactFlow>
+    <div className="w-full h-full bg-[#09090b]">
+      <ReactFlow
+        nodes={initialNodes}
+        edges={initialEdges}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+        colorMode="dark"
+      >
+        <Background color="#18181b" gap={24} size={1} />
+        <Controls 
+          className="!bg-zinc-950/90 !border !border-zinc-800 !fill-zinc-400 !shadow-2xl !rounded-lg overflow-hidden" 
+          showInteractive={false}
+        />
+      </ReactFlow>
+    </div>
   );
 }

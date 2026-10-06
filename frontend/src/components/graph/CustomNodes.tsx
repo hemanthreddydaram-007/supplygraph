@@ -3,42 +3,105 @@
 import React from "react";
 import { Handle, Position, NodeProps, Node } from "@xyflow/react";
 import { GraphNodeData } from "@/types";
-import { Box, Server, Database, Globe, Cloud, AlertTriangle, GitCommit } from "lucide-react";
+import { 
+  Box, 
+  Server, 
+  Database, 
+  Globe, 
+  Cloud, 
+  AlertTriangle, 
+  GitCommit, 
+  ShieldAlert, 
+  Bug 
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Linear-inspired dark node styling
 const getNodeConfig = (type: string, isSuspicious: boolean, isAffected: boolean) => {
-  let config = { icon: Box, color: "text-muted-foreground", border: "border-border/50", bg: "bg-background/80" };
+  let config = { 
+    icon: Box, 
+    color: "text-zinc-400", 
+    border: "border-zinc-800", 
+    bg: "bg-zinc-950/90",
+    badgeBg: "bg-zinc-900 border-zinc-800 text-zinc-400"
+  };
 
   switch (type) {
     case "Repository":
-      config = { icon: Globe, color: "text-indigo-400", border: "border-indigo-500/30", bg: "bg-indigo-950/20" };
+      config = { 
+        icon: Globe, 
+        color: "text-indigo-400", 
+        border: "border-indigo-500/40 shadow-[0_0_20px_rgba(99,102,241,0.15)]", 
+        bg: "bg-indigo-950/30",
+        badgeBg: "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
+      };
       break;
     case "Version":
     case "Package":
-      config = { icon: Box, color: "text-sky-400", border: "border-sky-500/30", bg: "bg-sky-950/20" };
+      config = { 
+        icon: Box, 
+        color: "text-sky-400", 
+        border: "border-sky-500/30", 
+        bg: "bg-zinc-950/90",
+        badgeBg: "bg-sky-950/40 border-sky-500/30 text-sky-300"
+      };
+      break;
+    case "Vulnerability":
+      config = { 
+        icon: Bug, 
+        color: "text-red-400", 
+        border: "border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.25)]", 
+        bg: "bg-red-950/20",
+        badgeBg: "bg-red-500/10 border-red-500/30 text-red-400"
+      };
       break;
     case "Service":
-      config = { icon: Server, color: "text-orange-400", border: "border-orange-500/30", bg: "bg-orange-950/20" };
+      config = { 
+        icon: Server, 
+        color: "text-amber-400", 
+        border: "border-amber-500/30", 
+        bg: "bg-amber-950/20",
+        badgeBg: "bg-amber-500/10 border-amber-500/30 text-amber-300"
+      };
       break;
     case "API":
-      config = { icon: Cloud, color: "text-amber-400", border: "border-amber-500/30", bg: "bg-amber-950/20" };
+      config = { 
+        icon: Cloud, 
+        color: "text-cyan-400", 
+        border: "border-cyan-500/30", 
+        bg: "bg-cyan-950/20",
+        badgeBg: "bg-cyan-500/10 border-cyan-500/30 text-cyan-300"
+      };
       break;
     case "Deployment":
-      config = { icon: Database, color: "text-rose-400", border: "border-rose-500/30", bg: "bg-rose-950/20" };
+      config = { 
+        icon: Database, 
+        color: "text-rose-400", 
+        border: "border-rose-500/30", 
+        bg: "bg-rose-950/20",
+        badgeBg: "bg-rose-500/10 border-rose-500/30 text-rose-300"
+      };
       break;
     case "Pipeline":
-      config = { icon: GitCommit, color: "text-emerald-400", border: "border-emerald-500/30", bg: "bg-emerald-950/20" };
+      config = { 
+        icon: GitCommit, 
+        color: "text-emerald-400", 
+        border: "border-emerald-500/30", 
+        bg: "bg-emerald-950/20",
+        badgeBg: "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+      };
       break;
   }
 
   if (isSuspicious) {
-    config.border = "border-destructive shadow-[0_0_15px_rgba(220,38,38,0.3)]";
-    config.bg = "bg-destructive/10";
-    config.color = "text-destructive";
+    config.border = "border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.35)]";
+    config.bg = "bg-red-950/30";
+    config.color = "text-red-400";
+    config.badgeBg = "bg-red-500/20 border-red-500/50 text-red-300";
   } else if (isAffected) {
-    config.border = "border-orange-500/50 shadow-[0_0_10px_rgba(249,115,22,0.15)]";
-    config.bg = "bg-orange-500/10";
+    config.border = "border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.2)]";
+    config.bg = "bg-amber-950/20";
+    config.color = "text-amber-400";
+    config.badgeBg = "bg-amber-500/20 border-amber-500/40 text-amber-300";
   }
 
   return config;
@@ -54,7 +117,7 @@ export const BaseNode = ({ data, isConnectable }: NodeProps<Node<GraphNodeData>>
   return (
     <div
       className={cn(
-        "px-3 py-2 rounded-md border min-w-[180px] backdrop-blur-sm font-sans transition-colors duration-200",
+        "group relative px-3 py-2.5 rounded-lg border min-w-[190px] max-w-[260px] shadow-sm backdrop-blur-md transition-all duration-200 hover:border-zinc-500",
         config.bg,
         config.border
       )}
@@ -63,29 +126,40 @@ export const BaseNode = ({ data, isConnectable }: NodeProps<Node<GraphNodeData>>
         type="target"
         position={Position.Left}
         isConnectable={isConnectable}
-        className="w-2 h-2 bg-muted-foreground/50 border-0"
+        className="w-2 h-2 bg-zinc-600 border border-zinc-900 rounded-full"
       />
       
-      <div className="flex items-center space-x-3">
-        <div className={cn("p-1.5 rounded flex items-center justify-center bg-background/50 border border-border/50", config.color)}>
-          <Icon size={14} />
+      <div className="flex items-center space-x-2.5">
+        <div className={cn("p-1.5 rounded-md flex items-center justify-center border", config.badgeBg)}>
+          <Icon size={14} className={config.color} />
         </div>
-        <div className="flex flex-col">
-          <span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/80">
-            {data.node_type}
-          </span>
-          <span className="text-xs font-medium text-foreground tracking-tight mt-0.5">
+        
+        <div className="flex flex-col min-w-0 flex-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-400">
+              {data.node_type}
+            </span>
+            {isSuspicious && (
+              <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[8px] font-semibold bg-red-500/20 text-red-400 border border-red-500/30">
+                THREAT
+              </span>
+            )}
+          </div>
+          <span className="text-xs font-semibold text-zinc-100 truncate mt-0.5" title={data.label}>
             {data.label}
           </span>
         </div>
       </div>
 
       {(isSuspicious || (data.finding_count || 0) > 0) && (
-        <div className="mt-2 flex items-center space-x-1.5 pt-2 border-t border-border/50">
-          <AlertTriangle size={10} className="text-destructive" />
-          <span className="text-[10px] font-semibold text-destructive uppercase tracking-wider">
-            {data.finding_count || 0} Finding{(data.finding_count || 0) !== 1 ? 's' : ''}
-          </span>
+        <div className="mt-2.5 flex items-center justify-between pt-2 border-t border-zinc-800/80">
+          <div className="flex items-center space-x-1.5">
+            <ShieldAlert size={12} className="text-red-400" />
+            <span className="text-[10px] font-medium text-red-400">
+              {data.finding_count || 0} Finding{(data.finding_count || 0) !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <span className="text-[9px] font-mono text-zinc-500">REACHABLE</span>
         </div>
       )}
 
@@ -93,7 +167,7 @@ export const BaseNode = ({ data, isConnectable }: NodeProps<Node<GraphNodeData>>
         type="source"
         position={Position.Right}
         isConnectable={isConnectable}
-        className="w-2 h-2 bg-muted-foreground/50 border-0"
+        className="w-2 h-2 bg-zinc-600 border border-zinc-900 rounded-full"
       />
     </div>
   );
@@ -105,5 +179,6 @@ export const nodeTypes = {
   serviceNode: BaseNode,
   apiNode: BaseNode,
   deploymentNode: BaseNode,
+  vulnerabilityNode: BaseNode,
   default: BaseNode,
 };
