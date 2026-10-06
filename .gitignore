@@ -144,3 +144,17 @@ temp/
 *.tmp
 *.bak
 *.orig
+
+.env
+backend/.env
+
+*.pptx
+check_*.py
+fix_*.py
+inspect_*.py
+update_*.py
+fit_text.py
+remove_watermark.py
+scratch/
+backend/debug_*.py
+backend/test_*.py
