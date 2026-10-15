@@ -605,6 +605,40 @@ class DemoRequest(BaseModel):
     include_gemini_explanation: bool = True
 
 
+# ============================================================
+# CODE REVIEWER & FOLDER UPLOAD MODELS
+# ============================================================
+
+class CodeReviewItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    file_path: str
+    line_number: int
+    severity: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"] = "MEDIUM"
+    category: Literal["Security Vulnerability", "Bug / Logic Error", "Code Quality / Best Practice"] = "Security Vulnerability"
+    title: str
+    error_explanation: str
+    buggy_code: str
+    corrected_code: str
+
+
+class UploadedFile(BaseModel):
+    path: str
+    content: str
+
+
+class FolderAnalysisRequest(BaseModel):
+    project_name: str = "Uploaded Project"
+    files: List[UploadedFile] = Field(default_factory=list)
+    enable_code_review: bool = True
+
+
+class CodeReviewRequest(BaseModel):
+    code: str
+    language: str = "python"
+    file_path: Optional[str] = "snippet.py"
+
+
 class AnalysisResponse(BaseModel):
     """Complete analysis response including graph, findings, paths."""
     api_version: str = "v1"
@@ -621,6 +655,7 @@ class AnalysisResponse(BaseModel):
     is_demo: bool = False
     demo_label: Optional[str] = None
     detector_breakdown: Optional[Dict[str, Any]] = None
+    code_reviews: List[CodeReviewItem] = Field(default_factory=list)
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
 

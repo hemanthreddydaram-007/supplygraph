@@ -30,10 +30,54 @@ export async function fetchRepositoryAnalysis(githubUrl: string): Promise<Analys
   if (!response.ok) {
     let errorDetail = response.statusText;
     try {
-        const errorBody = await response.json();
-        if (errorBody.detail) errorDetail = errorBody.detail;
+      const errorBody = await response.json();
+      if (errorBody.detail) errorDetail = errorBody.detail;
     } catch (e) {}
     throw new Error(`API error: ${errorDetail}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchFolderAnalysis(
+  projectName: string,
+  files: { path: string; content: string }[]
+): Promise<AnalysisResponse> {
+  const response = await fetch(`${API_BASE}/api/v1/analyze/folder`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ project_name: projectName, files, enable_code_review: true }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = response.statusText;
+    try {
+      const errorBody = await response.json();
+      if (errorBody.detail) errorDetail = errorBody.detail;
+    } catch (e) {}
+    throw new Error(`API error: ${errorDetail}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchCodeReviewSnippet(
+  code: string,
+  language: string,
+  filePath?: string
+): Promise<{ reviews: any[]; count: number }> {
+  const response = await fetch(`${API_BASE}/api/v1/review/code`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ code, language, file_path: filePath }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Review error: ${response.statusText}`);
   }
 
   return response.json();

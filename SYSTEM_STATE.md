@@ -1,16 +1,42 @@
 # SUPPLYGRAPH — SYSTEM STATE
 
 **Last Updated:** 2026-10-15  
-**Current Milestone:** SUPPLYGRAPH v2.0 UPGRADE COMPLETE 🚀  
+**Current Milestone:** SUPPLYGRAPH v3.0 — AUTH, OVERVIEW DASHBOARD, FOLDER UPLOAD & AI CODE REVIEWER 🚀  
 **Target Event:** YUKTHI 2026 (Mohan Babu University) — Blockchain & Cybersecurity  
-**API Version:** v2.0  
-**Schema Version:** 2.0.0  
-**Graph Model Version:** v2.0  
-**Analysis Engine Version:** v2.0  
-**Test Suite Status:** 91 Passed, 0 Failures  
-**Frontend Build Status:** Next.js 14 Production Build Clean (0 errors)  
+**API Version:** v3.0  
+**Schema Version:** 3.0.0  
+**Graph Model Version:** v3.0  
+**Analysis Engine Version:** v3.0  
+**Test Suite Status:** 100 Passed, 0 Failures (100% passing)  
+**Frontend Build Status:** Next.js 14 Production Build Clean (0 errors, 5/5 static pages)  
 
 ---
+
+## v3.0 UPGRADE HIGHLIGHTS 🌟
+
+### 1. Stage 1: Split-Screen Authentication & Evaluator Fast-Pass
+- **Live Cyber Telemetry:** Left branding panel with animated attack-graph badge and ASPM status.
+- **Multi-Provider Auth:** Email/password credentials, Google Cloud OAuth, and GitHub Developer OAuth.
+- **YUKTHI 2026 Judge Fast-Pass:** One-click instant evaluator login bypassing credential typing for hackathon judging.
+
+### 2. Stage 2: Product Overview Dashboard
+- **Top Navigation Bar:** Persistent logo, ASPM v3 badge, view tabs (`Overview` | `Scanner & Graph` | `Code Reviewer`), user badge, and glowing `🚀 Get Started →` CTA.
+- **Hero Banner:** Explains zero-trust software supply-chain graph theory and AI code remediation.
+- **4-Step Architecture Pipeline:** Dual Ingestion → 5-Layer Threat Detection → Reverse DAG Reachability → Auto-Fixer & Polygon Attestation.
+- **Enterprise ASPM Features Grid:** 6 cards with live capability descriptions.
+- **Competitor Comparison Matrix Table:** Direct feature-by-feature comparison against traditional CVE scanners (Dependabot, npm audit) and static SAST tools (SonarQube, Snyk).
+
+### 3. Stage 3: Dual-Mode Scanner Workspace & Local Folder Upload
+- **Mode 1 (GitHub URL):** Live URL scanning with Scenario A–E simulation pills.
+- **Mode 2 (Local Folder Upload):** Browser `webkitdirectory` integration to upload, parse, and analyze local projects offline without git pushes.
+- **Full Engine Pipeline:** Runs lockfile parser, OSV batch intel, Typosquatting, Dependency Confusion, AST static checks, CI/CD workflow auditing, Reverse DAG attack graph, and Polygon blockchain attestation.
+
+### 4. Stage 4: AI Code Reviewer Engine & Auto-Patcher
+- **Hybrid Inspection:** Evaluates Python (`.py`), JavaScript/TypeScript (`.js`, `.ts`, `.tsx`), React JSX, and CI/CD workflows (`.yml`).
+- **Detected Rules:** Syntax errors, mutable default arguments, bare `except:`, SQL injection string formatting, hardcoded secrets/API keys, unsafe `eval()`/`exec()`, `subprocess(shell=True)`, weak hashes (`md5`/`sha1`), `dangerouslySetInnerHTML`, loose equality (`==`), unpinned GitHub actions, and excessive permissions (`write-all`).
+- **CodeReviewItem Format:** Precise file path, line number, severity, category, problem explanation, ❌ buggy code snippet, and ✅ production-ready corrected replacement code.
+- **One-Click Remediation:** Copy corrected code and download patched file snippets.
+- **Ad-Hoc Snippet Tester:** Live tester box in the reviewer tab for on-the-spot code evaluation.
 
 ## v2.0 UPGRADE HIGHLIGHTS ✅
 

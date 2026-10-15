@@ -95,6 +95,18 @@ export interface DetectorBreakdown {
   model_provider?: string;
 }
 
+export interface CodeReviewItem {
+  id: string;
+  file_path: string;
+  line_number: number;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  category: "Security Vulnerability" | "Bug / Logic Error" | "Code Quality / Best Practice";
+  title: string;
+  error_explanation: string;
+  buggy_code: string;
+  corrected_code: string;
+}
+
 export interface AnalysisResponse {
   api_version: string;
   scan: any;
@@ -109,4 +121,5 @@ export interface AnalysisResponse {
   gemini_explanation?: string;
   gemini_available?: boolean;
   detector_breakdown?: DetectorBreakdown;
+  code_reviews?: CodeReviewItem[];
 }
