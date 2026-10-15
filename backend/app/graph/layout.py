@@ -27,6 +27,8 @@ def compute_layout(
     h_spacing: float = 380.0,
     v_spacing: float = 125.0,
     threat_node_ids: Optional[Set[str]] = None,
+    max_per_column: int = 8,
+    sub_col_spacing: float = 320.0,
 ) -> Dict[str, Dict[str, float]]:
     """
     Compute server-side node positions for a security graph.
@@ -37,6 +39,8 @@ def compute_layout(
         v_spacing: Vertical spacing between siblings in same layer (pixels). Default 125.
         threat_node_ids: Set of node IDs that are vulnerable/suspicious.
                          These are sorted to the top of their layer.
+        max_per_column: Maximum nodes per vertical column before wrapping (default 8).
+        sub_col_spacing: Spacing between wrapped sub-columns within the same layer (pixels, default 320).
 
     Returns:
         Dictionary mapping node_id -> {"x": float, "y": float}
@@ -54,6 +58,8 @@ def compute_layout(
     else:
         layers = _bfs_layering(graph)
 
+    current_x = 0.0
+
     for layer_index, layer_nodes in enumerate(layers):
         node_strs = [str(n) for n in layer_nodes]
         # Sort: threat nodes first (alphabetically among themselves),
@@ -63,13 +69,23 @@ def compute_layout(
         sorted_nodes = threat_in_layer + safe_in_layer
 
         layer_size = len(sorted_nodes)
-        total_height = (layer_size - 1) * v_spacing
+        if layer_size == 0:
+            continue
+
+        num_sub_cols = max(1, (layer_size + max_per_column - 1) // max_per_column)
+        max_rows_in_layer = min(max_per_column, layer_size)
+        total_height = (max_rows_in_layer - 1) * v_spacing
         start_y = -total_height / 2.0
 
-        for sibling_index, node_id in enumerate(sorted_nodes):
-            x = layer_index * h_spacing
-            y = start_y + sibling_index * v_spacing
+        for index, node_id in enumerate(sorted_nodes):
+            sub_col = index // max_per_column
+            row = index % max_per_column
+            x = current_x + sub_col * sub_col_spacing
+            y = start_y + row * v_spacing
             positions[node_id] = {"x": round(x, 2), "y": round(y, 2)}
+
+        # Advance current_x for the next layer
+        current_x += h_spacing + (num_sub_cols - 1) * sub_col_spacing
 
     return positions
 

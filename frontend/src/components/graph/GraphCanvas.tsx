@@ -37,39 +37,132 @@ function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps)
     setFilter(defaultFilter);
   }, [graph.scan_id, defaultFilter]);
 
-  // Identify attack-path and threat nodes
+  // Identify attack-path and threat nodes with bi-directional reachability
   const threatNodeIds = useMemo(() => {
-    const ids = new Set<string>();
-    // Mark nodes that are on attack paths, suspicious, or vulnerable
+    const directThreats = new Set<string>();
+
+    // 1. Identify all Vulnerability / finding nodes and any node marked as compromised
+    graph.nodes.forEach(n => {
+      const type = n.data?.node_type;
+      if (
+        type === "Vulnerability" ||
+        type === "Finding" ||
+        n.data?.is_suspicious ||
+        n.data?.is_origin_candidate ||
+        n.data?.is_affected ||
+        (n.data?.vulnerability_count && n.data?.vulnerability_count > 0) ||
+        (n.data?.finding_count && n.data?.finding_count > 0)
+      ) {
+        directThreats.add(n.id);
+      }
+    });
+
+    // Also any edge explicitly marked as attack path
     graph.edges.forEach(e => {
       if (e.data?.is_attack_path) {
-        ids.add(e.source);
-        ids.add(e.target);
+        directThreats.add(e.source);
+        directThreats.add(e.target);
       }
     });
+
+    if (directThreats.size === 0) {
+      // If no threats identified, include all nodes
+      return new Set(graph.nodes.map(n => n.id));
+    }
+
+    // 2. Build bi-directional adjacency map
+    const neighbors = new Map<string, Set<string>>();
+    graph.edges.forEach(e => {
+      if (!neighbors.has(e.source)) neighbors.set(e.source, new Set());
+      if (!neighbors.has(e.target)) neighbors.set(e.target, new Set());
+      neighbors.get(e.source)!.add(e.target);
+      neighbors.get(e.target)!.add(e.source);
+    });
+
+    // 3. Traverse in BOTH directions (1 to 3 hops) to keep parents, intermediate packages, assets, and repo
+    const kept = new Set<string>(directThreats);
+    let frontier = Array.from(directThreats);
+
+    for (let hop = 0; hop < 3; hop++) {
+      const nextFrontier: string[] = [];
+      frontier.forEach(curr => {
+        const adjacent = neighbors.get(curr);
+        if (adjacent) {
+          adjacent.forEach(nbr => {
+            if (!kept.has(nbr)) {
+              kept.add(nbr);
+              nextFrontier.push(nbr);
+            }
+          });
+        }
+      });
+      frontier = nextFrontier;
+      if (frontier.length === 0) break;
+    }
+
+    // Always keep root Repository node
     graph.nodes.forEach(n => {
-      if (n.data?.is_suspicious || n.data?.is_origin_candidate || n.data?.is_affected ||
-          (n.data?.vulnerability_count && n.data?.vulnerability_count > 0) ||
-          (n.data?.finding_count && n.data?.finding_count > 0) ||
-          n.data?.node_type === "Repository" || n.data?.node_type === "Vulnerability") {
-        ids.add(n.id);
+      if (
+        n.data?.node_type === "Repository" ||
+        n.type === "repositoryNode" ||
+        n.id.startsWith("repo-")
+      ) {
+        kept.add(n.id);
       }
     });
-    return ids;
+
+    return kept;
   }, [graph]);
 
+  // Compute layout positions with multi-column grid wrapping (max 8 per column)
   const visibleNodes: Node[] = useMemo(() => {
-    const nodeList = graph.nodes.map(n => ({
-      id: n.id,
-      position: { x: n.position.x, y: n.position.y },
-      data: n.data as any,
-      type: "default",
-    }));
+    const rawNodes = filter === "all"
+      ? graph.nodes
+      : graph.nodes.filter(n => threatNodeIds.has(n.id));
 
-    if (filter === "all") return nodeList;
+    // Group nodes by X coordinate to detect columns with > 8 nodes
+    const colGroups = new Map<number, typeof rawNodes>();
+    rawNodes.forEach(n => {
+      const xKey = Math.round(n.position.x);
+      if (!colGroups.has(xKey)) colGroups.set(xKey, []);
+      colGroups.get(xKey)!.push(n);
+    });
 
-    // Attack-path-only: show only threat nodes
-    return nodeList.filter(n => threatNodeIds.has(n.id));
+    const adjustedPositions = new Map<string, { x: number; y: number }>();
+
+    colGroups.forEach((nodesInCol, baseX) => {
+      if (nodesInCol.length <= 8) {
+        nodesInCol.forEach(n => {
+          adjustedPositions.set(n.id, { x: n.position.x, y: n.position.y });
+        });
+      } else {
+        // Multi-column grid wrapping: 8 rows per column
+        const maxRows = 8;
+        const vSpacing = 115;
+        const hSpacing = 320;
+        const totalRows = Math.min(maxRows, nodesInCol.length);
+        const startY = -((totalRows - 1) * vSpacing) / 2;
+
+        nodesInCol.forEach((n, idx) => {
+          const subCol = Math.floor(idx / maxRows);
+          const row = idx % maxRows;
+          adjustedPositions.set(n.id, {
+            x: baseX + subCol * hSpacing,
+            y: startY + row * vSpacing,
+          });
+        });
+      }
+    });
+
+    return rawNodes.map(n => {
+      const pos = adjustedPositions.get(n.id) || { x: n.position.x, y: n.position.y };
+      return {
+        id: n.id,
+        position: pos,
+        data: n.data as any,
+        type: "default",
+      };
+    });
   }, [graph.nodes, filter, threatNodeIds]);
 
   const visibleEdges: Edge[] = useMemo(() => {
@@ -78,7 +171,12 @@ function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps)
     return graph.edges
       .filter(e => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
       .map(e => {
-        const isAttack = Boolean(e.data?.is_attack_path);
+        // Edge is on an attack path if explicitly marked or if either end connects to a vulnerability
+        const isAttack =
+          Boolean(e.data?.is_attack_path) ||
+          e.data?.edge_type === "AFFECTS" ||
+          (threatNodeIds.has(e.source) && threatNodeIds.has(e.target));
+
         return {
           id: e.id,
           source: e.source,
@@ -87,7 +185,7 @@ function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps)
           label: e.data?.label,
           style: {
             stroke: isAttack ? "#ef4444" : "#475569",
-            strokeWidth: isAttack ? 2.8 : 1.6,
+            strokeWidth: isAttack ? 2.5 : 1.6,
             filter: isAttack ? "drop-shadow(0 0 8px rgba(239,68,68,0.7))" : "none",
           },
           labelStyle: {
@@ -106,7 +204,7 @@ function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps)
           },
         };
       });
-  }, [graph.edges, visibleNodes]);
+  }, [graph.edges, visibleNodes, threatNodeIds]);
 
   // Focus on a specific node when focusNodeId changes
   useEffect(() => {

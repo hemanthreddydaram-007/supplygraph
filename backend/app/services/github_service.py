@@ -69,7 +69,40 @@ class GitHubService:
             kwargs = {}
             if ref:
                 kwargs['ref'] = ref
-                
+
+            # If requesting root, attempt recursive discovery for monorepos
+            if path == "":
+                branch = ref or repo.default_branch or "main"
+                # 1. Attempt GitHub Git Trees API (recursive=True)
+                try:
+                    tree = repo.get_git_tree(sha=branch, recursive=True)
+                    if tree and tree.tree:
+                        tree_files = [item.path for item in tree.tree if item.type == "blob"]
+                        if tree_files:
+                            return tree_files
+                except Exception:
+                    pass
+
+                # 2. Fallback: inspect root and common monorepo subdirectories
+                common_dirs = [
+                    "", "frontend", "backend", "client", "server",
+                    "web", "api", "app", ".github/workflows"
+                ]
+                discovered_files: List[str] = []
+                for d in common_dirs:
+                    try:
+                        contents = repo.get_contents(d, **kwargs)
+                        if not isinstance(contents, list):
+                            contents = [contents]
+                        for c in contents:
+                            if c.type == "file" and c.path not in discovered_files:
+                                discovered_files.append(c.path)
+                    except Exception:
+                        continue
+                if discovered_files:
+                    return discovered_files
+
+            # Standard listing for specific non-root path or fallback
             contents = repo.get_contents(path, **kwargs)
             if not isinstance(contents, list):
                 contents = [contents]
@@ -79,3 +112,5 @@ class GitHubService:
             if e.status == 404:
                 return []
             raise ValueError(f"Failed to list files for {path}: {e.data.get('message', str(e))}")
+        except Exception:
+            return []

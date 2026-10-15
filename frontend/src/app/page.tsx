@@ -73,15 +73,76 @@ function getDetectorTagClass(tag: string): string {
 function buildLockfileSnippet(finding: any): string {
   const title: string = finding?.title || "";
   const origin: string = finding?.origin_candidate || "";
-  const ref = origin || title.replace("Vulnerability in ", "") || "package";
-  const ecosystem = finding?.finding_type === "VULNERABLE" ? "npm" : "pip";
+  const rawRef = origin || title.replace(/^Vulnerability in\s*/i, "") || "package";
 
-  if (ecosystem === "npm" || ref.startsWith("pkg:npm")) {
-    const pkgName = ref.replace(/pkg:npm\//, "").replace(/@.*$/, "");
-    return `// package.json override\n"overrides": {\n  "${pkgName}": ">=patched_version"\n}`;
+  // Decode URI component (handles %40 in purl)
+  let cleanRef = rawRef;
+  try {
+    cleanRef = decodeURIComponent(rawRef);
+  } catch (_) {}
+
+  const isPypi = cleanRef.startsWith("pkg:pypi/") || (!cleanRef.startsWith("pkg:npm/") && (finding?.finding_type === "AST" || finding?.evidence?.some((e: any) => e.source === "ast")));
+  cleanRef = cleanRef.replace(/^pkg:(npm|pypi)\//, "");
+
+  // Extract package name and current version
+  let pkgName = cleanRef;
+  let curVer = "";
+  if (cleanRef.startsWith("@")) {
+    const atIdx = cleanRef.indexOf("@", 1);
+    if (atIdx !== -1) {
+      pkgName = cleanRef.substring(0, atIdx);
+      curVer = cleanRef.substring(atIdx + 1);
+    }
   } else {
-    const pkgName = ref.replace(/pkg:pypi\//, "").replace(/@.*$/, "");
-    return `# requirements.txt pin\n${pkgName}>=patched_version  # pinned by SupplyGraph`;
+    const atIdx = cleanRef.indexOf("@");
+    if (atIdx !== -1) {
+      pkgName = cleanRef.substring(0, atIdx);
+      curVer = cleanRef.substring(atIdx + 1);
+    }
+  }
+
+  // Resolve real fixed version
+  let fixedVer: string = finding?.recommendations?.[0]?.fixed_version || "";
+  if (!fixedVer && finding?.recommendations) {
+    for (const rec of finding.recommendations) {
+      if (rec?.fixed_version) {
+        fixedVer = rec.fixed_version;
+        break;
+      }
+    }
+  }
+  if (!fixedVer && finding?.evidence) {
+    for (const ev of finding.evidence) {
+      if (ev?.raw_data?.fixed_version) {
+        fixedVer = ev.raw_data.fixed_version;
+        break;
+      }
+      if (ev?.raw_data?.fixed) {
+        fixedVer = ev.raw_data.fixed;
+        break;
+      }
+    }
+  }
+  if (!fixedVer && curVer) {
+    const match = curVer.match(/^(\d+)/);
+    if (match) {
+      fixedVer = `>=${parseInt(match[1], 10) + 1}.0.0`;
+    }
+  }
+  if (!fixedVer || fixedVer.includes("patched_version")) {
+    fixedVer = "latest";
+  }
+
+  if (!isPypi) {
+    const npmVer = (fixedVer === "latest" || fixedVer.startsWith(">=") || fixedVer.startsWith("^"))
+      ? fixedVer
+      : `^${fixedVer}`;
+    return `// package.json override\n"overrides": {\n  "${pkgName}": "${npmVer}"\n}`;
+  } else {
+    const pipVer = fixedVer === "latest"
+      ? ""
+      : (fixedVer.startsWith(">=") || fixedVer.startsWith("==") ? fixedVer : `>=${fixedVer}`);
+    return `# requirements.txt pin\n${pkgName}${pipVer}  # pinned by SupplyGraph`;
   }
 }
 

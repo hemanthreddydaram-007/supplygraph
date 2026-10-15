@@ -411,6 +411,7 @@ class ContainmentRecommendation(BaseModel):
     expected_effect: str
     priority: Literal["critical", "high", "medium", "low"] = "medium"
     triggering_evidence_description: Optional[str] = None
+    fixed_version: Optional[str] = None
 
 
 class FindingModel(BaseModel):

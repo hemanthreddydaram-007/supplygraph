@@ -20,61 +20,64 @@ class OSVClient:
         results: Dict[str, List[VulnerabilityModel]] = {}
         if not components:
             return results
-            
-        queries = []
-        for c in components:
-            # Map PURL ecosystems to exact OSV API schema ecosystems
-            eco_map = {
-                "npm": "npm",
-                "pypi": "PyPI",
-                "maven": "Maven",
-                "golang": "Go",
-                "cargo": "crates.io",
-                "nuget": "NuGet"
-            }
-            ecosystem_str = eco_map.get(c.ecosystem.value, c.ecosystem.value)
-            
-            package_name = f"{c.namespace}/{c.name}" if c.namespace else c.name
-            
-            q = {
-                "package": {"name": package_name, "ecosystem": ecosystem_str}
-            }
-            if c.version:
-                q["version"] = c.version
-            queries.append(q)
-            
-        payload = {
-            "queries": queries
-        }
-        
+
+        CHUNK_SIZE = 150
         async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(self.batch_url, json=payload, timeout=30.0)
-                response.raise_for_status()
-                data = response.json()
-                
-                batch_results = data.get("results", [])
-                for i, result in enumerate(batch_results):
-                    purl_str = components[i].canonical
-                    vulns_data = result.get("vulns", [])
-                    vuln_models = []
-                    
-                    for v in vulns_data:
-                        vuln_id = v.get("id")
-                        modified = v.get("modified")
-                        if not vuln_id:
-                            continue
-                            
-                        full_vuln = await self._get_cached_or_fetch(client, vuln_id, modified)
-                        if full_vuln:
-                            vuln_models.append(self._parse_vuln(full_vuln))
-                            
-                    if vuln_models:
-                        results[purl_str] = vuln_models
-            except Exception as e:
-                print(f"OSV Client error: {e}")
-                pass
-                
+            for chunk_start in range(0, len(components), CHUNK_SIZE):
+                chunk_components = components[chunk_start:chunk_start + CHUNK_SIZE]
+                queries = []
+                for c in chunk_components:
+                    # Map PURL ecosystems to exact OSV API schema ecosystems
+                    eco_map = {
+                        "npm": "npm",
+                        "pypi": "PyPI",
+                        "maven": "Maven",
+                        "golang": "Go",
+                        "cargo": "crates.io",
+                        "nuget": "NuGet"
+                    }
+                    ecosystem_str = eco_map.get(c.ecosystem.value, c.ecosystem.value)
+                    package_name = f"{c.namespace}/{c.name}" if c.namespace else c.name
+                    q = {
+                        "package": {"name": package_name, "ecosystem": ecosystem_str}
+                    }
+                    if c.version:
+                        q["version"] = c.version
+                    queries.append(q)
+
+                payload = {
+                    "queries": queries
+                }
+
+                try:
+                    response = await client.post(self.batch_url, json=payload, timeout=30.0)
+                    response.raise_for_status()
+                    data = response.json()
+
+                    batch_results = data.get("results", [])
+                    for i, result in enumerate(batch_results):
+                        purl_str = chunk_components[i].canonical
+                        vulns_data = result.get("vulns", [])
+                        vuln_models = []
+
+                        for v in vulns_data:
+                            vuln_id = v.get("id")
+                            modified = v.get("modified")
+                            if not vuln_id:
+                                continue
+
+                            full_vuln = await self._get_cached_or_fetch(client, vuln_id, modified)
+                            if full_vuln:
+                                vuln_models.append(self._parse_vuln(full_vuln))
+
+                        if vuln_models:
+                            if purl_str not in results:
+                                results[purl_str] = []
+                            results[purl_str].extend(vuln_models)
+                except Exception as e:
+                    print(f"OSV Client batch error: {e}")
+                    pass
+
         return results
 
     async def _get_cached_or_fetch(self, client: httpx.AsyncClient, vuln_id: str, modified: Optional[str]) -> Optional[Dict[str, Any]]:

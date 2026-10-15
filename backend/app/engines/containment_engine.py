@@ -1,21 +1,43 @@
 from app.models.core import FindingModel, ContainmentRecommendation, ContainmentActionType, FindingType
-from typing import List
+from typing import List, Optional
 import uuid
 
 class ContainmentEngine:
-    def generate_recommendations(self, finding: FindingModel) -> List[ContainmentRecommendation]:
+    def generate_recommendations(self, finding: FindingModel, fixed_version: Optional[str] = None) -> List[ContainmentRecommendation]:
         recommendations = []
         
         # Check for Vulnerable
         if finding.finding_type == FindingType.VULNERABLE:
+            # Check if fixed_version is provided, or extract from evidence
+            resolved_fixed = fixed_version
+            if not resolved_fixed:
+                for ev in finding.evidence:
+                    if ev.raw_data and ev.raw_data.get("fixed_version"):
+                        resolved_fixed = ev.raw_data.get("fixed_version")
+                        break
+            
+            # If still None, check if origin_candidate has version to compute next major
+            if not resolved_fixed:
+                origin = finding.origin_candidate or ""
+                if "@" in origin:
+                    cur_ver = origin.split("@")[-1]
+                    import re
+                    match = re.match(r"^(\d+)", cur_ver)
+                    if match:
+                        next_major = int(match.group(1)) + 1
+                        resolved_fixed = f">={next_major}.0.0"
+            
+            resolved_fixed = resolved_fixed or "latest"
+            
             recommendations.append(
                 ContainmentRecommendation(
                     action_type=ContainmentActionType.PIN_VERSION,
                     title="Pin or Upgrade Dependency",
-                    description=f"Upgrade or pin the version of the vulnerable dependency {finding.origin_candidate}.",
-                    why="To mitigate known vulnerabilities.",
+                    description=f"Upgrade or pin {finding.origin_candidate} to safe version {resolved_fixed}.",
+                    why="To mitigate known vulnerabilities by upgrading to a patched release.",
                     expected_effect="Eliminates the vulnerability.",
-                    priority="high"
+                    priority="high",
+                    fixed_version=resolved_fixed
                 )
             )
             

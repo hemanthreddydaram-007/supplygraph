@@ -4,7 +4,7 @@ import uuid
 import datetime
 import hashlib
 import logging
-from typing import List
+from typing import List, Dict, Any, Set
 
 from app.models.core import (
     AnalysisRequest, AnalysisResponse, ScanMetadata, ScanStatus,
@@ -62,30 +62,66 @@ class AnalysisService:
             name=repo_repo
         )
 
-        # --- STEP 1: Detect and parse lockfiles ---
-        root_files = self.github_service.list_files(request.github_url, ref=request.branch)
+        # --- STEP 1: Detect and parse lockfiles across root and subdirectories ---
+        all_repo_files = self.github_service.list_files(request.github_url, ref=request.branch)
         supported_lockfiles = ["package-lock.json", "poetry.lock", "requirements.txt", "package.json"]
-        found_lockfiles = [f for f in root_files if any(f.endswith(ext) for ext in supported_lockfiles)]
+        found_lockfiles = [f for f in all_repo_files if any(f.endswith(ext) for ext in supported_lockfiles)]
 
-        scan_metadata.lockfile_detected = len(found_lockfiles) > 0
-        scan_metadata.lockfile_types = found_lockfiles
+        # If a directory has both package-lock.json and package.json, prefer package-lock.json
+        filtered_lockfiles = []
+        lock_dirs_with_lock = set()
+        for f in found_lockfiles:
+            if f.endswith("package-lock.json"):
+                dir_name = f.rsplit("/", 1)[0] if "/" in f else ""
+                lock_dirs_with_lock.add(dir_name)
+                filtered_lockfiles.append(f)
 
-        all_components = []
-        for lockfile in found_lockfiles:
+        for f in found_lockfiles:
+            if f.endswith("package.json"):
+                dir_name = f.rsplit("/", 1)[0] if "/" in f else ""
+                if dir_name not in lock_dirs_with_lock:
+                    filtered_lockfiles.append(f)
+            elif not f.endswith("package-lock.json"):
+                filtered_lockfiles.append(f)
+
+        scan_metadata.lockfile_detected = len(filtered_lockfiles) > 0
+        scan_metadata.lockfile_types = filtered_lockfiles
+
+        raw_components = []
+        for lockfile in filtered_lockfiles:
             content = self.github_service.get_file_content(request.github_url, lockfile, request.branch)
             if content:
-                components = self.lockfile_parser.parse_lockfile(content, lockfile)
-                all_components.extend(components)
+                try:
+                    components = self.lockfile_parser.parse_lockfile(content, lockfile)
+                    raw_components.extend(components)
+                except Exception as pe:
+                    logger.warning(f"Error parsing lockfile {lockfile}: {pe}")
 
-        # --- STEP 2: Build SBOM ---
-        sbom = self.sbom_engine.build_sbom(all_components, repo_name)
+        # --- STEP 2: Deduplicate components & build SBOM ---
+        # Deduplicate components by (ecosystem, name, version), prioritizing direct dependencies
+        unique_components_map = {}
+        for comp in raw_components:
+            eco_val = comp.ecosystem.value if comp.ecosystem else "unknown"
+            key = (eco_val, comp.name.lower(), comp.version or "")
+            if key not in unique_components_map:
+                unique_components_map[key] = comp
+            else:
+                if not unique_components_map[key].is_direct and comp.is_direct:
+                    unique_components_map[key] = comp
+
+        # Sort direct dependencies first, cap at 500 unique packages
+        deduped_components = sorted(
+            unique_components_map.values(),
+            key=lambda c: (not c.is_direct, getattr(c, "depth", 0))
+        )[:500]
+
+        sbom = self.sbom_engine.build_sbom(deduped_components, repo_name)
         scan_metadata.sbom_generated = True
 
         # Compute SBOM attestation fields
         sbom_sha256 = self.sbom_engine.compute_sbom_sha256(sbom)
-        blast_radius_prelim = 0.0  # will be updated after findings
 
-        # --- STEP 3: OSV Batch Query ---
+        # --- STEP 3: OSV Batch Query (chunked to <= 150) ---
         purls = []
         for comp in sbom.components:
             try:
@@ -96,22 +132,42 @@ class AnalysisService:
         vulnerability_dict = await self.osv_client.query_batch(purls)
         scan_metadata.osv_queried = True
 
-        # --- STEP 4: Generate OSV findings ---
+        # --- STEP 4: Generate OSV findings (deduplicated) ---
         findings: List[FindingModel] = []
         all_vulnerabilities = []
         osv_count = 0
+        seen_vuln_keys: Set[str] = set()
 
         for purl_str, vulns in vulnerability_dict.items():
             for vuln in vulns:
+                vuln_key = f"{purl_str}:{vuln.osv_id}"
+                if vuln_key in seen_vuln_keys:
+                    continue
+                seen_vuln_keys.add(vuln_key)
+
                 all_vulnerabilities.append(vuln)
                 osv_count += 1
+
+                # Extract real fixed version from OSV data
+                fixed_ver = None
+                if vuln.fixed_versions:
+                    fixed_ver = next(iter(vuln.fixed_versions.values()), None)
+
+                # Fallback fixed version derivation if none provided
+                if not fixed_ver and "@" in purl_str:
+                    ver_part = purl_str.split("@")[-1]
+                    import re
+                    match = re.match(r"^(\d+)", ver_part)
+                    if match:
+                        fixed_ver = f">={int(match.group(1)) + 1}.0.0"
+
                 finding_id = str(uuid.uuid4())
                 finding = FindingModel(
                     id=finding_id,
                     scan_id=scan_id,
                     entity_id=None,
                     entity_type="Version",
-                    title=f"Vulnerability in {purl_str}",
+                    title=f"{vuln.osv_id}: {purl_str}" if vuln.osv_id else f"Vulnerability in {purl_str}",
                     description=vuln.summary or vuln.details or "Known vulnerability identified by OSV.dev",
                     severity=vuln.severity if (vuln.severity and vuln.severity != Severity.UNKNOWN) else Severity.HIGH,
                     finding_type=FindingType.VULNERABLE,
@@ -127,14 +183,19 @@ class AnalysisService:
                             evidence_type="VULNERABILITY",
                             classification=EvidenceClassification.FACT,
                             description=f"Matched OSV advisory {vuln.osv_id}: {vuln.summary or ''}",
-                            confidence_contribution=0.9
+                            confidence_contribution=0.9,
+                            raw_data={
+                                "vuln_id": vuln.osv_id,
+                                "fixed_version": fixed_ver,
+                                "purl": purl_str
+                            }
                         )
                     ],
                     recommendations=[]
                 )
                 findings.append(finding)
 
-        # --- STEP 5: Typosquatting Detection ---
+        # --- STEP 5: Typosquatting Detection (strict ecosystem & whitelist) ---
         typosquat_count = 0
         for comp in sbom.components:
             try:
@@ -150,7 +211,7 @@ class AnalysisService:
                         severity=Severity.HIGH,
                         title=f"Typosquatting Suspect: {comp.name}",
                         description=evidence.description,
-                        origin_candidate=comp.name,
+                        origin_candidate=comp.purl,
                         confidence=compute_confidence([
                             ConfidenceFactor(
                                 evidence_type="TYPOSQUAT",
@@ -180,13 +241,14 @@ class AnalysisService:
         except Exception as e:
             logger.warning(f"Dependency confusion detection failed: {e}")
 
-        # --- STEP 7: Static AST Analysis (Python files) ---
+        # --- STEP 7: Static AST Analysis (Python files across repo) ---
         ast_count = 0
         if request.enable_ast_analysis:
             try:
-                # Find Python files in the repository root tree (up to 10 files, max 50KB)
-                py_files = [f for f in root_files if f.endswith('.py') or f == 'setup.py']
-                py_files = py_files[:10]
+                py_files = [
+                    f for f in all_repo_files
+                    if f.endswith('.py') and not any(ign in f for ign in ['tests/', 'test/', 'venv/', 'node_modules/'])
+                ][:15]
                 ast_evidence_all: List[EvidenceItem] = []
                 for py_file in py_files:
                     try:
@@ -221,23 +283,21 @@ class AnalysisService:
                             )
                         ]),
                         impact=compute_blast_radius(package_count=0, service_count=1, api_count=1, production_deployment_count=0),
-                        evidence=ast_evidence_all[:20],  # Cap evidence list
+                        evidence=ast_evidence_all[:20],
                         recommendations=[]
                     )
                     findings.append(ast_finding)
             except Exception as e:
                 logger.warning(f"AST analysis pipeline failed: {e}")
 
-        # --- STEP 8: CI/CD Workflow Scanning ---
+        # --- STEP 8: CI/CD Workflow Scanning (.github/workflows/*.yml) ---
         cicd_count = 0
         if request.enable_cicd_analysis:
             try:
-                # Look for .github/workflows/*.yml files
                 workflow_files = [
-                    f for f in root_files
-                    if '.github/workflows/' in f and (f.endswith('.yml') or f.endswith('.yaml'))
-                ]
-                workflow_files = workflow_files[:5]  # Max 5 workflow files
+                    f for f in all_repo_files
+                    if ('.github/workflows/' in f or f.startswith('.github/workflows/')) and (f.endswith('.yml') or f.endswith('.yaml'))
+                ][:8]
 
                 for wf_file in workflow_files:
                     try:
@@ -257,6 +317,16 @@ class AnalysisService:
                         logger.debug(f"CICD workflow fetch/analyze failed for {wf_file}: {fe}")
             except Exception as e:
                 logger.warning(f"CI/CD analysis pipeline failed: {e}")
+
+        # Deduplicate final findings across all detectors
+        unique_findings = []
+        seen_finding_keys: Set[str] = set()
+        for f in findings:
+            f_key = f"{f.finding_type.value}:{f.origin_candidate or ''}:{f.title}"
+            if f_key not in seen_finding_keys:
+                seen_finding_keys.add(f_key)
+                unique_findings.append(f)
+        findings = unique_findings
 
         # --- STEP 9: Assets ---
         target_assets = [
@@ -283,10 +353,31 @@ class AnalysisService:
         for ap in attack_paths:
             ap.scan_id = scan_id
 
+        # Mark attack path edges and nodes in the graph
+        attack_nodes_set: Set[str] = set()
+        for ap in attack_paths:
+            for n_id in ap.path_nodes:
+                attack_nodes_set.add(n_id)
+
+        for edge in graph.edges:
+            if edge.source in attack_nodes_set and edge.target in attack_nodes_set:
+                edge.data.is_attack_path = True
+                edge.animated = True
+
+        for node in graph.nodes:
+            if node.id in attack_nodes_set:
+                node.data.is_affected = True
+
         # --- STEP 12: Containment Recommendations ---
         for finding in findings:
             try:
-                recs = self.containment_engine.generate_recommendations(finding)
+                # Extract fixed version if present in evidence
+                rec_fixed_ver = None
+                for ev in finding.evidence:
+                    if ev.raw_data and ev.raw_data.get("fixed_version"):
+                        rec_fixed_ver = ev.raw_data.get("fixed_version")
+                        break
+                recs = self.containment_engine.generate_recommendations(finding, fixed_version=rec_fixed_ver)
                 finding.recommendations.extend(recs)
             except Exception as e:
                 logger.debug(f"Containment rec failed for finding: {e}")
@@ -295,7 +386,7 @@ class AnalysisService:
         blast_radius_score = min(
             100.0,
             sum(p.blast_radius.blast_radius_score for p in attack_paths) or
-            (len(findings) * 5.0)  # fallback if no attack paths
+            (len(findings) * 5.0)
         )
 
         # SBOM attestation

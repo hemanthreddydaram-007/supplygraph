@@ -60,19 +60,24 @@ class GraphEngine:
         # Link vulnerabilities to packages via findings
         for finding in findings:
             if finding.finding_type == FindingType.VULNERABLE:
-                vuln_node_id = None
+                vuln_node_ids = []
                 for vuln in vulnerabilities:
-                    if vuln.osv_id and vuln.osv_id in finding.title:
-                        vuln_node_id = vuln.osv_id
-                        break
+                    if vuln.osv_id:
+                        if (vuln.osv_id in finding.title or 
+                            (finding.description and vuln.osv_id in finding.description) or
+                            any(vuln.osv_id in ev.description or (ev.raw_data and ev.raw_data.get("vuln_id") == vuln.osv_id) for ev in finding.evidence)):
+                            vuln_node_ids.append(vuln.osv_id)
                         
                 target_node_id = str(finding.entity_id) if finding.entity_id else finding.origin_candidate
                 
-                if vuln_node_id and target_node_id and G.has_node(vuln_node_id) and G.has_node(target_node_id):
-                    G.add_edge(vuln_node_id, target_node_id, data=GraphEdgeData(
-                        edge_type=EdgeType.AFFECTS,
-                        label="AFFECTS"
-                    ))
+                for vuln_node_id in vuln_node_ids:
+                    if target_node_id and G.has_node(vuln_node_id) and G.has_node(target_node_id):
+                        if not G.has_edge(vuln_node_id, target_node_id):
+                            G.add_edge(vuln_node_id, target_node_id, data=GraphEdgeData(
+                                edge_type=EdgeType.AFFECTS,
+                                label="AFFECTS",
+                                is_attack_path=True
+                            ))
             
         # 5. Add asset nodes and DEPLOYED_AS / USES edges
         for asset in assets:
@@ -94,8 +99,18 @@ class GraphEngine:
                         edge_type=EdgeType.USES
                     ))
                     
-        # 6. Compute Layout and Build Pydantic Model
-        positions = compute_layout(G)
+        # 6. Compute Layout and Build Pydantic Model with threat node prioritization
+        threat_node_ids = set()
+        for vuln in vulnerabilities:
+            if vuln.osv_id:
+                threat_node_ids.add(vuln.osv_id)
+        for f in findings:
+            if f.origin_candidate:
+                threat_node_ids.add(f.origin_candidate)
+            if f.entity_id:
+                threat_node_ids.add(str(f.entity_id))
+
+        positions = compute_layout(G, threat_node_ids=threat_node_ids)
         stats = get_graph_statistics(G)
         
         nodes = []
