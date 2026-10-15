@@ -24,7 +24,10 @@ interface CodeReviewerPanelProps {
   onReviewsUpdated?: (newReviews: CodeReviewItem[]) => void;
 }
 
-export function CodeReviewerPanel({ codeReviews, onReviewsUpdated }: CodeReviewerPanelProps) {
+export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
+  codeReviews,
+  onReviewsUpdated,
+}: CodeReviewerPanelProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showTester, setShowTester] = useState(false);
   const [customCode, setCustomCode] = useState("");
@@ -33,6 +36,7 @@ export function CodeReviewerPanel({ codeReviews, onReviewsUpdated }: CodeReviewe
   const [isReviewing, setIsReviewing] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
   const [adHocReviews, setAdHocReviews] = useState<CodeReviewItem[]>([]);
+  const [showAll, setShowAll] = useState(false);
 
   const handleCopy = (code: string, id: string) => {
     navigator.clipboard.writeText(code);
@@ -191,100 +195,115 @@ export function CodeReviewerPanel({ codeReviews, onReviewsUpdated }: CodeReviewe
       {/* REVIEWS LIST */}
       <div className="space-y-4">
         {allDisplayReviews && allDisplayReviews.length > 0 ? (
-          allDisplayReviews.map((item, idx) => {
-            const isCopied = copiedId === item.id;
-            return (
-              <div
-                key={item.id || idx}
-                className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 hover:bg-zinc-900/60 transition-all space-y-3"
-              >
-                {/* Header */}
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center space-x-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
-                      📄 {item.file_path} : L{item.line_number}
-                    </span>
+          <>
+            {(showAll ? allDisplayReviews : allDisplayReviews.slice(0, 25)).map((item, idx) => {
+              const isCopied = copiedId === item.id;
+              return (
+                <div
+                  key={item.id || idx}
+                  className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 hover:bg-zinc-900/60 transition-all space-y-3"
+                >
+                  {/* Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
+                        📄 {item.file_path} : L{item.line_number}
+                      </span>
+                      <span
+                        className={cn(
+                          "px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider border",
+                          getSeverityBadge(item.severity)
+                        )}
+                      >
+                        {item.severity}
+                      </span>
+                    </div>
+
                     <span
                       className={cn(
-                        "px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider border",
-                        getSeverityBadge(item.severity)
+                        "px-2 py-0.5 rounded-full text-[9px] font-mono border",
+                        getCategoryBadge(item.category)
                       )}
                     >
-                      {item.severity}
+                      {item.category}
                     </span>
                   </div>
 
-                  <span
-                    className={cn(
-                      "px-2 py-0.5 rounded-full text-[9px] font-mono border",
-                      getCategoryBadge(item.category)
-                    )}
-                  >
-                    {item.category}
-                  </span>
-                </div>
-
-                {/* Title & Explanation */}
-                <div>
-                  <h4 className="text-xs font-semibold text-zinc-100 flex items-center space-x-1.5">
-                    <span>{item.title}</span>
-                  </h4>
-                  <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
-                    {item.error_explanation}
-                  </p>
-                </div>
-
-                {/* STACKED CODE COMPARISON */}
-                <div className="space-y-2 pt-1">
-                  {/* Problematic Code */}
-                  <div className="rounded-lg overflow-hidden border border-red-900/40 bg-red-950/20">
-                    <div className="flex items-center justify-between px-2.5 py-1 bg-red-950/40 border-b border-red-900/30 text-[10px] font-mono text-red-300">
-                      <span>❌ Original Error / Vulnerable Code (Line {item.line_number})</span>
-                    </div>
-                    <pre className="p-2.5 text-[10px] font-mono text-red-200 overflow-x-auto whitespace-pre-wrap break-all leading-tight">
-                      {item.buggy_code}
-                    </pre>
+                  {/* Title & Explanation */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-zinc-100 flex items-center space-x-1.5">
+                      <span>{item.title}</span>
+                    </h4>
+                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                      {item.error_explanation}
+                    </p>
                   </div>
 
-                  {/* Corrected Replacement Code */}
-                  <div className="rounded-lg overflow-hidden border border-emerald-900/40 bg-emerald-950/20">
-                    <div className="flex items-center justify-between px-2.5 py-1 bg-emerald-950/40 border-b border-emerald-900/30 text-[10px] font-mono text-emerald-300">
-                      <span>✅ Corrected Code by SupplyGraph</span>
-                      <button
-                        onClick={() => handleCopy(item.corrected_code, item.id)}
-                        className="flex items-center space-x-1 hover:text-emerald-100 transition-colors"
-                      >
-                        {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                        <span>{isCopied ? "Copied!" : "Copy Fix"}</span>
-                      </button>
+                  {/* STACKED CODE COMPARISON */}
+                  <div className="space-y-2 pt-1">
+                    {/* Problematic Code */}
+                    <div className="rounded-lg overflow-hidden border border-red-900/40 bg-red-950/20">
+                      <div className="flex items-center justify-between px-2.5 py-1 bg-red-950/40 border-b border-red-900/30 text-[10px] font-mono text-red-300">
+                        <span>❌ Original Error / Vulnerable Code (Line {item.line_number})</span>
+                      </div>
+                      <pre className="p-2.5 text-[10px] font-mono text-red-200 overflow-x-auto whitespace-pre-wrap break-all leading-tight">
+                        {item.buggy_code}
+                      </pre>
                     </div>
-                    <pre className="p-2.5 text-[10px] font-mono text-emerald-200 overflow-x-auto whitespace-pre-wrap break-all leading-tight">
-                      {item.corrected_code}
-                    </pre>
+
+                    {/* Corrected Replacement Code */}
+                    <div className="rounded-lg overflow-hidden border border-emerald-900/40 bg-emerald-950/20">
+                      <div className="flex items-center justify-between px-2.5 py-1 bg-emerald-950/40 border-b border-emerald-900/30 text-[10px] font-mono text-emerald-300">
+                        <span>✅ Corrected Code by SupplyGraph</span>
+                        <button
+                          onClick={() => handleCopy(item.corrected_code, item.id)}
+                          className="flex items-center space-x-1 hover:text-emerald-100 transition-colors"
+                        >
+                          {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          <span>{isCopied ? "Copied!" : "Copy Fix"}</span>
+                        </button>
+                      </div>
+                      <pre className="p-2.5 text-[10px] font-mono text-emerald-200 overflow-x-auto whitespace-pre-wrap break-all leading-tight">
+                        {item.corrected_code}
+                      </pre>
+                    </div>
+                  </div>
+
+                  {/* Card Action Footer */}
+                  <div className="flex items-center justify-end space-x-2 pt-1 text-[10px] font-mono">
+                    <button
+                      onClick={() => handleCopy(item.corrected_code, item.id)}
+                      className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center space-x-1 transition-colors"
+                    >
+                      {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{isCopied ? "✓ Copied Corrected Code!" : "Copy Corrected Code"}</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleDownloadPatch(item)}
+                      className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center space-x-1 transition-colors"
+                    >
+                      <Download className="w-3 h-3 text-blue-400" />
+                      <span>Download Patch</span>
+                    </button>
                   </div>
                 </div>
+              );
+            })}
 
-                {/* Card Action Footer */}
-                <div className="flex items-center justify-end space-x-2 pt-1 text-[10px] font-mono">
-                  <button
-                    onClick={() => handleCopy(item.corrected_code, item.id)}
-                    className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center space-x-1 transition-colors"
-                  >
-                    {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    <span>{isCopied ? "✓ Copied Corrected Code!" : "Copy Corrected Code"}</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleDownloadPatch(item)}
-                    className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center space-x-1 transition-colors"
-                  >
-                    <Download className="w-3 h-3 text-blue-400" />
-                    <span>Download Patch</span>
-                  </button>
-                </div>
+            {allDisplayReviews.length > 25 && (
+              <div className="pt-2 text-center">
+                <button
+                  onClick={() => setShowAll(!showAll)}
+                  className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-xs font-mono text-zinc-200 transition-colors shadow-sm"
+                >
+                  {showAll
+                    ? "Show First 25 Issues"
+                    : `Show All (${allDisplayReviews.length}) Issues`}
+                </button>
               </div>
-            );
-          })
+            )}
+          </>
         ) : (
           <div className="p-8 text-center border border-dashed border-zinc-800 rounded-xl space-y-2">
             <FileCode2 className="w-8 h-8 text-zinc-600 mx-auto" />
@@ -297,4 +316,6 @@ export function CodeReviewerPanel({ codeReviews, onReviewsUpdated }: CodeReviewe
       </div>
     </div>
   );
-}
+});
+
+CodeReviewerPanel.displayName = "CodeReviewerPanel";

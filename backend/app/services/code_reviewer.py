@@ -20,14 +20,14 @@ class CodeReviewerService:
     def __init__(self):
         pass
 
-    def review_files(self, files: Dict[str, str], max_files: int = 15) -> List[CodeReviewItem]:
+    def review_files(self, files: Dict[str, str], max_files: int = 10) -> List[CodeReviewItem]:
         """Review multiple files (from GitHub repo or uploaded folder)."""
         all_reviews: List[CodeReviewItem] = []
         count = 0
         for file_path, content in files.items():
             if count >= max_files:
                 break
-            if not content or len(content) > 100_000:
+            if not content or len(content) > 50_000:
                 continue
             # Skip ignored paths
             if any(ign in file_path.lower() for ign in ["node_modules/", ".git/", "venv/", "__pycache__/", ".next/", "dist/"]):

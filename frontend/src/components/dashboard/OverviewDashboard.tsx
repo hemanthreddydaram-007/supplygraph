@@ -24,7 +24,7 @@ interface OverviewDashboardProps {
   onSelectScenario?: (id: "A" | "B" | "C" | "D" | "E") => void;
 }
 
-export function OverviewDashboard({ onGetStarted, onSelectScenario }: OverviewDashboardProps) {
+export const OverviewDashboard = React.memo(function OverviewDashboard({ onGetStarted, onSelectScenario }: OverviewDashboardProps) {
   return (
     <div className="space-y-16 pb-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
       {/* HERO BANNER */}
@@ -389,4 +389,6 @@ export function OverviewDashboard({ onGetStarted, onSelectScenario }: OverviewDa
       </div>
     </div>
   );
-}
+});
+
+OverviewDashboard.displayName = "OverviewDashboard";

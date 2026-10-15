@@ -5,7 +5,8 @@ import datetime
 import hashlib
 import logging
 import re
-from typing import List, Dict, Any, Set
+import asyncio
+from typing import List, Dict, Any, Set, Optional, Tuple
 
 from app.models.core import (
     AnalysisRequest, AnalysisResponse, ScanMetadata, ScanStatus,
@@ -45,6 +46,40 @@ class AnalysisService:
         self.ast_analyzer = ASTAnalyzer()
         self.cicd_analyzer = CICDAnalyzer()
         self.confusion_detector = DependencyConfusionDetector()
+
+    async def _fetch_files_concurrently(
+        self, repo_url: str, paths: List[str], ref: Optional[str] = None, max_concurrency: int = 8, timeout: float = 4.0
+    ) -> Dict[str, str]:
+        """Fetch multiple files from GitHub concurrently with semaphore and strict timeout."""
+        if not paths:
+            return {}
+        batch_fn = getattr(self.github_service, "get_files_batch", None)
+        if batch_fn and callable(batch_fn):
+            try:
+                return await batch_fn(repo_url, paths, ref, max_concurrency=max_concurrency, timeout=timeout)
+            except Exception:
+                pass
+
+        sem = asyncio.Semaphore(max_concurrency)
+
+        async def _fetch_one(path: str):
+            async with sem:
+                try:
+                    content = await asyncio.wait_for(
+                        asyncio.to_thread(self.github_service.get_file_content, repo_url, path, ref),
+                        timeout=timeout
+                    )
+                    return path, content
+                except Exception:
+                    return path, None
+
+        tasks = [_fetch_one(p) for p in paths]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        out = {}
+        for r in results:
+            if isinstance(r, tuple) and r[1] is not None:
+                out[r[0]] = r[1]
+        return out
 
     async def run_analysis(self, request: AnalysisRequest) -> AnalysisResponse:
         scan_id = str(uuid.uuid4())
@@ -91,8 +126,10 @@ class AnalysisService:
         scan_metadata.lockfile_types = filtered_lockfiles
 
         raw_components = []
-        for lockfile in filtered_lockfiles:
-            content = self.github_service.get_file_content(request.github_url, lockfile, request.branch)
+        lockfile_contents = await self._fetch_files_concurrently(
+            request.github_url, filtered_lockfiles, request.branch, max_concurrency=8, timeout=4.0
+        )
+        for lockfile, content in lockfile_contents.items():
             if content:
                 try:
                     components = self.lockfile_parser.parse_lockfile(content, lockfile)
@@ -253,16 +290,16 @@ class AnalysisService:
                     if f.endswith('.py') and not any(ign in f for ign in ['tests/', 'test/', 'venv/', 'node_modules/'])
                 ][:15]
                 ast_evidence_all: List[EvidenceItem] = []
-                for py_file in py_files:
-                    try:
-                        content = self.github_service.get_file_content(
-                            request.github_url, py_file, request.branch
-                        )
-                        if content and len(content) < 50_000:
+                py_map = await self._fetch_files_concurrently(
+                    request.github_url, py_files, request.branch, max_concurrency=8, timeout=4.0
+                )
+                for py_file, content in py_map.items():
+                    if content and len(content) < 50_000:
+                        try:
                             ev_items = self.ast_analyzer.analyze(py_file, content)
                             ast_evidence_all.extend(ev_items)
-                    except Exception as fe:
-                        logger.debug(f"AST fetch/analyze failed for {py_file}: {fe}")
+                        except Exception as fe:
+                            logger.debug(f"AST analyze failed for {py_file}: {fe}")
 
                 if ast_evidence_all:
                     ast_count = len(ast_evidence_all)
@@ -302,12 +339,12 @@ class AnalysisService:
                     if ('.github/workflows/' in f or f.startswith('.github/workflows/')) and (f.endswith('.yml') or f.endswith('.yaml'))
                 ][:8]
 
-                for wf_file in workflow_files:
-                    try:
-                        wf_content = self.github_service.get_file_content(
-                            request.github_url, wf_file, request.branch
-                        )
-                        if wf_content:
+                wf_map = await self._fetch_files_concurrently(
+                    request.github_url, workflow_files, request.branch, max_concurrency=8, timeout=4.0
+                )
+                for wf_file, wf_content in wf_map.items():
+                    if wf_content:
+                        try:
                             wf_evidence = self.cicd_analyzer.analyze(wf_file, wf_content)
                             if wf_evidence:
                                 cicd_count += len(wf_evidence)
@@ -316,8 +353,8 @@ class AnalysisService:
                                 )
                                 if wf_finding:
                                     findings.append(wf_finding)
-                    except Exception as fe:
-                        logger.debug(f"CICD workflow fetch/analyze failed for {wf_file}: {fe}")
+                        except Exception as fe:
+                            logger.debug(f"CICD workflow analyze failed for {wf_file}: {fe}")
             except Exception as e:
                 logger.warning(f"CI/CD analysis pipeline failed: {e}")
 
@@ -415,14 +452,16 @@ class AnalysisService:
                 f for f in all_repo_files
                 if any(f.endswith(ext) for ext in ['.py', '.js', '.ts', '.tsx', '.jsx', '.yml'])
                 and not any(ign in f for ign in ['node_modules/', '.git/', 'venv/', '__pycache__/', '.next/'])
-            ][:12]
-            source_files_dict = {}
-            for sf in source_candidates:
-                content = self.github_service.get_file_content(request.github_url, sf, request.branch)
-                if content and len(content) < 80_000:
-                    source_files_dict[sf] = content
-            if source_files_dict:
-                code_reviews = self.code_reviewer.review_files(source_files_dict, max_files=10)
+            ][:10]
+            if source_candidates:
+                source_files_dict = await self._fetch_files_concurrently(
+                    request.github_url, source_candidates, request.branch, max_concurrency=8, timeout=4.0
+                )
+                source_files_bounded = {
+                    k: v for k, v in source_files_dict.items() if v and len(v) < 50_000
+                }
+                if source_files_bounded:
+                    code_reviews = self.code_reviewer.review_files(source_files_bounded, max_files=10)
         except Exception as cre:
             logger.warning(f"Code reviewer failed in run_analysis: {cre}")
 

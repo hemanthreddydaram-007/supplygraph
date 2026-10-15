@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { fetchRepositoryAnalysis, fetchDemoAnalysis, fetchFolderAnalysis } from "@/lib/api";
 import { AnalysisResponse, DetectorBreakdown, PolygonAttestation, SBOM, CodeReviewItem } from "@/types";
 import { GraphCanvas } from "@/components/graph/GraphCanvas";
@@ -216,6 +216,7 @@ export default function Dashboard() {
   const [polygonAttested, setPolygonAttested] = useState(false);
   const [attestCopied, setAttestCopied] = useState(false);
   const [showFormulaTooltip, setShowFormulaTooltip] = useState(false);
+  const [showAllFindings, setShowAllFindings] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -277,6 +278,7 @@ export default function Dashboard() {
     setActiveScenario(null);
     setPolygonAttested(false);
     setFocusNodeId(null);
+    setShowAllFindings(false);
     setCurrentView("scanner");
     try {
       const result = await fetchRepositoryAnalysis(trimmed);
@@ -295,6 +297,7 @@ export default function Dashboard() {
     setActiveScenario(scenarioId);
     setPolygonAttested(false);
     setFocusNodeId(null);
+    setShowAllFindings(false);
     setCurrentView("scanner");
     try {
       const result = await fetchDemoAnalysis(scenarioId);
@@ -318,49 +321,83 @@ export default function Dashboard() {
     setActiveScenario(null);
     setPolygonAttested(false);
     setFocusNodeId(null);
+    setShowAllFindings(false);
     setCurrentView("scanner");
 
     try {
       const firstPath = fileList[0].webkitRelativePath || fileList[0].name;
       const folderName = firstPath.split("/")[0] || "Local Project";
 
-      const readFiles: { path: string; content: string }[] = [];
-      const maxFiles = 60;
-      const maxFileSize = 100 * 1024; // 100 KB max per file
-      const allowedExts = [
-        ".json", ".txt", ".lock", ".py", ".js", ".jsx", ".ts", ".tsx", ".yml", ".yaml", "dockerfile"
+      const maxFileSize = 60 * 1024; // 60 KB max
+      const skipDirs = [
+        "node_modules/", ".git/", ".next/", "dist/", "build/",
+        "venv/", ".venv/", "__pycache__/", "coverage/", ".vscode/"
+      ];
+      const skipExts = [
+        ".png", ".jpg", ".jpeg", ".svg", ".ico", ".woff", ".woff2",
+        ".ttf", ".pdf", ".lockb", ".gif", ".webp", ".zip", ".tar",
+        ".gz", ".exe", ".bin"
       ];
 
+      const lockfileCandidates: File[] = [];
+      const sourceCandidates: File[] = [];
+
       for (let i = 0; i < fileList.length; i++) {
-        if (readFiles.length >= maxFiles) break;
         const file = fileList[i];
         const relPath = file.webkitRelativePath || file.name;
         const lowerPath = relPath.toLowerCase();
 
-        if (
-          lowerPath.includes("node_modules/") ||
-          lowerPath.includes(".git/") ||
-          lowerPath.includes(".next/") ||
-          lowerPath.includes("venv/") ||
-          lowerPath.includes("__pycache__/") ||
-          lowerPath.includes("dist/") ||
-          lowerPath.includes("build/") ||
-          lowerPath.includes(".vscode/")
-        ) {
-          continue;
-        }
-
-        const hasAllowedExt = allowedExts.some((ext) => lowerPath.endsWith(ext) || lowerPath.endsWith("/" + ext));
-        if (!hasAllowedExt) continue;
+        // Immediate pre-filtering before any reading
+        if (skipDirs.some((dir) => lowerPath.includes(dir))) continue;
+        if (skipExts.some((ext) => lowerPath.endsWith(ext))) continue;
         if (file.size > maxFileSize) continue;
 
-        const content = await file.text();
-        readFiles.push({ path: relPath, content });
+        const fileName = lowerPath.split("/").pop() || "";
+        const isLockfileOrWorkflow =
+          fileName === "package.json" ||
+          fileName === "package-lock.json" ||
+          fileName === "requirements.txt" ||
+          fileName === "poetry.lock" ||
+          fileName === "pipfile.lock" ||
+          lowerPath.includes(".github/workflows/");
+
+        if (isLockfileOrWorkflow) {
+          lockfileCandidates.push(file);
+        } else if (
+          lowerPath.endsWith(".py") ||
+          lowerPath.endsWith(".js") ||
+          lowerPath.endsWith(".ts") ||
+          lowerPath.endsWith(".tsx") ||
+          lowerPath.endsWith(".jsx") ||
+          lowerPath.endsWith(".json") ||
+          lowerPath.endsWith(".yml") ||
+          lowerPath.endsWith(".yaml") ||
+          fileName === "dockerfile"
+        ) {
+          sourceCandidates.push(file);
+        }
       }
 
-      if (readFiles.length === 0) {
+      // Prioritize: lockfiles/workflows first, plus up to 25 source files, total capped at 40 files
+      const selectedFiles = [
+        ...lockfileCandidates.slice(0, 15),
+        ...sourceCandidates.slice(0, 25),
+      ].slice(0, 40);
+
+      if (selectedFiles.length === 0) {
         throw new Error("No source code or lockfiles found in uploaded folder.");
       }
+
+      // Fast concurrent file reading using Promise.all (<300ms)
+      const readFiles = await Promise.all(
+        selectedFiles.map(async (file) => {
+          const content = await file.text();
+          return {
+            path: file.webkitRelativePath || file.name,
+            content,
+          };
+        })
+      );
 
       const result = await fetchFolderAnalysis(folderName, readFiles);
       setData(result);
@@ -456,6 +493,21 @@ export default function Dashboard() {
     setShowPolygonModal(true);
     setPolygonAttested(true);
   }, []);
+
+  const handleGetStarted = useCallback(() => setCurrentView("scanner"), []);
+  const handleSelectScenario = useCallback((id: ScenarioId) => executeScenario(id), [executeScenario]);
+  const handleNodeClick = useCallback((nodeId: string) => {
+    setFocusNodeId(nodeId);
+  }, []);
+  const currentGraph = useMemo(() => data?.graph || null, [data?.graph]);
+  const currentCodeReviews = useMemo(() => data?.code_reviews || [], [data?.code_reviews]);
+  const handleReviewsUpdated = useCallback((updated: CodeReviewItem[]) => {
+    setData((prev) => (prev ? { ...prev, code_reviews: updated } : null));
+  }, []);
+  const displayedFindings = useMemo(() => {
+    if (!data?.findings) return [];
+    return showAllFindings ? data.findings : data.findings.slice(0, 25);
+  }, [data?.findings, showAllFindings]);
 
   // STAGE 1: LOGIN VIEW
   if (currentView === "login" || !currentUser) {
@@ -598,8 +650,8 @@ export default function Dashboard() {
       {currentView === "overview" && (
         <div className="flex-1 overflow-y-auto">
           <OverviewDashboard
-            onGetStarted={() => setCurrentView("scanner")}
-            onSelectScenario={(id) => executeScenario(id)}
+            onGetStarted={handleGetStarted}
+            onSelectScenario={handleSelectScenario}
           />
         </div>
       )}
@@ -815,10 +867,13 @@ export default function Dashboard() {
                   </div>
 
                   {/* REACT FLOW CANVAS */}
-                  <GraphCanvas
-                    graph={data.graph}
-                    focusNodeId={focusNodeId}
-                  />
+                  {currentGraph && (
+                    <GraphCanvas
+                      graph={currentGraph}
+                      focusNodeId={focusNodeId}
+                      onNodeClick={handleNodeClick}
+                    />
+                  )}
                 </div>
 
                 {/* RIGHT PANEL: 3 TABS (FINDINGS / EXECUTIVE AI / CODE REVIEWER) */}
@@ -884,83 +939,98 @@ export default function Dashboard() {
                     {activeTab === "findings" && (
                       <div className="space-y-3.5">
                         {data?.findings && data.findings.length > 0 ? (
-                          data.findings.map((f: any, idx: number) => {
-                            const detectorTag = getDetectorTag(f);
-                            const lockSnippet = buildLockfileSnippet(f);
-                            return (
-                              <div
-                                key={idx}
-                                className="p-3.5 rounded-xl border border-zinc-800/80 bg-zinc-900/40 hover:bg-zinc-900/70 transition-all group cursor-pointer"
-                                onClick={() => handleFindingClick(f)}
-                              >
-                                <div className="flex items-start justify-between mb-2">
-                                  <h4 className="text-xs font-semibold text-zinc-200 pr-4 leading-snug group-hover:text-red-300 transition-colors">
-                                    {f.title}
-                                  </h4>
-                                  <div className="flex items-center space-x-1 shrink-0">
-                                    <span
-                                      className={cn(
-                                        "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
-                                        getDetectorTagClass(detectorTag)
-                                      )}
-                                    >
-                                      {detectorTag}
-                                    </span>
-                                    <span
-                                      className={cn(
-                                        "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
-                                        getSeverityClass(f.severity)
-                                      )}
-                                    >
-                                      {f.severity}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <p className="text-[11px] text-zinc-400 leading-relaxed mb-3">
-                                  {f.description}
-                                </p>
-
-                                <div className="text-[9px] text-zinc-600 font-mono mb-2">
-                                  ↗ Click to focus node in graph
-                                </div>
-
-                                {/* Containment Strategy */}
-                                {f.recommendations && f.recommendations.length > 0 && (
-                                  <div className="mt-2.5 pt-2.5 border-t border-zinc-800/60">
-                                    <div className="flex items-center justify-between text-[10px] text-zinc-500 font-mono uppercase mb-1.5">
-                                      <span>Containment Strategy</span>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          copyToClipboard(lockSnippet, idx);
-                                        }}
-                                        className="flex items-center space-x-1 hover:text-zinc-300 transition-colors"
-                                      >
-                                        {copiedIndex === idx ? (
-                                          <Check className="w-3 h-3 text-emerald-400" />
-                                        ) : (
-                                          <Copy className="w-3 h-3" />
+                          <>
+                            {displayedFindings.map((f: any, idx: number) => {
+                              const detectorTag = getDetectorTag(f);
+                              const lockSnippet = buildLockfileSnippet(f);
+                              return (
+                                <div
+                                  key={idx}
+                                  className="p-3.5 rounded-xl border border-zinc-800/80 bg-zinc-900/40 hover:bg-zinc-900/70 transition-all group cursor-pointer"
+                                  onClick={() => handleFindingClick(f)}
+                                >
+                                  <div className="flex items-start justify-between mb-2">
+                                    <h4 className="text-xs font-semibold text-zinc-200 pr-4 leading-snug group-hover:text-red-300 transition-colors">
+                                      {f.title}
+                                    </h4>
+                                    <div className="flex items-center space-x-1 shrink-0">
+                                      <span
+                                        className={cn(
+                                          "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
+                                          getDetectorTagClass(detectorTag)
                                         )}
-                                        <span>{copiedIndex === idx ? "Copied!" : "Copy Lock"}</span>
-                                      </button>
-                                    </div>
-                                    <div className="p-2 rounded bg-black/60 border border-zinc-800/70 font-mono text-[10px] text-zinc-300">
-                                      <div className="text-emerald-400 font-semibold">
-                                        {f.recommendations[0]?.title}
-                                      </div>
-                                      <div className="text-zinc-400 text-[9px] mt-0.5">
-                                        {f.recommendations[0]?.why}
-                                      </div>
-                                      <pre className="mt-1.5 text-[9px] text-zinc-300 whitespace-pre-wrap break-all bg-zinc-900/60 rounded p-1.5 border border-zinc-800/50">
-                                        {lockSnippet}
-                                      </pre>
+                                      >
+                                        {detectorTag}
+                                      </span>
+                                      <span
+                                        className={cn(
+                                          "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
+                                          getSeverityClass(f.severity)
+                                        )}
+                                      >
+                                        {f.severity}
+                                      </span>
                                     </div>
                                   </div>
-                                )}
+
+                                  <p className="text-[11px] text-zinc-400 leading-relaxed mb-3">
+                                    {f.description}
+                                  </p>
+
+                                  <div className="text-[9px] text-zinc-600 font-mono mb-2">
+                                    ↗ Click to focus node in graph
+                                  </div>
+
+                                  {/* Containment Strategy */}
+                                  {f.recommendations && f.recommendations.length > 0 && (
+                                    <div className="mt-2.5 pt-2.5 border-t border-zinc-800/60">
+                                      <div className="flex items-center justify-between text-[10px] text-zinc-500 font-mono uppercase mb-1.5">
+                                        <span>Containment Strategy</span>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            copyToClipboard(lockSnippet, idx);
+                                          }}
+                                          className="flex items-center space-x-1 hover:text-zinc-300 transition-colors"
+                                        >
+                                          {copiedIndex === idx ? (
+                                            <Check className="w-3 h-3 text-emerald-400" />
+                                          ) : (
+                                            <Copy className="w-3 h-3" />
+                                          )}
+                                          <span>{copiedIndex === idx ? "Copied!" : "Copy Lock"}</span>
+                                        </button>
+                                      </div>
+                                      <div className="p-2 rounded bg-black/60 border border-zinc-800/70 font-mono text-[10px] text-zinc-300">
+                                        <div className="text-emerald-400 font-semibold">
+                                          {f.recommendations[0]?.title}
+                                        </div>
+                                        <div className="text-zinc-400 text-[9px] mt-0.5">
+                                          {f.recommendations[0]?.why}
+                                        </div>
+                                        <pre className="mt-1.5 text-[9px] text-zinc-300 whitespace-pre-wrap break-all bg-zinc-900/60 rounded p-1.5 border border-zinc-800/50">
+                                          {lockSnippet}
+                                        </pre>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            {data.findings.length > 25 && (
+                              <div className="pt-2 text-center">
+                                <button
+                                  onClick={() => setShowAllFindings(!showAllFindings)}
+                                  className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/80 text-xs font-mono text-zinc-200 transition-colors shadow-sm"
+                                >
+                                  {showAllFindings
+                                    ? "Show First 25 Findings"
+                                    : `Show All (${data.findings.length}) Findings`}
+                                </button>
                               </div>
-                            );
-                          })
+                            )}
+                          </>
                         ) : (
                           <div className="p-8 text-center border border-dashed border-zinc-800 rounded-xl">
                             <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
@@ -1010,10 +1080,8 @@ export default function Dashboard() {
                     {/* ============ CODE REVIEWER TAB ============ */}
                     {activeTab === "reviewer" && (
                       <CodeReviewerPanel
-                        codeReviews={data?.code_reviews || []}
-                        onReviewsUpdated={(updated) => {
-                          setData((prev) => (prev ? { ...prev, code_reviews: updated } : null));
-                        }}
+                        codeReviews={currentCodeReviews}
+                        onReviewsUpdated={handleReviewsUpdated}
                       />
                     )}
                   </div>

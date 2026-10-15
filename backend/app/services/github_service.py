@@ -62,6 +62,41 @@ class GitHubService:
                 return None
             raise ValueError(f"Failed to fetch file content for {file_path}: {e.data.get('message', str(e))}")
 
+    async def get_file_content_async(self, repo_url: str, file_path: str, ref: str = None, timeout: float = 4.0) -> Optional[str]:
+        """Fetch raw file content asynchronously with a strict timeout."""
+        import asyncio
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(self.get_file_content, repo_url, file_path, ref),
+                timeout=timeout
+            )
+        except Exception:
+            return None
+
+    async def get_files_batch(self, repo_url: str, file_paths: List[str], ref: str = None, max_concurrency: int = 8, timeout: float = 4.0) -> dict:
+        """Fetch multiple files concurrently using an asyncio Semaphore and strict per-request timeout."""
+        import asyncio
+        sem = asyncio.Semaphore(max_concurrency)
+
+        async def _fetch(path: str):
+            async with sem:
+                try:
+                    content = await asyncio.wait_for(
+                        asyncio.to_thread(self.get_file_content, repo_url, path, ref),
+                        timeout=timeout
+                    )
+                    return path, content
+                except Exception:
+                    return path, None
+
+        tasks = [_fetch(p) for p in file_paths]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        out = {}
+        for res in results:
+            if isinstance(res, tuple) and res[1] is not None:
+                out[res[0]] = res[1]
+        return out
+
     def list_files(self, repo_url: str, path: str = "", ref: str = None) -> List[str]:
         full_name = self._extract_repo_name(repo_url)
         try:

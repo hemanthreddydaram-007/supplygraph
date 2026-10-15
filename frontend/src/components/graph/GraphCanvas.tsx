@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useCallback, useEffect, useState, useRef } from "react";
+import React, { useMemo, useCallback, useEffect, useState } from "react";
 import {
   ReactFlow,
   Controls,
@@ -10,7 +10,6 @@ import {
   Node,
   useReactFlow,
   ReactFlowProvider,
-  FitViewOptions,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { nodeTypes } from "./CustomNodes";
@@ -24,14 +23,18 @@ interface GraphCanvasProps {
 
 type GraphFilter = "attack" | "all";
 
-function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps) {
-  const { fitView, setCenter } = useReactFlow();
+const GraphCanvasInner = React.memo(function GraphCanvasInner({
+  graph,
+  focusNodeId,
+  onNodeClick,
+}: GraphCanvasProps) {
+  const { fitView } = useReactFlow();
   const [filter, setFilter] = useState<GraphFilter>("attack");
 
   // Determine if we should default to attack-path-only view
   const totalNodes = graph.nodes.length;
   const defaultFilter: GraphFilter = totalNodes > 35 ? "attack" : "all";
-  
+
   // Set default filter based on graph size on mount
   useEffect(() => {
     setFilter(defaultFilter);
@@ -66,7 +69,6 @@ function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps)
     });
 
     if (directThreats.size === 0) {
-      // If no threats identified, include all nodes
       return new Set(graph.nodes.map(n => n.id));
     }
 
@@ -79,7 +81,7 @@ function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps)
       neighbors.get(e.target)!.add(e.source);
     });
 
-    // 3. Traverse in BOTH directions (1 to 3 hops) to keep parents, intermediate packages, assets, and repo
+    // 3. Traverse in BOTH directions (1 to 3 hops)
     const kept = new Set<string>(directThreats);
     let frontier = Array.from(directThreats);
 
@@ -114,10 +116,48 @@ function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps)
     return kept;
   }, [graph]);
 
+  // Hard-cap nodes in "All Nodes" mode: top 180 prioritized nodes if > 200 nodes
+  const isCapped = filter === "all" && graph.nodes.length > 200;
+
+  const prioritizedAllNodes = useMemo(() => {
+    if (!isCapped) return graph.nodes;
+
+    // Prioritize:
+    // 1. Threat / affected nodes
+    // 2. Services, APIs, Repositories, Deployments
+    // 3. Direct dependencies
+    // 4. Remaining nodes
+    const threats: typeof graph.nodes = [];
+    const assets: typeof graph.nodes = [];
+    const directDeps: typeof graph.nodes = [];
+    const others: typeof graph.nodes = [];
+
+    graph.nodes.forEach(n => {
+      if (threatNodeIds.has(n.id)) {
+        threats.push(n);
+      } else if (
+        n.data?.node_type === "Repository" ||
+        n.data?.node_type === "Service" ||
+        n.data?.node_type === "API" ||
+        n.data?.node_type === "Deployment" ||
+        n.data?.node_type === "Pipeline"
+      ) {
+        assets.push(n);
+      } else if (n.data?.metadata?.is_direct) {
+        directDeps.push(n);
+      } else {
+        others.push(n);
+      }
+    });
+
+    const combined = [...threats, ...assets, ...directDeps, ...others];
+    return combined.slice(0, 180);
+  }, [graph, isCapped, threatNodeIds]);
+
   // Compute layout positions with multi-column grid wrapping (max 8 per column)
   const visibleNodes: Node[] = useMemo(() => {
     const rawNodes = filter === "all"
-      ? graph.nodes
+      ? prioritizedAllNodes
       : graph.nodes.filter(n => threatNodeIds.has(n.id));
 
     // Group nodes by X coordinate to detect columns with > 8 nodes
@@ -163,30 +203,45 @@ function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps)
         type: "default",
       };
     });
-  }, [graph.nodes, filter, threatNodeIds]);
+  }, [graph.nodes, filter, prioritizedAllNodes, threatNodeIds]);
 
   const visibleEdges: Edge[] = useMemo(() => {
     const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+    let animatedCount = 0;
 
     return graph.edges
       .filter(e => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
       .map(e => {
-        // Edge is on an attack path if explicitly marked or if either end connects to a vulnerability
         const isAttack =
           Boolean(e.data?.is_attack_path) ||
           e.data?.edge_type === "AFFECTS" ||
           (threatNodeIds.has(e.source) && threatNodeIds.has(e.target));
 
+        let animate = false;
+        if (isAttack) {
+          if (filter === "attack") {
+            if (animatedCount < 40) {
+              animate = true;
+              animatedCount++;
+            }
+          } else {
+            // "all" view - disable if > 100 edges, otherwise cap at 40
+            if (graph.edges.length <= 100 && animatedCount < 40) {
+              animate = true;
+              animatedCount++;
+            }
+          }
+        }
+
         return {
           id: e.id,
           source: e.source,
           target: e.target,
-          animated: isAttack,
+          animated: animate,
           label: e.data?.label,
           style: {
-            stroke: isAttack ? "#ef4444" : "#475569",
-            strokeWidth: isAttack ? 2.5 : 1.6,
-            filter: isAttack ? "drop-shadow(0 0 8px rgba(239,68,68,0.7))" : "none",
+            stroke: isAttack ? "#ef4444" : "#334155",
+            strokeWidth: isAttack ? 2.5 : 1.2,
           },
           labelStyle: {
             fill: isAttack ? "#fca5a5" : "#71717a",
@@ -198,22 +253,23 @@ function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps)
           labelBgBorderRadius: 4,
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            width: isAttack ? 16 : 12,
-            height: isAttack ? 16 : 12,
-            color: isAttack ? "#ef4444" : "#475569",
+            width: isAttack ? 14 : 10,
+            height: isAttack ? 14 : 10,
+            color: isAttack ? "#ef4444" : "#334155",
           },
         };
       });
-  }, [graph.edges, visibleNodes, threatNodeIds]);
+  }, [graph.edges, visibleNodes, threatNodeIds, filter]);
 
   // Focus on a specific node when focusNodeId changes
   useEffect(() => {
     if (!focusNodeId) return;
-    const node = graph.nodes.find(n => n.id === focusNodeId ||
+    const node = graph.nodes.find(n =>
+      n.id === focusNodeId ||
       n.id.includes(focusNodeId) ||
-      focusNodeId.includes(n.id));
+      focusNodeId.includes(n.id)
+    );
     if (node) {
-      // Switch to all-nodes view if the target node is not visible
       if (!threatNodeIds.has(node.id)) {
         setFilter("all");
       }
@@ -223,9 +279,12 @@ function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps)
     }
   }, [focusNodeId, fitView, graph.nodes, threatNodeIds]);
 
-  const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
-    onNodeClick?.(node.id);
-  }, [onNodeClick]);
+  const handleNodeClick = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      onNodeClick?.(node.id);
+    },
+    [onNodeClick]
+  );
 
   const attackCount = threatNodeIds.size;
   const allCount = graph.nodes.length;
@@ -233,32 +292,41 @@ function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps)
   return (
     <div className="w-full h-full bg-[#09090b] relative">
       {/* Filter Control — floating segmented control */}
-      <div className="absolute top-3 right-3 z-20 flex items-center bg-zinc-950/90 border border-zinc-800 rounded-lg overflow-hidden shadow-xl backdrop-blur-md">
-        <button
-          onClick={() => setFilter("attack")}
-          className={`px-3 py-1.5 text-[10px] font-mono font-semibold transition-all ${
-            filter === "attack"
-              ? "bg-red-950/60 text-red-300 border-r border-red-800/40"
-              : "text-zinc-500 hover:text-zinc-300 border-r border-zinc-800"
-          }`}
-        >
-          ⚡ Attack Paths Only
-          {filter === "attack" && (
-            <span className="ml-1.5 px-1 py-0.5 bg-red-900/40 text-red-400 rounded text-[9px]">
-              {attackCount}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setFilter("all")}
-          className={`px-3 py-1.5 text-[10px] font-mono font-semibold transition-all ${
-            filter === "all"
-              ? "bg-zinc-800/60 text-zinc-100"
-              : "text-zinc-500 hover:text-zinc-300"
-          }`}
-        >
-          All Nodes ({allCount})
-        </button>
+      <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-1.5">
+        <div className="flex items-center bg-zinc-950/90 border border-zinc-800 rounded-lg overflow-hidden shadow-lg">
+          <button
+            onClick={() => setFilter("attack")}
+            className={`px-3 py-1.5 text-[10px] font-mono font-semibold transition-all ${
+              filter === "attack"
+                ? "bg-red-950/60 text-red-300 border-r border-red-800/40"
+                : "text-zinc-500 hover:text-zinc-300 border-r border-zinc-800"
+            }`}
+          >
+            ⚡ Attack Paths Only
+            {filter === "attack" && (
+              <span className="ml-1.5 px-1 py-0.5 bg-red-900/40 text-red-400 rounded text-[9px]">
+                {attackCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setFilter("all")}
+            className={`px-3 py-1.5 text-[10px] font-mono font-semibold transition-all ${
+              filter === "all"
+                ? "bg-zinc-800/60 text-zinc-100"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            All Nodes ({allCount})
+          </button>
+        </div>
+
+        {/* 60 FPS Node Capping Badge */}
+        {isCapped && (
+          <div className="px-2.5 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded text-[9px] font-mono text-amber-300">
+            Showing top 180 of {allCount} nodes for 60 FPS performance
+          </div>
+        )}
       </div>
 
       <ReactFlow
@@ -269,23 +337,30 @@ function GraphCanvasInner({ graph, focusNodeId, onNodeClick }: GraphCanvasProps)
         fitViewOptions={{ padding: 0.2 }}
         colorMode="dark"
         onNodeClick={handleNodeClick}
-        minZoom={0.05}
+        minZoom={0.15}
         maxZoom={2}
+        onlyRenderVisibleElements={true}
+        elevateNodesOnSelect={false}
+        elevateEdgesOnSelect={false}
       >
         <Background color="#18181b" gap={24} size={1} />
         <Controls
-          className="!bg-zinc-950/90 !border !border-zinc-800 !fill-zinc-400 !shadow-2xl !rounded-lg overflow-hidden"
+          className="!bg-zinc-950/90 !border !border-zinc-800 !fill-zinc-400 !shadow-lg !rounded-lg overflow-hidden"
           showInteractive={false}
         />
       </ReactFlow>
     </div>
   );
-}
+});
 
-export function GraphCanvas(props: GraphCanvasProps) {
+GraphCanvasInner.displayName = "GraphCanvasInner";
+
+export const GraphCanvas = React.memo(function GraphCanvas(props: GraphCanvasProps) {
   return (
     <ReactFlowProvider>
       <GraphCanvasInner {...props} />
     </ReactFlowProvider>
   );
-}
+});
+
+GraphCanvas.displayName = "GraphCanvas";

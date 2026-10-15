@@ -20,9 +20,9 @@ const getNodeConfig = (type: string, isSuspicious: boolean, isAffected: boolean)
   let config = { 
     icon: Box, 
     color: "text-zinc-400", 
-    border: "border-zinc-800", 
-    bg: "bg-zinc-950/90",
-    badgeBg: "bg-zinc-900 border-zinc-800 text-zinc-400"
+    border: "border-slate-800", 
+    bg: "bg-slate-900/95",
+    badgeBg: "bg-slate-800 border-slate-700 text-zinc-400"
   };
 
   switch (type) {
@@ -30,8 +30,8 @@ const getNodeConfig = (type: string, isSuspicious: boolean, isAffected: boolean)
       config = { 
         icon: Globe, 
         color: "text-indigo-400", 
-        border: "border-indigo-500/40 shadow-[0_0_20px_rgba(99,102,241,0.15)]", 
-        bg: "bg-indigo-950/30",
+        border: "border-indigo-500/60", 
+        bg: "bg-slate-900/95",
         badgeBg: "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
       };
       break;
@@ -40,8 +40,8 @@ const getNodeConfig = (type: string, isSuspicious: boolean, isAffected: boolean)
       config = { 
         icon: Box, 
         color: "text-sky-400", 
-        border: "border-sky-500/30", 
-        bg: "bg-zinc-950/90",
+        border: "border-sky-500/40", 
+        bg: "bg-slate-900/95",
         badgeBg: "bg-sky-950/40 border-sky-500/30 text-sky-300"
       };
       break;
@@ -49,8 +49,8 @@ const getNodeConfig = (type: string, isSuspicious: boolean, isAffected: boolean)
       config = { 
         icon: Bug, 
         color: "text-red-400", 
-        border: "border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.25)]", 
-        bg: "bg-red-950/20",
+        border: "border-red-500/80", 
+        bg: "bg-slate-900/95",
         badgeBg: "bg-red-500/10 border-red-500/30 text-red-400"
       };
       break;
@@ -58,8 +58,8 @@ const getNodeConfig = (type: string, isSuspicious: boolean, isAffected: boolean)
       config = { 
         icon: Server, 
         color: "text-amber-400", 
-        border: "border-amber-500/30", 
-        bg: "bg-amber-950/20",
+        border: "border-amber-500/50", 
+        bg: "bg-slate-900/95",
         badgeBg: "bg-amber-500/10 border-amber-500/30 text-amber-300"
       };
       break;
@@ -67,8 +67,8 @@ const getNodeConfig = (type: string, isSuspicious: boolean, isAffected: boolean)
       config = { 
         icon: Cloud, 
         color: "text-cyan-400", 
-        border: "border-cyan-500/30", 
-        bg: "bg-cyan-950/20",
+        border: "border-cyan-500/50", 
+        bg: "bg-slate-900/95",
         badgeBg: "bg-cyan-500/10 border-cyan-500/30 text-cyan-300"
       };
       break;
@@ -76,8 +76,8 @@ const getNodeConfig = (type: string, isSuspicious: boolean, isAffected: boolean)
       config = { 
         icon: Database, 
         color: "text-rose-400", 
-        border: "border-rose-500/30", 
-        bg: "bg-rose-950/20",
+        border: "border-rose-500/50", 
+        bg: "bg-slate-900/95",
         badgeBg: "bg-rose-500/10 border-rose-500/30 text-rose-300"
       };
       break;
@@ -85,21 +85,21 @@ const getNodeConfig = (type: string, isSuspicious: boolean, isAffected: boolean)
       config = { 
         icon: GitCommit, 
         color: "text-emerald-400", 
-        border: "border-emerald-500/30", 
-        bg: "bg-emerald-950/20",
+        border: "border-emerald-500/50", 
+        bg: "bg-slate-900/95",
         badgeBg: "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
       };
       break;
   }
 
   if (isSuspicious) {
-    config.border = "border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.35)]";
-    config.bg = "bg-red-950/30";
+    config.border = "border-red-500/80";
+    config.bg = "bg-slate-900/95";
     config.color = "text-red-400";
     config.badgeBg = "bg-red-500/20 border-red-500/50 text-red-300";
   } else if (isAffected) {
-    config.border = "border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.2)]";
-    config.bg = "bg-amber-950/20";
+    config.border = "border-amber-500/60";
+    config.bg = "bg-slate-900/95";
     config.color = "text-amber-400";
     config.badgeBg = "bg-amber-500/20 border-amber-500/40 text-amber-300";
   }
@@ -107,7 +107,7 @@ const getNodeConfig = (type: string, isSuspicious: boolean, isAffected: boolean)
   return config;
 };
 
-export const BaseNode = ({ data, isConnectable }: NodeProps<Node<GraphNodeData>>) => {
+export const BaseNode = React.memo(({ data, isConnectable }: NodeProps<Node<GraphNodeData>>) => {
   const isSuspicious = !!data.is_suspicious;
   const isAffected = !!data.is_affected;
   
@@ -116,8 +116,9 @@ export const BaseNode = ({ data, isConnectable }: NodeProps<Node<GraphNodeData>>
 
   return (
     <div
+      style={{ willChange: "transform" }}
       className={cn(
-        "group relative px-3 py-2.5 rounded-lg border min-w-[190px] max-w-[260px] shadow-sm backdrop-blur-md transition-all duration-200 hover:border-zinc-500",
+        "group relative px-3 py-2.5 rounded-lg border min-w-[190px] max-w-[260px] transition-colors duration-150 hover:border-zinc-500",
         config.bg,
         config.border
       )}
@@ -171,14 +172,34 @@ export const BaseNode = ({ data, isConnectable }: NodeProps<Node<GraphNodeData>>
       />
     </div>
   );
-};
+});
+
+BaseNode.displayName = "BaseNode";
+
+export const RepositoryNode = React.memo(BaseNode);
+RepositoryNode.displayName = "RepositoryNode";
+
+export const PackageNode = React.memo(BaseNode);
+PackageNode.displayName = "PackageNode";
+
+export const ServiceNode = React.memo(BaseNode);
+ServiceNode.displayName = "ServiceNode";
+
+export const ApiNode = React.memo(BaseNode);
+ApiNode.displayName = "ApiNode";
+
+export const DeploymentNode = React.memo(BaseNode);
+DeploymentNode.displayName = "DeploymentNode";
+
+export const VulnerabilityNode = React.memo(BaseNode);
+VulnerabilityNode.displayName = "VulnerabilityNode";
 
 export const nodeTypes = {
-  repositoryNode: BaseNode,
-  packageNode: BaseNode,
-  serviceNode: BaseNode,
-  apiNode: BaseNode,
-  deploymentNode: BaseNode,
-  vulnerabilityNode: BaseNode,
+  repositoryNode: RepositoryNode,
+  packageNode: PackageNode,
+  serviceNode: ServiceNode,
+  apiNode: ApiNode,
+  deploymentNode: DeploymentNode,
+  vulnerabilityNode: VulnerabilityNode,
   default: BaseNode,
 };
