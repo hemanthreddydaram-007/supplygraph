@@ -100,26 +100,47 @@ class AnalysisService:
             name=repo_repo
         )
 
-        # --- STEP 1: Detect and parse lockfiles across root and subdirectories ---
+        # --- STEP 1: Detect and parse lockfiles and manifests across root and subdirectories ---
         all_repo_files = self.github_service.list_files(request.github_url, ref=request.branch)
-        supported_lockfiles = ["package-lock.json", "poetry.lock", "requirements.txt", "package.json"]
-        found_lockfiles = [f for f in all_repo_files if any(f.endswith(ext) for ext in supported_lockfiles)]
+        supported_lockfiles = [
+            "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "package.json",
+            "poetry.lock", "requirements.txt",
+            "go.mod",
+            "Cargo.lock", "Cargo.toml"
+        ]
+        found_lockfiles = [
+            f for f in all_repo_files
+            if any(f.lower().endswith(ext.lower()) for ext in supported_lockfiles)
+        ]
 
-        # If a directory has both package-lock.json and package.json, prefer package-lock.json
+        # Directory-aware precedence:
+        # 1. If npm lockfile (package-lock.json, yarn.lock, pnpm-lock.yaml) exists in dir, suppress package.json
+        # 2. If Cargo.lock exists in dir, suppress Cargo.toml
+        npm_lock_exts = ("package-lock.json", "yarn.lock", "pnpm-lock.yaml")
+        cargo_lock_exts = ("cargo.lock",)
+
+        dirs_with_npm_lock = set()
+        dirs_with_cargo_lock = set()
+
+        for f in found_lockfiles:
+            fl = f.lower()
+            dir_name = f.rsplit("/", 1)[0] if "/" in f else ""
+            if any(fl.endswith(ext) for ext in npm_lock_exts):
+                dirs_with_npm_lock.add(dir_name)
+            if any(fl.endswith(ext) for ext in cargo_lock_exts):
+                dirs_with_cargo_lock.add(dir_name)
+
         filtered_lockfiles = []
-        lock_dirs_with_lock = set()
         for f in found_lockfiles:
-            if f.endswith("package-lock.json"):
-                dir_name = f.rsplit("/", 1)[0] if "/" in f else ""
-                lock_dirs_with_lock.add(dir_name)
-                filtered_lockfiles.append(f)
-
-        for f in found_lockfiles:
-            if f.endswith("package.json"):
-                dir_name = f.rsplit("/", 1)[0] if "/" in f else ""
-                if dir_name not in lock_dirs_with_lock:
+            fl = f.lower()
+            dir_name = f.rsplit("/", 1)[0] if "/" in f else ""
+            if fl.endswith("package.json"):
+                if dir_name not in dirs_with_npm_lock:
                     filtered_lockfiles.append(f)
-            elif not f.endswith("package-lock.json"):
+            elif fl.endswith("cargo.toml"):
+                if dir_name not in dirs_with_cargo_lock:
+                    filtered_lockfiles.append(f)
+            else:
                 filtered_lockfiles.append(f)
 
         scan_metadata.lockfile_detected = len(filtered_lockfiles) > 0
@@ -560,24 +581,43 @@ class AnalysisService:
 
         files_map = {f.path: f.content for f in request.files}
 
-        # 1. Parse lockfiles
-        supported_lockfiles = ["package-lock.json", "poetry.lock", "requirements.txt", "package.json"]
-        found_lockfiles = [p for p in files_map.keys() if any(p.endswith(ext) for ext in supported_lockfiles)]
+        # 1. Parse lockfiles and manifests
+        supported_lockfiles = [
+            "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "package.json",
+            "poetry.lock", "requirements.txt",
+            "go.mod",
+            "Cargo.lock", "Cargo.toml"
+        ]
+        found_lockfiles = [
+            p for p in files_map.keys()
+            if any(p.lower().endswith(ext.lower()) for ext in supported_lockfiles)
+        ]
+
+        npm_lock_exts = ("package-lock.json", "yarn.lock", "pnpm-lock.yaml")
+        cargo_lock_exts = ("cargo.lock",)
+
+        dirs_with_npm_lock = set()
+        dirs_with_cargo_lock = set()
+
+        for f in found_lockfiles:
+            fl = f.lower()
+            dir_name = f.rsplit("/", 1)[0] if "/" in f else ""
+            if any(fl.endswith(ext) for ext in npm_lock_exts):
+                dirs_with_npm_lock.add(dir_name)
+            if any(fl.endswith(ext) for ext in cargo_lock_exts):
+                dirs_with_cargo_lock.add(dir_name)
 
         filtered_lockfiles = []
-        lock_dirs_with_lock = set()
         for f in found_lockfiles:
-            if f.endswith("package-lock.json"):
-                dir_name = f.rsplit("/", 1)[0] if "/" in f else ""
-                lock_dirs_with_lock.add(dir_name)
-                filtered_lockfiles.append(f)
-
-        for f in found_lockfiles:
-            if f.endswith("package.json"):
-                dir_name = f.rsplit("/", 1)[0] if "/" in f else ""
-                if dir_name not in lock_dirs_with_lock:
+            fl = f.lower()
+            dir_name = f.rsplit("/", 1)[0] if "/" in f else ""
+            if fl.endswith("package.json"):
+                if dir_name not in dirs_with_npm_lock:
                     filtered_lockfiles.append(f)
-            elif not f.endswith("package-lock.json"):
+            elif fl.endswith("cargo.toml"):
+                if dir_name not in dirs_with_cargo_lock:
+                    filtered_lockfiles.append(f)
+            else:
                 filtered_lockfiles.append(f)
 
         scan_metadata.lockfile_detected = len(filtered_lockfiles) > 0
@@ -595,15 +635,28 @@ class AnalysisService:
 
         if not raw_components:
             for p, content in files_map.items():
-                if "requirements" in p and p.endswith(".txt"):
+                pl = p.lower()
+                if pl.endswith("go.mod"):
+                    try:
+                        comps = self.lockfile_parser.parse_go_mod(content)
+                        raw_components.extend(comps)
+                    except Exception:
+                        pass
+                elif pl.endswith("cargo.lock") or pl.endswith("cargo.toml"):
+                    try:
+                        comps = self.lockfile_parser.parse_cargo_lock(content)
+                        raw_components.extend(comps)
+                    except Exception:
+                        pass
+                elif "requirements" in pl and pl.endswith(".txt"):
                     try:
                         comps = self.lockfile_parser.parse_lockfile(content, "requirements.txt")
                         raw_components.extend(comps)
                     except Exception:
                         pass
-                elif p.endswith("package.json"):
+                elif pl.endswith("package.json"):
                     try:
-                        comps = self.lockfile_parser.parse_lockfile(content, "package.json")
+                        comps = self.lockfile_parser.parse_package_json(content)
                         raw_components.extend(comps)
                     except Exception:
                         pass
