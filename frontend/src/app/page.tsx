@@ -7,6 +7,7 @@ import { GraphCanvas } from "@/components/graph/GraphCanvas";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { OverviewDashboard } from "@/components/dashboard/OverviewDashboard";
 import { CodeReviewerPanel } from "@/components/reviewer/CodeReviewerPanel";
+import { SandboxPanel } from "@/components/sandbox/SandboxPanel";
 import {
   ShieldAlert,
   Loader2,
@@ -249,7 +250,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"findings" | "briefing" | "reviewer">("findings");
+  const [activeTab, setActiveTab] = useState<"findings" | "briefing" | "reviewer" | "sandbox">("findings");
+  const [lastUploadedFiles, setLastUploadedFiles] = useState<{ path: string; content: string }[]>([]);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [activeScenario, setActiveScenario] = useState<ScenarioId | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
@@ -442,6 +444,7 @@ export default function Dashboard() {
       );
 
       const result = await fetchFolderAnalysis(folderName, readFiles);
+      setLastUploadedFiles(readFiles);
       setData(result);
     } catch (err: any) {
       setError(err.message || "Failed to analyze uploaded project folder.");
@@ -598,7 +601,7 @@ export default function Dashboard() {
               onClick={() => setCurrentView("scanner")}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center space-x-1.5",
-                currentView === "scanner" && activeTab !== "reviewer"
+                currentView === "scanner" && activeTab !== "reviewer" && activeTab !== "sandbox"
                   ? "bg-zinc-800 text-zinc-100 font-semibold"
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
               )}
@@ -625,6 +628,22 @@ export default function Dashboard() {
                   {data.code_reviews.length}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => {
+                setCurrentView("scanner");
+                setActiveTab("sandbox");
+              }}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center space-x-1.5",
+                currentView === "scanner" && activeTab === "sandbox"
+                  ? "bg-zinc-800 text-zinc-100 font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+              )}
+            >
+              <Zap className="w-3 h-3 text-red-400" />
+              <span>⚡ Sandbox Execution</span>
             </button>
           </nav>
         </div>
@@ -918,16 +937,16 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                {/* RIGHT PANEL: 3 TABS (FINDINGS / EXECUTIVE AI / CODE REVIEWER) */}
-                <div className="w-[420px] border-l border-zinc-800/80 bg-zinc-950/70 backdrop-blur-md flex flex-col h-full shrink-0">
+                {/* RIGHT PANEL: 4 TABS (FINDINGS / EXECUTIVE AI / CODE REVIEWER / SANDBOX) */}
+                <div className="w-[490px] border-l border-zinc-800/80 bg-zinc-950/70 backdrop-blur-md flex flex-col h-full shrink-0">
                   {/* Tab Navigation */}
                   <div className="flex items-center justify-between px-5 pt-3.5 border-b border-zinc-800/80 shrink-0">
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-3 overflow-x-auto no-scrollbar">
                       {/* Findings Tab */}
                       <button
                         onClick={() => setActiveTab("findings")}
                         className={cn(
-                          "pb-2.5 text-xs font-medium border-b-2 transition-all flex items-center space-x-1.5",
+                          "pb-2.5 text-xs font-medium border-b-2 transition-all flex items-center space-x-1.5 shrink-0",
                           activeTab === "findings"
                             ? "border-red-500 text-zinc-100"
                             : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -941,7 +960,7 @@ export default function Dashboard() {
                       <button
                         onClick={() => setActiveTab("briefing")}
                         className={cn(
-                          "pb-2.5 text-xs font-medium border-b-2 transition-all flex items-center space-x-1.5",
+                          "pb-2.5 text-xs font-medium border-b-2 transition-all flex items-center space-x-1.5 shrink-0",
                           activeTab === "briefing"
                             ? "border-indigo-500 text-zinc-100"
                             : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -955,14 +974,28 @@ export default function Dashboard() {
                       <button
                         onClick={() => setActiveTab("reviewer")}
                         className={cn(
-                          "pb-2.5 text-xs font-medium border-b-2 transition-all flex items-center space-x-1.5",
+                          "pb-2.5 text-xs font-medium border-b-2 transition-all flex items-center space-x-1.5 shrink-0",
                           activeTab === "reviewer"
                             ? "border-amber-500 text-zinc-100"
                             : "border-transparent text-zinc-400 hover:text-zinc-200"
                         )}
                       >
                         <FileCode2 className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Code Reviewer ({data?.code_reviews?.length || 0})</span>
+                        <span>Reviewer ({data?.code_reviews?.length || 0})</span>
+                      </button>
+
+                      {/* Sandbox Detonation Tab */}
+                      <button
+                        onClick={() => setActiveTab("sandbox")}
+                        className={cn(
+                          "pb-2.5 text-xs font-medium border-b-2 transition-all flex items-center space-x-1.5 shrink-0",
+                          activeTab === "sandbox"
+                            ? "border-red-500 text-zinc-100 font-semibold"
+                            : "border-transparent text-zinc-400 hover:text-zinc-200"
+                        )}
+                      >
+                        <Zap className="w-3.5 h-3.5 text-red-400" />
+                        <span>⚡ Sandbox</span>
                       </button>
                     </div>
 
@@ -1124,6 +1157,14 @@ export default function Dashboard() {
                       <CodeReviewerPanel
                         codeReviews={currentCodeReviews}
                         onReviewsUpdated={handleReviewsUpdated}
+                      />
+                    )}
+
+                    {/* ============ SANDBOX DETONATION TAB ============ */}
+                    {activeTab === "sandbox" && (
+                      <SandboxPanel
+                        files={lastUploadedFiles}
+                        projectName={data?.scan?.repository_url || "Active Workspace"}
                       />
                     )}
                   </div>

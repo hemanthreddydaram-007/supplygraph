@@ -123,3 +123,30 @@ export interface AnalysisResponse {
   detector_breakdown?: DetectorBreakdown;
   code_reviews?: CodeReviewItem[];
 }
+
+export interface SandboxExecutionRequest {
+  files?: { path: string; content: string }[];
+  target_file?: string;
+  mode?: "auto" | "detonate" | "test" | "inspect_manifest" | "extract_strings";
+  timeout_seconds?: number;
+  archive_base64?: string;
+  archive_filename?: string;
+}
+
+export interface SandboxExecutionResponse {
+  api_version: string;
+  execution_id: string;
+  status: "success" | "warning" | "error" | "violation";
+  isolation_mode: "docker" | "restricted_subprocess" | "static_safe";
+  target_type: string;
+  exit_code: number;
+  duration_seconds: number;
+  logs: string;
+  security_violations: string[];
+  extracted_strings: string[];
+  manifest_summary?: Record<string, any>;
+  test_results?: Record<string, any>;
+  detonation_alerts: string[];
+  timestamp?: string;
+}
+

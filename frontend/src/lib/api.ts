@@ -82,3 +82,27 @@ export async function fetchCodeReviewSnippet(
 
   return response.json();
 }
+
+export async function executeSandbox(
+  req: import("@/types").SandboxExecutionRequest
+): Promise<import("@/types").SandboxExecutionResponse> {
+  const response = await fetch(`${API_BASE}/api/v1/execute/sandbox`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(req),
+  });
+
+  if (!response.ok) {
+    let errorDetail = response.statusText;
+    try {
+      const errorBody = await response.json();
+      if (errorBody.detail) errorDetail = errorBody.detail;
+    } catch (e) {}
+    throw new Error(`Sandbox execution error: ${errorDetail}`);
+  }
+
+  return response.json();
+}
+

@@ -639,6 +639,32 @@ class CodeReviewRequest(BaseModel):
     file_path: Optional[str] = "snippet.py"
 
 
+class SandboxExecutionRequest(BaseModel):
+    files: List[UploadedFile] = Field(default_factory=list)
+    target_file: Optional[str] = None
+    mode: Literal["auto", "detonate", "test", "inspect_manifest", "extract_strings"] = "auto"
+    timeout_seconds: float = 10.0
+    archive_base64: Optional[str] = None
+    archive_filename: Optional[str] = None
+
+
+class SandboxExecutionResponse(BaseModel):
+    api_version: str = "v1"
+    execution_id: str
+    status: Literal["success", "warning", "error", "violation"] = "success"
+    isolation_mode: Literal["docker", "restricted_subprocess", "static_safe"] = "restricted_subprocess"
+    target_type: str = "generic"
+    exit_code: int = 0
+    duration_seconds: float = 0.0
+    logs: str = ""
+    security_violations: List[str] = Field(default_factory=list)
+    extracted_strings: List[str] = Field(default_factory=list)
+    manifest_summary: Optional[Dict[str, Any]] = None
+    test_results: Optional[Dict[str, Any]] = None
+    detonation_alerts: List[str] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
 class AnalysisResponse(BaseModel):
     """Complete analysis response including graph, findings, paths."""
     api_version: str = "v1"

@@ -2,10 +2,13 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from app.models.core import (
     AnalysisRequest, DemoRequest, AnalysisResponse,
-    FolderAnalysisRequest, CodeReviewRequest, CodeReviewItem
+    FolderAnalysisRequest, CodeReviewRequest, CodeReviewItem,
+    SandboxExecutionRequest, SandboxExecutionResponse
 )
 from app.services.analysis_service import AnalysisService
 from app.services.code_reviewer import CodeReviewerService
+from app.execution.router import ExecutionRouter
+from app.execution.detonation import DetonationService
 import json
 import os
 import uuid
@@ -266,6 +269,69 @@ async def review_code_snippet(request: CodeReviewRequest):
         return {"reviews": reviews, "count": len(reviews)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/execute/sandbox", response_model=SandboxExecutionResponse)
+async def execute_sandbox(request: SandboxExecutionRequest):
+    router_service = ExecutionRouter()
+    detonation_service = DetonationService(timeout_seconds=request.timeout_seconds)
+    try:
+        if request.mode == "detonate":
+            reports = detonation_service.detonate_project_hooks(request.files)
+            exec_id = f"sbx_det_{uuid.uuid4().hex[:10]}"
+            alerts = []
+            violations = []
+            logs = "=== POST-INSTALL LIFECYCLE HOOK DETONATION ===\n"
+            if not reports:
+                logs += "No lifecycle hooks (preinstall, install, postinstall) detected in project manifest.\n"
+            for rep in reports:
+                logs += f"\n[{rep.hook_name}] Command: {rep.command}\nStatus: {rep.status.upper()} (exit code {rep.exit_code})\n"
+                if rep.stdout:
+                    logs += f"Output:\n{rep.stdout}\n"
+                if rep.stderr:
+                    logs += f"Stderr:\n{rep.stderr}\n"
+                alerts.extend(rep.alerts)
+                if rep.status in ("violation", "suspicious"):
+                    violations.extend(rep.alerts)
+
+            return SandboxExecutionResponse(
+                execution_id=exec_id,
+                status="violation" if violations else ("warning" if alerts else "success"),
+                isolation_mode="restricted_subprocess",
+                target_type="lifecycle_hook_detonation",
+                logs=logs,
+                security_violations=violations,
+                detonation_alerts=alerts,
+                manifest_summary={"hooks_detonated": len(reports)}
+            )
+
+        elif request.mode == "test":
+            test_rep = detonation_service.run_automated_tests(request.files)
+            exec_id = f"sbx_tst_{uuid.uuid4().hex[:10]}"
+            logs = f"=== SANDBOX AUTOMATED TEST RUNNER ({test_rep.framework.upper()}) ===\n"
+            logs += f"Status: {'PASSED' if test_rep.passed else 'FAILED'}\n"
+            logs += f"Duration: {test_rep.duration_seconds}s | Tests Run: {test_rep.total_tests}\n\n"
+            logs += test_rep.output
+
+            return SandboxExecutionResponse(
+                execution_id=exec_id,
+                status="success" if test_rep.passed else "error",
+                isolation_mode="restricted_subprocess",
+                target_type="test_suite_runner",
+                duration_seconds=test_rep.duration_seconds,
+                logs=logs,
+                test_results={
+                    "framework": test_rep.framework,
+                    "passed": test_rep.passed,
+                    "total_tests": test_rep.total_tests
+                }
+            )
+
+        # Default: auto router
+        response = router_service.route_and_execute(request)
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sandbox execution failed: {str(e)}")
 
 
 @router.get("/health")
