@@ -417,7 +417,7 @@ class FindingModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID = Field(default_factory=uuid4)
-    scan_id: UUID
+    scan_id: Union[UUID, str]
     entity_id: Optional[UUID] = None
     entity_type: str
     finding_type: FindingType
@@ -619,6 +619,7 @@ class AnalysisResponse(BaseModel):
     gemini_available: bool = False
     is_demo: bool = False
     demo_label: Optional[str] = None
+    detector_breakdown: Optional[Dict[str, Any]] = None
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
 

@@ -18,7 +18,7 @@ export interface GraphNodeData {
 
 export interface GraphNode {
   id: string;
-  type: string; // The React Flow custom node type (e.g. repositoryNode)
+  type: string;
   position: GraphPosition;
   data: GraphNodeData;
 }
@@ -28,6 +28,7 @@ export interface GraphEdgeData {
   is_direct?: boolean;
   depth?: number;
   is_attack_path?: boolean;
+  label?: string;
   [key: string]: any;
 }
 
@@ -50,6 +51,50 @@ export interface SecurityGraph {
   has_cycles: boolean;
 }
 
+export interface SBOMComponent {
+  bom_ref: string;
+  name: string;
+  version?: string;
+  ecosystem: string;
+  purl: string;
+  is_direct?: boolean;
+  is_transitive?: boolean;
+}
+
+export interface SBOM {
+  spec_version: string;
+  bom_format: string;
+  components: SBOMComponent[];
+  metadata?: Record<string, any>;
+  generated_at?: string;
+}
+
+export interface PolygonAttestation {
+  network: string;
+  contract_address: string;
+  repository: string;
+  sbom_sha256: string;
+  merkle_root: string;
+  blast_radius_score: number;
+  payload_hash: string;
+  attestation_timestamp: string;
+  status: string;
+  verification_note: string;
+  solidity_verification: string;
+}
+
+export interface DetectorBreakdown {
+  osv_count: number;
+  typosquat_count: number;
+  ast_count: number;
+  cicd_count: number;
+  confusion_count: number;
+  sbom_sha256?: string;
+  merkle_root?: string;
+  polygon_attestation?: PolygonAttestation;
+  model_provider?: string;
+}
+
 export interface AnalysisResponse {
   api_version: string;
   scan: any;
@@ -58,6 +103,10 @@ export interface AnalysisResponse {
   vulnerabilities: any[];
   attack_paths: any[];
   assets: any[];
+  sbom?: SBOM;
+  components?: SBOMComponent[];
   is_demo?: boolean;
   gemini_explanation?: string;
+  gemini_available?: boolean;
+  detector_breakdown?: DetectorBreakdown;
 }

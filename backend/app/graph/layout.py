@@ -1,88 +1,68 @@
 """
-SupplyGraph Server-Side Graph Layout Engine
-Version: 1.0.0
+SupplyGraph Server-Side Graph Layout Engine v2.0
 
-Purpose:
-    Compute deterministic (x, y) positions for all graph nodes
-    before sending the graph payload to the frontend.
-    The frontend renders the positions supplied here without
-    recalculating layout.
+Upgrades from v1.0:
+- X_SPACING increased to 380px (was 280px)
+- Y_SPACING increased to 125px (was 120px) 
+- Threat-priority node sorting: vulnerable/suspicious nodes are positioned
+  at the TOP/CENTER of their layer, safe nodes below them
+- Accepts optional set of threat_node_ids for priority sorting
 
 Algorithm:
     1. Attempt topological sort (DAG path)
     2. If graph is cyclic, fall back to BFS layering
     3. Assign layers (depth levels)
-    4. Within each layer, order siblings deterministically
+    4. Within each layer, sort by threat priority THEN alphabetically
     5. Center each layer vertically
     6. Compute (x, y) = (layer * h_spacing, sibling_offset * v_spacing)
-
-Inputs:
-    graph: networkx.DiGraph
-    h_spacing: float (horizontal spacing in pixels, default 280)
-    v_spacing: float (vertical spacing in pixels, default 120)
-
-Outputs:
-    positions: Dict[str, Dict[str, float]]
-    {"node_id": {"x": float, "y": float}, ...}
-
-Security:
-    - Pure computation on the graph structure
-    - No external calls
-    - No untrusted code execution
-    - Deterministic given same input
-
-Implementation Note:
-    Full implementation in Milestone 2A.
-    This stub defines the interface and algorithm contract.
 """
 
 from __future__ import annotations
-from typing import Dict, Any
+from typing import Dict, Any, Set, Optional
 import networkx as nx
 
 
 def compute_layout(
     graph: nx.DiGraph,
-    h_spacing: float = 280.0,
-    v_spacing: float = 120.0,
+    h_spacing: float = 380.0,
+    v_spacing: float = 125.0,
+    threat_node_ids: Optional[Set[str]] = None,
 ) -> Dict[str, Dict[str, float]]:
     """
     Compute server-side node positions for a security graph.
 
     Args:
-        graph: NetworkX directed graph. Nodes can be any hashable type.
-        h_spacing: Horizontal spacing between layers (pixels).
-        v_spacing: Vertical spacing between siblings in same layer (pixels).
+        graph: NetworkX directed graph.
+        h_spacing: Horizontal spacing between layers (pixels). Default 380.
+        v_spacing: Vertical spacing between siblings in same layer (pixels). Default 125.
+        threat_node_ids: Set of node IDs that are vulnerable/suspicious.
+                         These are sorted to the top of their layer.
 
     Returns:
         Dictionary mapping node_id -> {"x": float, "y": float}
-
-    Notes:
-        - For acyclic graphs: uses topological generations (BFS layers)
-        - For cyclic graphs: uses BFS from root nodes with cycle-safe fallback
-        - Siblings within a layer are sorted deterministically (alphabetically)
-        - All positions are >= 0
     """
     positions: Dict[str, Dict[str, float]] = {}
+    threat_ids: Set[str] = threat_node_ids or set()
 
     if graph.number_of_nodes() == 0:
         return positions
 
-    # Determine if graph is a DAG
     is_dag = nx.is_directed_acyclic_graph(graph)
 
     if is_dag:
-        # Use topological generations for clean layering
         layers = list(nx.topological_generations(graph))
     else:
-        # Fall back to BFS layering from nodes with no predecessors
         layers = _bfs_layering(graph)
 
-    # Assign positions layer by layer
     for layer_index, layer_nodes in enumerate(layers):
-        sorted_nodes = sorted(str(n) for n in layer_nodes)
+        node_strs = [str(n) for n in layer_nodes]
+        # Sort: threat nodes first (alphabetically among themselves),
+        # then safe nodes alphabetically below
+        threat_in_layer = sorted([n for n in node_strs if n in threat_ids])
+        safe_in_layer = sorted([n for n in node_strs if n not in threat_ids])
+        sorted_nodes = threat_in_layer + safe_in_layer
+
         layer_size = len(sorted_nodes)
-        # Center the layer vertically
         total_height = (layer_size - 1) * v_spacing
         start_y = -total_height / 2.0
 
@@ -95,14 +75,9 @@ def compute_layout(
 
 
 def _bfs_layering(graph: nx.DiGraph) -> list[set[Any]]:
-    """
-    BFS-based layer assignment for cyclic graphs.
-    Cycle-safe: each node is assigned a layer exactly once.
-    """
-    # Root nodes: those with no predecessors
+    """BFS-based layer assignment for cyclic graphs. Cycle-safe."""
     roots = sorted([n for n in graph.nodes() if graph.in_degree(n) == 0], key=str)
     if not roots:
-        # All nodes have predecessors - pick arbitrary start deterministically
         roots = [sorted(list(graph.nodes()), key=str)[0]]
 
     layer_map: Dict[Any, int] = {}
@@ -121,12 +96,10 @@ def _bfs_layering(graph: nx.DiGraph) -> list[set[Any]]:
                 layer_map[successor] = current_layer + 1
                 queue.append(successor)
 
-    # Assign any unreachable nodes to layer 0
     for node in graph.nodes():
         if node not in layer_map:
             layer_map[node] = 0
 
-    # Build layers list
     max_layer = max(layer_map.values()) if layer_map else 0
     layers: list[set[Any]] = [set() for _ in range(max_layer + 1)]
     for node, layer in layer_map.items():

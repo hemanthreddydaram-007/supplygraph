@@ -21,7 +21,8 @@ async def test_real_repo_analysis_mocked():
     class MockLockfile:
         def parse_lockfile(self, content, name): return []
         
-    class MockSBOM:
+    from app.services.sbom_engine import SBOMEngine
+    class MockSBOM(SBOMEngine):
         def build_sbom(self, components, name):
             from app.models.core import SBOM
             return SBOM(metadata={"name": name, "version": "1.0"}, components=[], dependencies=[])

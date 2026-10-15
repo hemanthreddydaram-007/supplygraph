@@ -53,7 +53,31 @@
   }
   /* Hide scrollbar for IE, Edge and Firefox */
   .no-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
+}
+
+/* ============================================================
+   FIX: Remove React Flow default node ghost/duplicate borders.
+   Custom nodes (CustomNodes.tsx) have their own styled borders.
+   Without this fix, nodes show a gray rectangle behind them.
+   ============================================================ */
+.react-flow__node {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Keep React Flow handle dots styled correctly */
+.react-flow__handle {
+  background: #3f3f46 !important;
+  border: 1px solid #52525b !important;
+  width: 8px !important;
+  height: 8px !important;
+}
+
+.react-flow__handle:hover {
+  background: #ef4444 !important;
 }

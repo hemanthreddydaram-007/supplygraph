@@ -1,45 +1,49 @@
 # SUPPLYGRAPH — SYSTEM STATE
 
-**Last Updated:** 2026-09-25
-**Current Milestone:** PROJECT COMPLETE 🎉
-**Milestone Status:** FINISHED
-**API Version:** v1.0
-**Schema Version:** 1.0.0
-**Graph Model Version:** v1.0
-**Analysis Engine Version:** v1.0
+**Last Updated:** 2026-10-15  
+**Current Milestone:** SUPPLYGRAPH v2.0 UPGRADE COMPLETE 🚀  
+**Target Event:** YUKTHI 2026 (Mohan Babu University) — Blockchain & Cybersecurity  
+**API Version:** v2.0  
+**Schema Version:** 2.0.0  
+**Graph Model Version:** v2.0  
+**Analysis Engine Version:** v2.0  
+**Test Suite Status:** 91 Passed, 0 Failures  
+**Frontend Build Status:** Next.js 14 Production Build Clean (0 errors)  
 
 ---
 
-## ALL MILESTONES COMPLETED ✅
+## v2.0 UPGRADE HIGHLIGHTS ✅
 
-### Milestone 1: Blueprint & Contracts
-- Architecture, Schema, API Contracts, Graph Models, Evidence Models, Testing Strategy.
+### 1. 5-Layer Threat Detection Fabric
+- **OSV.dev Intelligence:** Live batch CVE queries with persistent cache.
+- **Typosquatting Engine:** Levenshtein distance detector identifying namespace squatting.
+- **Static AST Code Analyzer:** Detects `subprocess(shell=True)`, `eval()`, `exec()`, `b64decode()`, and credential environment accesses.
+- **CI/CD Workflow Scanner (`cicd_analyzer.py`):** Scans `.github/workflows/*.yml` for unpinned actions, script injection via PR titles/branch names, and `write-all` permissions.
+- **Dependency Confusion Detector (`confusion_detector.py`):** Scans for internal/private scope hijacking risks.
 
-### Milestone 2A: Backend Security Pipeline
-- Python FastAPI Backend, OSV Client, CycloneDX SBOM Engine, NetworkX Graph Engine, Pydantic v2 Models.
+### 2. Blockchain & CycloneDX SBOM Attestation
+- **Deterministic SHA-256 Checksum:** Cryptographic digest of CycloneDX v1.5 SBOM.
+- **Merkle Security Root:** Combines repository URL, SBOM digest, and Blast Radius.
+- **Polygon Amoy Testnet Attestation (Chain ID: 80002):** One-click MetaMask or simulated relayer anchoring with verifiable Solidity payload.
+- **In-App SBOM Modal:** Interactive preview and `.json` export.
 
-### Milestone 2B: Minimal Frontend Graph
-- Next.js 14 Dashboard, React Flow custom nodes, Tailwind CSS styling, Client-side fetching.
+### 3. Server-Side Graph Layout v2.0
+- **Expanded Spacing:** Horizontal spacing increased to `380px`, vertical spacing to `125px`.
+- **Threat-Priority Sorting:** Vulnerable and compromised nodes automatically positioned at the top/center of topological layers.
 
-### Milestone 3: Advanced Detection & AI Explanation
-- Python AST Analyzer (subprocess, eval, environ, base64), Typosquatting Detector (Levenshtein), Google Gemini 1.5 Flash AI Summarizer, Dual-pane Dashboard.
-
-### Milestone 4: Final Integration & Launch
-- Root `README.md` quickstart guide.
-- Production `backend/Dockerfile`.
-- Convenient `start-all.ps1` launcher script.
-- Hackathon pitch script (`docs/hackathon-pitch.md`).
+### 4. Interactive React Flow Canvas & ASPM UI
+- **Ghost Border Elimination:** Stripped default React Flow wrapper boxes.
+- **Edge Highlighting:** Attack path edges glow in red with animated traversal and arrowheads.
+- **Attack-Paths-Only Filter:** Automatically activated on large repos (>35 components) with 1-click toggle to view all nodes.
+- **Scenario A–E Quick Switcher:** One-click simulation pills below the URL bar.
+- **Interactive Finding Cards:** Click-to-focus on graph nodes + copyable lockfile overrides.
+- **Mathematical HUD:** Live metric breakdown and hover formula tooltips.
+- **AI Executive Briefing:** Dual AWS Bedrock (Claude 3.5 Sonnet) + Gemini 1.5 Flash support with `.md` export.
 
 ---
 
-## SYSTEM ARCHITECTURE
-- **Frontend:** Next.js (App Router), React Flow, Tailwind CSS, Lucide React.
-- **Backend:** FastAPI, Python 3.11, NetworkX, Google Generative AI (Gemini).
-- **Core Design:** Deterministic server-side graph layout, strict evidence classification, anti-hallucination AI bounding.
-
----
-
-## NEXT STEPS FOR THE USER
-1. Run `.\start-all.ps1` to launch the application.
-2. Read `docs/hackathon-pitch.md` to prepare for the presentation.
-3. Win HackFusion 2026! 🚀
+## VERIFIED TEST SUITE
+```
+pytest backend/tests: 91 passed, 0 failures (100% passing)
+npm run build (frontend): Compiled successfully, 0 errors
+```
