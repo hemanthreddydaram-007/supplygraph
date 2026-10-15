@@ -1,3 +1,5 @@
+# SupplyGraph - Context-Aware Containment Engine v3.0
+# Generates actionable, context-aware remediation recommendations across all threat types.
 from app.models.core import FindingModel, ContainmentRecommendation, ContainmentActionType, FindingType
 from typing import List, Optional
 import uuid
@@ -6,9 +8,8 @@ class ContainmentEngine:
     def generate_recommendations(self, finding: FindingModel, fixed_version: Optional[str] = None) -> List[ContainmentRecommendation]:
         recommendations = []
         
-        # Check for Vulnerable
+        # 1. Vulnerable dependency -> Pin or upgrade to safe version
         if finding.finding_type == FindingType.VULNERABLE:
-            # Check if fixed_version is provided, or extract from evidence
             resolved_fixed = fixed_version
             if not resolved_fixed:
                 for ev in finding.evidence:
@@ -16,7 +17,6 @@ class ContainmentEngine:
                         resolved_fixed = ev.raw_data.get("fixed_version")
                         break
             
-            # If still None, check if origin_candidate has version to compute next major
             if not resolved_fixed:
                 origin = finding.origin_candidate or ""
                 if "@" in origin:
@@ -33,24 +33,63 @@ class ContainmentEngine:
                 ContainmentRecommendation(
                     action_type=ContainmentActionType.PIN_VERSION,
                     title="Pin or Upgrade Dependency",
-                    description=f"Upgrade or pin {finding.origin_candidate} to safe version {resolved_fixed}.",
+                    description=f"Upgrade or pin {finding.origin_candidate or 'package'} to safe version {resolved_fixed}.",
                     why="To mitigate known vulnerabilities by upgrading to a patched release.",
-                    expected_effect="Eliminates the vulnerability.",
+                    expected_effect="Eliminates the vulnerability and closes known attack paths.",
                     priority="high",
                     fixed_version=resolved_fixed
                 )
             )
             
-        # Check for Typosquatting or Dependency Confusion
-        if finding.finding_type in (FindingType.TYPOSQUATTING, FindingType.DEPENDENCY_CONFUSION):
+        # 2. Typosquatting -> Remove package immediately
+        elif finding.finding_type == FindingType.TYPOSQUATTING:
             recommendations.append(
                 ContainmentRecommendation(
                     action_type=ContainmentActionType.REMOVE_DEPENDENCY,
-                    title="Remove Malicious Dependency",
-                    description=f"Remove the malicious dependency {finding.origin_candidate} immediately.",
-                    why="High confidence malicious component detected.",
-                    expected_effect="Prevents execution of malicious code.",
+                    title=f"Remove Typosquatted Package {finding.origin_candidate or ''}".strip(),
+                    description=f"Immediately uninstall and remove {finding.origin_candidate or 'package'} from lockfiles and requirements.",
+                    why="High-confidence typosquatting attack detected impersonating a legitimate package.",
+                    expected_effect="Eliminates untrusted rogue code from the dependency graph.",
                     priority="critical"
+                )
+            )
+            
+        # 3. Dependency Confusion -> Enforce registry scoping
+        elif finding.finding_type == FindingType.DEPENDENCY_CONFUSION:
+            recommendations.append(
+                ContainmentRecommendation(
+                    action_type=ContainmentActionType.RESTRICT_REGISTRY,
+                    title=f"Restrict Registry Scope for {finding.origin_candidate or 'Internal Package'}",
+                    description=f"Configure strict registry scoping in .npmrc or pip.conf to restrict {finding.origin_candidate or 'internal package'} to private registries.",
+                    why="Prevent public package registry namespace squatting and substitution attacks.",
+                    expected_effect="Ensures package manager fetches internal dependencies exclusively from authorized registries.",
+                    priority="critical"
+                )
+            )
+
+        # 4. CI/CD Risk -> Least-privilege permissions and pinned action SHAs
+        elif finding.finding_type == FindingType.CICD_RISK:
+            recommendations.append(
+                ContainmentRecommendation(
+                    action_type=ContainmentActionType.AUDIT_WORKFLOW,
+                    title="Harden CI/CD Workflow & Pin Action SHAs",
+                    description="Audit GitHub Actions workflows to enforce least-privilege permissions and pin actions to immutable 40-character commit SHAs.",
+                    why="Unpinned tags or blanket write permissions allow malicious upstream modifications to compromise the pipeline.",
+                    expected_effect="Guarantees reproducible, immutable builds immune to tag hijacking.",
+                    priority="high"
+                )
+            )
+
+        # 5. Suspicious / Obfuscation / Dormant Logic -> Isolate and audit
+        elif finding.finding_type in (FindingType.SUSPICIOUS, FindingType.OBFUSCATION, FindingType.DORMANT_LOGIC):
+            recommendations.append(
+                ContainmentRecommendation(
+                    action_type=ContainmentActionType.ISOLATE_SERVICE,
+                    title="Isolate Component & Audit Code Patterns",
+                    description=f"Quarantine {finding.origin_candidate or 'component'} and inspect flagged AST patterns (eval, dynamic subprocess, secrets).",
+                    why="Static analysis identified high-risk capabilities or obfuscated execution paths.",
+                    expected_effect="Prevents potential backdoor execution or sensitive credential leakage.",
+                    priority="high"
                 )
             )
             

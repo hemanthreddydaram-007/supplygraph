@@ -1,3 +1,5 @@
+# SupplyGraph - OSV Intelligence Engine v3.0
+# Batch querying with persistent cache and SemVer-aware fixed version resolution
 from app.models.core import VulnerabilityModel, PURL, Severity
 from app.core.config import get_settings
 from typing import List, Dict, Any, Optional
@@ -7,6 +9,79 @@ import os
 import aiofiles
 from pathlib import Path
 from datetime import datetime
+
+
+def resolve_best_fixed_version(installed_version: Optional[str], candidate_fixes: List[str]) -> Optional[str]:
+    """
+    Selects the least disruptive patched SemVer fix without ever downgrading major versions.
+    1. Prefer lowest patched version within the same major version >= installed_version.
+    2. Otherwise, prefer lowest patched version in higher major versions.
+    3. Never recommend a major downgrade.
+    """
+    if not candidate_fixes:
+        return None
+
+    clean_candidates = []
+    for c in candidate_fixes:
+        if isinstance(c, list):
+            clean_candidates.extend(str(item).strip() for item in c if str(item).strip())
+        elif isinstance(c, str) and c.strip():
+            clean_candidates.append(c.strip())
+
+    if not clean_candidates:
+        return None
+
+    if not installed_version:
+        return clean_candidates[0]
+
+    # Clean installed version
+    inst_clean = installed_version.strip().lstrip("v^~>=<")
+
+    try:
+        from packaging.version import parse as parse_version
+        inst_v = parse_version(inst_clean)
+    except Exception:
+        return clean_candidates[0]
+
+    valid_fixes = []
+    for cand in clean_candidates:
+        try:
+            cand_clean = cand.lstrip("v^~>=<")
+            cand_v = parse_version(cand_clean)
+            valid_fixes.append((cand_v, cand))
+        except Exception:
+            continue
+
+    if not valid_fixes:
+        return clean_candidates[0]
+
+    inst_major = getattr(inst_v, "major", None)
+
+    # 1. Candidate fixes with same major and >= installed_version
+    same_major_upgrades = [
+        (v, raw) for v, raw in valid_fixes
+        if getattr(v, "major", None) == inst_major and v >= inst_v
+    ]
+    if same_major_upgrades:
+        same_major_upgrades.sort(key=lambda x: x[0])
+        return same_major_upgrades[0][1]
+
+    # 2. Candidate fixes with higher major
+    higher_major_upgrades = [
+        (v, raw) for v, raw in valid_fixes
+        if inst_major is not None and getattr(v, "major", 0) > inst_major
+    ]
+    if higher_major_upgrades:
+        higher_major_upgrades.sort(key=lambda x: x[0])
+        return higher_major_upgrades[0][1]
+
+    # 3. If all fixes are strictly lower than installed (backports to older branches),
+    # do NOT downgrade! Suggest next major
+    if inst_major is not None:
+        return f">={inst_major + 1}.0.0"
+
+    return clean_candidates[-1]
+
 
 class OSVClient:
     def __init__(self):
@@ -133,6 +208,7 @@ class OSVClient:
         affected_ecosystems = []
         fixed_versions = {}
         cwe_ids = []
+        all_fixes = []
         
         for affected in data.get("affected", []):
             eco = affected.get("package", {}).get("ecosystem")
@@ -142,9 +218,22 @@ class OSVClient:
             ranges = affected.get("ranges", [])
             for r in ranges:
                 for event in r.get("events", []):
-                    if "fixed" in event:
-                        fixed_versions[eco or "unknown"] = event["fixed"]
-                        
+                    if "fixed" in event and event["fixed"]:
+                        f_ver = str(event["fixed"]).strip()
+                        if f_ver and f_ver not in all_fixes:
+                            all_fixes.append(f_ver)
+                        eco_key = eco or "unknown"
+                        if eco_key not in fixed_versions:
+                            fixed_versions[eco_key] = f_ver
+                        elif isinstance(fixed_versions[eco_key], list):
+                            if f_ver not in fixed_versions[eco_key]:
+                                fixed_versions[eco_key].append(f_ver)
+                        elif fixed_versions[eco_key] != f_ver:
+                            fixed_versions[eco_key] = [fixed_versions[eco_key], f_ver]
+
+        if all_fixes:
+            fixed_versions["_all_fixes"] = all_fixes
+
         aliases = data.get("aliases", [])
         for alias in aliases:
             if alias.startswith("CWE-"):

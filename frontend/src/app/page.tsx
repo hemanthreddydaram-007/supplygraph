@@ -77,6 +77,7 @@ function getDetectorTagClass(tag: string): string {
 }
 
 function buildLockfileSnippet(finding: any): string {
+  const findingType: string = finding?.finding_type || "";
   const title: string = finding?.title || "";
   const origin: string = finding?.origin_candidate || "";
   const rawRef = origin || title.replace(/^Vulnerability in\s*/i, "") || "package";
@@ -87,7 +88,7 @@ function buildLockfileSnippet(finding: any): string {
     cleanRef = decodeURIComponent(rawRef);
   } catch (_) {}
 
-  const isPypi = cleanRef.startsWith("pkg:pypi/") || (!cleanRef.startsWith("pkg:npm/") && (finding?.finding_type === "AST" || finding?.evidence?.some((e: any) => e.source === "ast")));
+  const isPypi = cleanRef.startsWith("pkg:pypi/") || (!cleanRef.startsWith("pkg:npm/") && (findingType === "AST" || finding?.evidence?.some((e: any) => e.source === "ast")));
   cleanRef = cleanRef.replace(/^pkg:(npm|pypi)\//, "");
 
   // Extract package name and current version
@@ -107,7 +108,48 @@ function buildLockfileSnippet(finding: any): string {
     }
   }
 
-  // Resolve real fixed version
+  // 1. Dependency Confusion -> Return .npmrc or pip.conf registry block
+  if (findingType === "DEPENDENCY_CONFUSION") {
+    for (const ev of finding?.evidence || []) {
+      if (ev?.raw_data?.remediation) {
+        return ev.raw_data.remediation;
+      }
+    }
+    const scope = pkgName.startsWith("@") ? pkgName.split("/")[0] : `@${pkgName.split("-")[0]}`;
+    if (!isPypi) {
+      return `// .npmrc registry scope configuration\n${scope}:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=\${NODE_AUTH_TOKEN}`;
+    } else {
+      return `# pip.conf registry scope configuration\n[global]\nextra-index-url = https://pypi.org/simple\nindex-url = https://private-pypi.company.internal/simple`;
+    }
+  }
+
+  // 2. Typosquatting -> Recommend removing rogue package and installing legitimate package
+  if (findingType === "TYPOSQUATTING") {
+    let similarTo = "";
+    for (const ev of finding?.evidence || []) {
+      if (ev?.raw_data?.similar_to) {
+        similarTo = ev.raw_data.similar_to;
+        break;
+      }
+    }
+    if (!isPypi) {
+      return `// Remediation: Remove malicious typosquat\nnpm uninstall ${pkgName}${similarTo ? `\nnpm install ${similarTo}` : ""}`;
+    } else {
+      return `# Remediation: Remove malicious typosquat\npip uninstall -y ${pkgName}${similarTo ? `\npip install ${similarTo}` : ""}`;
+    }
+  }
+
+  // 3. CI/CD Risk -> Workflow permissions & commit SHA pin
+  if (findingType === "CICD_RISK") {
+    return `# .github/workflows/*.yml - Enforce least-privilege\npermissions:\n  contents: read\n  pull-requests: write\n# Pin actions to full 40-character commit SHA:\n# uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11`;
+  }
+
+  // 4. AST / Suspicious Code Patterns
+  if (findingType === "SUSPICIOUS" || findingType === "OBFUSCATION" || findingType === "DORMANT_LOGIC") {
+    return `# Source Code Remediation (AST)\n# 1. Replace eval() / exec() with json.loads() or ast.literal_eval\n# 2. Avoid subprocess(..., shell=True) - pass arguments as a list\n# 3. Store API credentials in environment variables (os.environ)`;
+  }
+
+  // 5. Known Vulnerabilities (VULNERABLE) -> SemVer Override or Pin
   let fixedVer: string = finding?.recommendations?.[0]?.fixed_version || "";
   if (!fixedVer && finding?.recommendations) {
     for (const rec of finding.recommendations) {
@@ -998,7 +1040,7 @@ export default function Dashboard() {
                                           ) : (
                                             <Copy className="w-3 h-3" />
                                           )}
-                                          <span>{copiedIndex === idx ? "Copied!" : "Copy Lock"}</span>
+                                          <span>{copiedIndex === idx ? "Copied!" : "Copy Snippet"}</span>
                                         </button>
                                       </div>
                                       <div className="p-2 rounded bg-black/60 border border-zinc-800/70 font-mono text-[10px] text-zinc-300">

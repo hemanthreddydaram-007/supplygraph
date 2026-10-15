@@ -66,3 +66,13 @@ class TestCodeReviewerService:
         assert found
         item = next(r for r in results if "Unpinned" in r.title)
         assert "uses: actions/checkout@" in item.corrected_code
+
+    def test_commented_eval_not_flagged(self):
+        code = "// const result = eval(userString);\nconst doc = 'Never call eval(payload) in code';\n"
+        results = self.reviewer.review_snippet(code, language="javascript", file_path="safe.js")
+        assert not any("eval" in r.title.lower() for r in results)
+
+    def test_commented_loose_equality_not_flagged(self):
+        code = "// Note: checking if x == y\nconst msg = 'Does a == b here?';\nif (val == null) { return; }\n"
+        results = self.reviewer.review_snippet(code, language="javascript", file_path="safe.js")
+        assert not any("Loose Equality" in r.title for r in results)

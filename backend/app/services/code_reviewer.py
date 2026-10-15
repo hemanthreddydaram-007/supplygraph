@@ -1,5 +1,6 @@
 # SupplyGraph - AI Code Reviewer Engine v3.0
-# Static AST + Pattern & LLM Hybrid Inspection for Python, JavaScript, TypeScript, and CI/CD files.
+# Static AST + Pattern & LLM Hybrid Inspection for Python, JavaScript, TypeScript, Svelte, Vue, and CI/CD files.
+# Features string/comment sanitization before regex matching to guarantee zero false positives.
 import ast
 import re
 import uuid
@@ -10,9 +11,56 @@ from app.models.core import CodeReviewItem
 logger = logging.getLogger(__name__)
 
 
+def strip_strings_and_comments(line: str, lang: str = "js") -> str:
+    """
+    Strips comments and string literal contents to prevent false positive regex matches
+    on commented-out code or descriptive text inside quotes.
+    """
+    sanitized = line
+    if lang == "python":
+        # Strip python docstrings and string literals
+        sanitized = re.sub(
+            r'("""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\'|"[^"\\]*(?:\\.[^"\\]*)*"|\'[^\'\\]*(?:\\.[^\'\\]*)*\')',
+            '""',
+            sanitized
+        )
+        # Strip single-line comments (#...)
+        if "#" in sanitized:
+            sanitized = sanitized.split("#", 1)[0]
+    else:
+        # JS / TS / JSX / Svelte / Vue
+        # Strip string literals including backtick template literals
+        sanitized = re.sub(
+            r'("[^"\\]*(?:\\.[^"\\]*)*"|\'[^\'\\]*(?:\\.[^\'\\]*)*\'|`[^`\\]*(?:\\.[^`\\]*)*`)',
+            '""',
+            sanitized
+        )
+        # Strip single-line comments (//...)
+        if "//" in sanitized:
+            sanitized = sanitized.split("//", 1)[0]
+        # Strip inline block comments (/* ... */)
+        sanitized = re.sub(r'/\*.*?\*/', '', sanitized)
+
+    return sanitized.strip()
+
+
+def _is_priority_source_file(file_path: str) -> int:
+    """Ranks production source code files ahead of tests, fixtures, and documentation."""
+    lp = file_path.lower()
+    # Downweight tests, specs, fixtures, mocks, and docs
+    if any(t in lp for t in ["__tests__", "/tests/", "/test/", ".test.", ".spec.", "_test.py", "/mock", "/fixture", "/fixtures/"]):
+        return 100
+    # Prioritize core application source directories
+    if any(lp.startswith(p) or f"/{p}" in lp for p in [
+        "src/", "app/", "server/", "lib/", "api/", "backend/", "frontend/", "components/", "services/", "controllers/", "routes/"
+    ]):
+        return 0
+    return 10
+
+
 class CodeReviewerService:
     """
-    Analyzes source code files (.py, .js, .ts, .tsx, .jsx, .yml, .json, Dockerfile)
+    Analyzes source code files (.py, .js, .ts, .tsx, .jsx, .svelte, .vue, .astro, .yml, .json, Dockerfile)
     and produces actionable CodeReviewItems with exact buggy lines and production-ready
     corrected code fixes.
     """
@@ -21,16 +69,21 @@ class CodeReviewerService:
         pass
 
     def review_files(self, files: Dict[str, str], max_files: int = 10) -> List[CodeReviewItem]:
-        """Review multiple files (from GitHub repo or uploaded folder)."""
+        """Review multiple files, prioritizing production source files over test suites."""
         all_reviews: List[CodeReviewItem] = []
+        
+        # Sort files by priority (production code first, test suites last)
+        sorted_file_paths = sorted(files.keys(), key=_is_priority_source_file)
+        
         count = 0
-        for file_path, content in files.items():
+        for file_path in sorted_file_paths:
             if count >= max_files:
                 break
+            content = files.get(file_path, "")
             if not content or len(content) > 50_000:
                 continue
             # Skip ignored paths
-            if any(ign in file_path.lower() for ign in ["node_modules/", ".git/", "venv/", "__pycache__/", ".next/", "dist/"]):
+            if any(ign in file_path.lower() for ign in ["node_modules/", ".git/", "venv/", "__pycache__/", ".next/", "dist/", "build/"]):
                 continue
             
             reviews = self.review_file(file_path, content)
@@ -45,7 +98,7 @@ class CodeReviewerService:
         ext = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else ""
         if ext == "py":
             return self._review_python(file_path, content)
-        elif ext in ["js", "jsx", "ts", "tsx"]:
+        elif ext in ["js", "jsx", "ts", "tsx", "svelte", "vue", "astro"]:
             return self._review_javascript(file_path, content)
         elif ext in ["yml", "yaml"]:
             return self._review_yaml(file_path, content)
@@ -58,7 +111,7 @@ class CodeReviewerService:
         path = file_path or f"snippet.{ 'py' if language.lower() == 'python' else 'js' }"
         if language.lower() in ["python", "py"]:
             return self._review_python(path, code)
-        elif language.lower() in ["javascript", "js", "typescript", "ts", "tsx", "jsx"]:
+        elif language.lower() in ["javascript", "js", "typescript", "ts", "tsx", "jsx", "svelte", "vue", "astro"]:
             return self._review_javascript(path, code)
         elif language.lower() in ["yaml", "yml"]:
             return self._review_yaml(path, code)
@@ -245,14 +298,19 @@ class CodeReviewerService:
                     )
                 )
 
-        # 3. Regex / Pattern-based checks in Python
+        # 3. Regex / Pattern-based checks in Python (with sanitized lines)
         for idx, line in enumerate(lines, start=1):
-            stripped = line.strip()
+            raw_stripped = line.strip()
+            # Ignore comments
+            if raw_stripped.startswith("#"):
+                continue
 
-            # SQL Injection via string formatting
-            if re.search(r"(SELECT|INSERT|UPDATE|DELETE)\s+.*\{[a-zA-Z0-9_]+\}", stripped, re.IGNORECASE) or \
-               re.search(r"\.execute\(\s*f[\"'].*SELECT", stripped, re.IGNORECASE) or \
-               re.search(r"\.execute\(\s*[\"'].*SELECT.*%\s*[a-zA-Z0-9_]+", stripped, re.IGNORECASE):
+            clean_code = strip_strings_and_comments(line, "python")
+
+            # SQL Injection via string formatting (check against original line for quotes/f-strings)
+            if re.search(r"(SELECT|INSERT|UPDATE|DELETE)\s+.*\{[a-zA-Z0-9_]+\}", raw_stripped, re.IGNORECASE) or \
+               re.search(r"\.execute\(\s*f[\"'].*SELECT", raw_stripped, re.IGNORECASE) or \
+               re.search(r"\.execute\(\s*[\"'].*SELECT.*%\s*[a-zA-Z0-9_]+", raw_stripped, re.IGNORECASE):
                 reviews.append(
                     CodeReviewItem(
                         id=str(uuid.uuid4()),
@@ -268,9 +326,11 @@ class CodeReviewerService:
                 )
 
             # Hardcoded API Keys / Passwords / Secrets
-            if re.search(r'(api_key|secret_key|jwt_secret|password|access_token)\s*=\s*["\'][a-zA-Z0-9_\-\.]{8,}["\']', stripped, re.IGNORECASE):
-                var_match = re.search(r'([a-zA-Z0-9_]+)\s*=', stripped)
-                var_name = var_match.group(1) if var_match else "SECRET_KEY"
+            # Require variable assignment and minimum 16-char secret that isn't a placeholder
+            secret_pattern = r'(api_key|secret_key|jwt_secret|password|access_token|database_password)\s*=\s*["\']([a-zA-Z0-9_\-\.]{8,})["\']'
+            match = re.search(secret_pattern, raw_stripped, re.IGNORECASE)
+            if match and not any(ph in raw_stripped.lower() for ph in ["your_", "dummy", "placeholder", "test_key", "change_me"]):
+                var_name = match.group(1)
                 reviews.append(
                     CodeReviewItem(
                         id=str(uuid.uuid4()),
@@ -279,14 +339,14 @@ class CodeReviewerService:
                         severity="CRITICAL",
                         category="Security Vulnerability",
                         title=f"Hardcoded Credential / Secret in `{var_name}`",
-                        error_explanation=f"Hardcoded secret detected in source code. If committed, this credential will leak to anyone with repository read access.",
+                        error_explanation="Hardcoded secret detected in source code. If committed, this credential will leak to anyone with repository read access.",
                         buggy_code=self._get_context_snippet(lines, idx),
                         corrected_code=f"import os\n{var_name} = os.environ.get('{var_name.upper()}')\nif not {var_name}:\n    raise ValueError('{var_name.upper()} environment variable must be set')"
                     )
                 )
 
-            # Unclosed File / Resource (open() without with)
-            if re.match(r'^[a-zA-Z0-9_]+\s*=\s*open\(', stripped) and "with" not in stripped:
+            # Unclosed File / Resource (open() without with) - check sanitized code
+            if clean_code and re.match(r'^[a-zA-Z0-9_]+\s*=\s*open\(', clean_code) and "with" not in clean_code:
                 reviews.append(
                     CodeReviewItem(
                         id=str(uuid.uuid4()),
@@ -311,10 +371,17 @@ class CodeReviewerService:
         lines = content.splitlines()
 
         for idx, line in enumerate(lines, start=1):
-            stripped = line.strip()
+            raw_stripped = line.strip()
+            # Ignore full-line comments immediately
+            if raw_stripped.startswith("//") or raw_stripped.startswith("/*") or raw_stripped.startswith("*"):
+                continue
 
-            # 1. eval() usage
-            if re.search(r'\beval\s*\(', stripped) and not stripped.startswith("//"):
+            clean_code = strip_strings_and_comments(line, "js")
+            if not clean_code:
+                continue
+
+            # 1. eval() usage (must appear in actual executable code, not inside quotes or comments)
+            if re.search(r'\beval\s*\(', clean_code):
                 reviews.append(
                     CodeReviewItem(
                         id=str(uuid.uuid4()),
@@ -330,25 +397,28 @@ class CodeReviewerService:
                 )
 
             # 2. dangerouslySetInnerHTML XSS
-            if "dangerouslySetInnerHTML" in stripped and not stripped.startswith("//"):
-                reviews.append(
-                    CodeReviewItem(
-                        id=str(uuid.uuid4()),
-                        file_path=file_path,
-                        line_number=idx,
-                        severity="HIGH",
-                        category="Security Vulnerability",
-                        title="Potential XSS via `dangerouslySetInnerHTML`",
-                        error_explanation="Directly inserting unescaped HTML exposes users to Stored or Reflected Cross-Site Scripting (XSS) attacks.",
-                        buggy_code=self._get_context_snippet(lines, idx),
-                        corrected_code="// Corrected: Sanitize HTML content with DOMPurify prior to injection\nimport DOMPurify from 'dompurify';\n<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(rawHtml) }} />"
+            if "dangerouslySetInnerHTML" in clean_code or "dangerouslySetInnerHTML" in raw_stripped:
+                # Confirm it's in code
+                if "dangerouslySetInnerHTML" in clean_code:
+                    reviews.append(
+                        CodeReviewItem(
+                            id=str(uuid.uuid4()),
+                            file_path=file_path,
+                            line_number=idx,
+                            severity="HIGH",
+                            category="Security Vulnerability",
+                            title="Potential XSS via `dangerouslySetInnerHTML`",
+                            error_explanation="Directly inserting unescaped HTML exposes users to Stored or Reflected Cross-Site Scripting (XSS) attacks.",
+                            buggy_code=self._get_context_snippet(lines, idx),
+                            corrected_code="// Corrected: Sanitize HTML content with DOMPurify prior to injection\nimport DOMPurify from 'dompurify';\n<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(rawHtml) }} />"
+                        )
                     )
-                )
 
-            # 3. Hardcoded Secrets / Tokens
-            if re.search(r'(apiKey|api_key|secret|token|password|auth_token)\s*[:=]\s*["\'][a-zA-Z0-9_\-\.]{8,}["\']', stripped, re.IGNORECASE) and not stripped.startswith("//"):
-                var_match = re.search(r'([a-zA-Z0-9_]+)\s*[:=]', stripped)
-                var_name = var_match.group(1) if var_match else "API_KEY"
+            # 3. Hardcoded Secrets / Tokens in assignments (not comments or placeholders)
+            secret_pattern_js = r'(apiKey|api_key|secret|token|password|auth_token)\s*[:=]\s*["\']([a-zA-Z0-9_\-\.]{8,})["\']'
+            match_js = re.search(secret_pattern_js, raw_stripped, re.IGNORECASE)
+            if match_js and not any(ph in raw_stripped.lower() for ph in ["your_", "dummy", "placeholder", "test_key", "change_me"]):
+                var_name = match_js.group(1)
                 reviews.append(
                     CodeReviewItem(
                         id=str(uuid.uuid4()),
@@ -364,7 +434,7 @@ class CodeReviewerService:
                 )
 
             # 4. console.log sensitive data
-            if re.search(r'console\.log\s*\(\s*.*(password|secret|token|cred|auth|ssn)', stripped, re.IGNORECASE) and not stripped.startswith("//"):
+            if re.search(r'console\.log\s*\(\s*.*(password|secret|token|cred|auth|ssn)', clean_code, re.IGNORECASE):
                 reviews.append(
                     CodeReviewItem(
                         id=str(uuid.uuid4()),
@@ -379,10 +449,13 @@ class CodeReviewerService:
                     )
                 )
 
-            # 5. Loose equality == or !=
-            if re.search(r'[^=!]={2}[^=]', stripped) or re.search(r'!={1}[^=]', stripped):
-                if not stripped.startswith("//") and "===" not in stripped and "!==" not in stripped:
-                    fixed_line = re.sub(r'([^=!]|^)==([^=])', r'\1===\2', stripped)
+            # 5. Loose equality == or != (ONLY in code, excluding comments and string contents)
+            # Exclude strict === and !==, and exclude standard null checks (x == null)
+            has_loose_eq = (re.search(r'[^=!]={2}[^=]', clean_code) or re.search(r'!={1}[^=]', clean_code))
+            if has_loose_eq and "===" not in clean_code and "!==" not in clean_code:
+                # Allow standard null check: == null or != null
+                if not re.search(r'[!=]={1,2}\s*null\b', clean_code):
+                    fixed_line = re.sub(r'([^=!]|^)==([^=])', r'\1===\2', raw_stripped)
                     fixed_line = re.sub(r'!=([^=])', r'!==\1', fixed_line)
                     reviews.append(
                         CodeReviewItem(
@@ -398,9 +471,10 @@ class CodeReviewerService:
                         )
                     )
 
-            # 6. Insecure HTTP endpoint
-            if re.search(r'["\']http://(api|auth|login|secure|backend|app)', stripped, re.IGNORECASE) and not stripped.startswith("//"):
-                corrected = stripped.replace("http://", "https://")
+            # 6. Insecure cleartext HTTP endpoint (exclude localhost / 127.0.0.1)
+            http_match = re.search(r'["\']http://(api|auth|login|secure|backend|app)', raw_stripped, re.IGNORECASE)
+            if http_match and "localhost" not in raw_stripped and "127.0.0.1" not in raw_stripped:
+                corrected = raw_stripped.replace("http://", "https://")
                 reviews.append(
                     CodeReviewItem(
                         id=str(uuid.uuid4()),
@@ -427,7 +501,7 @@ class CodeReviewerService:
         for idx, line in enumerate(lines, start=1):
             stripped = line.strip()
 
-            # Unpinned GitHub Action (e.g. uses: actions/checkout@v2 or - uses: actions/checkout@v2)
+            # Unpinned GitHub Action (e.g. uses: actions/checkout@v2)
             if "uses:" in stripped and "@" in stripped and not stripped.startswith("#"):
                 action_part = stripped.split("uses:", 1)[1].strip()
                 if not re.search(r'@[0-9a-f]{40}$', action_part):

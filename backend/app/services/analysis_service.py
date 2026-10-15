@@ -17,7 +17,7 @@ from app.engines.confidence import compute_confidence, ConfidenceFactor, compute
 from app.services.github_service import GitHubService
 from app.services.lockfile_parser import LockfileParser
 from app.services.sbom_engine import SBOMEngine
-from app.services.osv_client import OSVClient
+from app.services.osv_client import OSVClient, resolve_best_fixed_version
 from app.services.gemini_service import GeminiService
 from app.services.code_reviewer import CodeReviewerService
 from app.engines.graph_engine import GraphEngine
@@ -188,16 +188,26 @@ class AnalysisService:
                 all_vulnerabilities.append(vuln)
                 osv_count += 1
 
-                # Extract real fixed version from OSV data
-                fixed_ver = None
+                # Extract real fixed version from OSV data without major downgrades
+                installed_ver = purl_str.split("@")[-1] if "@" in purl_str else None
+                candidate_fixes = []
                 if vuln.fixed_versions:
-                    fixed_ver = next(iter(vuln.fixed_versions.values()), None)
+                    if "_all_fixes" in vuln.fixed_versions:
+                        candidate_fixes.extend(vuln.fixed_versions["_all_fixes"])
+                    for k, val in vuln.fixed_versions.items():
+                        if k == "_all_fixes":
+                            continue
+                        if isinstance(val, list):
+                            candidate_fixes.extend(val)
+                        elif isinstance(val, str):
+                            candidate_fixes.append(val)
+
+                fixed_ver = resolve_best_fixed_version(installed_ver, candidate_fixes)
 
                 # Fallback fixed version derivation if none provided
-                if not fixed_ver and "@" in purl_str:
-                    ver_part = purl_str.split("@")[-1]
+                if not fixed_ver and installed_ver:
                     import re
-                    match = re.match(r"^(\d+)", ver_part)
+                    match = re.match(r"^(\d+)", installed_ver)
                     if match:
                         fixed_ver = f">={int(match.group(1)) + 1}.0.0"
 
@@ -643,12 +653,23 @@ class AnalysisService:
                 all_vulnerabilities.append(vuln)
                 osv_count += 1
 
-                fixed_ver = None
+                # Extract real fixed version from OSV data without major downgrades
+                installed_ver = purl_str.split("@")[-1] if "@" in purl_str else None
+                candidate_fixes = []
                 if vuln.fixed_versions:
-                    fixed_ver = next(iter(vuln.fixed_versions.values()), None)
-                if not fixed_ver and "@" in purl_str:
-                    ver_part = purl_str.split("@")[-1]
-                    m = re.match(r"^(\d+)", ver_part)
+                    if "_all_fixes" in vuln.fixed_versions:
+                        candidate_fixes.extend(vuln.fixed_versions["_all_fixes"])
+                    for k, val in vuln.fixed_versions.items():
+                        if k == "_all_fixes":
+                            continue
+                        if isinstance(val, list):
+                            candidate_fixes.extend(val)
+                        elif isinstance(val, str):
+                            candidate_fixes.append(val)
+
+                fixed_ver = resolve_best_fixed_version(installed_ver, candidate_fixes)
+                if not fixed_ver and installed_ver:
+                    m = re.match(r"^(\d+)", installed_ver)
                     if m:
                         fixed_ver = f">={int(m.group(1)) + 1}.0.0"
 
