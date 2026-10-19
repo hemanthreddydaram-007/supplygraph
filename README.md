@@ -1,7 +1,13 @@
 # SupplyGraph
-**HackFusion 2026 — Theme 6: Software Supply-Chain Attack Graph Engine**
 
-SupplyGraph is an evidence-driven software supply-chain attack graph engine. It parses dependencies, pulls live threat intelligence from OSV, runs static AST analysis on code, detects typosquatting, and generates a mathematically rigorous NetworkX dependency graph to trace attack paths to your production assets.
+SupplyGraph: software supply-chain attack-graph, behavioral sandbox and SBOM attestation platform.
+
+An evidence-driven application security posture management (ASPM) and supply-chain defense engine. It ingests multi-ecosystem lockfiles (npm, PyPI, Go, Cargo), pulls live OSV.dev CVE intelligence, runs deterministic AST/token pattern code review, executes untrusted install hooks in an isolated container sandbox, scores downstream blast radius, and anchors cryptographic CycloneDX SBOM digests to Polygon Amoy.
+
+## Verification & Forensic Evidence
+For full benchmark telemetry, test results, sandbox isolation proofs, and competitor verification, see:
+👉 **[Evidence & Reproduction Dossier (docs/EVIDENCE.md)](docs/EVIDENCE.md)**
+
 
 ## Quickstart
 

@@ -36,6 +36,18 @@ _HEAD_REF_PATTERN = re.compile(
     re.IGNORECASE
 )
 
+# Insecure curl/wget piped to shell
+_CURL_BASH_PATTERN = re.compile(
+    r'(?:curl|wget)\s+[^|\n]+(?:\|\s*(?:bash|sh|sudo\s+bash|sudo\s+sh))',
+    re.IGNORECASE
+)
+
+# Unpinned container images (e.g., in GitLab CI or Docker steps)
+_UNPINNED_IMAGE_PATTERN = re.compile(
+    r'(?:image:\s*|FROM\s+)([a-zA-Z0-9_.-]+(?:/[a-zA-Z0-9_.-]+)*):(latest|main|master|dev|develop)\b',
+    re.IGNORECASE
+)
+
 # Patterns for over-permissive permissions
 _WRITE_ALL_PATTERN = re.compile(
     r'permissions:\s*write-all',
@@ -50,14 +62,14 @@ _HIGH_ENTROPY_PATTERN = re.compile(
 
 
 class CICDAnalyzer:
-    """Scans GitHub Actions workflow YAML content for security risks."""
+    """Scans GitHub Actions and GitLab CI workflow YAML content for security risks."""
 
     def analyze(self, workflow_name: str, workflow_content: str) -> List[EvidenceItem]:
         """
         Analyze a single workflow file and return a list of EvidenceItems.
 
         Args:
-            workflow_name: The filename of the workflow (e.g. 'ci.yml')
+            workflow_name: The filename of the workflow (e.g. 'ci.yml', '.gitlab-ci.yml')
             workflow_content: Raw YAML string content of the workflow file
 
         Returns:
@@ -68,6 +80,8 @@ class CICDAnalyzer:
         try:
             findings.extend(self._detect_unpinned_actions(workflow_name, workflow_content))
             findings.extend(self._detect_script_injection(workflow_name, workflow_content))
+            findings.extend(self._detect_curl_bash(workflow_name, workflow_content))
+            findings.extend(self._detect_unpinned_images(workflow_name, workflow_content))
             findings.extend(self._detect_excessive_permissions(workflow_name, workflow_content))
         except Exception as e:
             logger.warning(f"CICDAnalyzer error on {workflow_name}: {e}")
@@ -143,6 +157,64 @@ class CICDAnalyzer:
                         "rule": pattern_name,
                         "line": line.strip(),
                         "remediation": "Use an intermediate env var: env: VAR: ${{ github.event... }} then reference $VAR in run:"
+                    }
+                ))
+        return results
+
+    def _detect_curl_bash(self, workflow_name: str, content: str) -> List[EvidenceItem]:
+        """Detect risky curl or wget commands piped directly to a shell interpreter."""
+        results = []
+        for line_num, line in enumerate(content.splitlines(), start=1):
+            if _CURL_BASH_PATTERN.search(line):
+                results.append(EvidenceItem(
+                    id=str(uuid.uuid4()),
+                    source=EvidenceSource.CICD,
+                    evidence_type="CICD-CURL-PIPE-BASH",
+                    classification=EvidenceClassification.HEURISTIC,
+                    description=(
+                        f"Insecure shell execution via pipe ('curl | bash' or 'wget | sh') detected in "
+                        f"'{workflow_name}' at line {line_num}. Executing untrusted remote scripts directly "
+                        f"bypasses integrity verification and enables supply-chain RCE."
+                    ),
+                    source_location=SourceLocation(file=workflow_name, line=line_num),
+                    confidence_contribution=0.85,
+                    is_simulated=False,
+                    timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    raw_data={
+                        "rule": "CICD-CURL-PIPE-BASH",
+                        "line": line.strip(),
+                        "remediation": "Download script, verify SHA-256 checksum, then execute locally."
+                    }
+                ))
+        return results
+
+    def _detect_unpinned_images(self, workflow_name: str, content: str) -> List[EvidenceItem]:
+        """Detect mutable container image tags (e.g., :latest, :main) in CI workflows/GitLab CI."""
+        results = []
+        for line_num, line in enumerate(content.splitlines(), start=1):
+            match = _UNPINNED_IMAGE_PATTERN.search(line)
+            if match:
+                img_name = match.group(1)
+                tag = match.group(2)
+                results.append(EvidenceItem(
+                    id=str(uuid.uuid4()),
+                    source=EvidenceSource.CICD,
+                    evidence_type="CICD-UNPINNED-IMAGE",
+                    classification=EvidenceClassification.HEURISTIC,
+                    description=(
+                        f"Unpinned container image '{img_name}:{tag}' in '{workflow_name}' at line {line_num}. "
+                        f"Mutable image tags can be replaced in registries without verification. "
+                        f"Pin image to an immutable digest (e.g., image@sha256:...)."
+                    ),
+                    source_location=SourceLocation(file=workflow_name, line=line_num),
+                    confidence_contribution=0.65,
+                    is_simulated=False,
+                    timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    raw_data={
+                        "image": img_name,
+                        "tag": tag,
+                        "rule": "CICD-UNPINNED-IMAGE",
+                        "remediation": f"Pin container image to sha256 digest: {img_name}@sha256:<digest>"
                     }
                 ))
         return results

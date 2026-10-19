@@ -1,5 +1,5 @@
 # SupplyGraph - AI Triage Engine
-# Supports: Google Gemini 1.5 Flash + AWS Bedrock (Claude 3.5)
+# Supports: Google Gemini 2.5 Flash + AWS Bedrock (Claude 3.5)
 from app.models.core import AnalysisResponse
 from app.core.config import get_settings
 import json
@@ -22,10 +22,10 @@ class GeminiService:
             if self.settings.gemini_api_key:
                 import google.generativeai as genai
                 genai.configure(api_key=self.settings.gemini_api_key)
-                self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+                self.gemini_model = genai.GenerativeModel('gemini-2.5-flash')
                 self.gemini_available = True
-                self.model_provider = "Gemini 1.5 Flash"
-                logger.info("Gemini 1.5 Flash initialized.")
+                self.model_provider = "Gemini 2.5 Flash"
+                logger.info("Gemini 2.5 Flash initialized.")
         except Exception as e:
             logger.warning(f"Gemini init failed: {e}")
 
@@ -46,7 +46,7 @@ class GeminiService:
                 )
                 self.bedrock_available = True
                 if self.gemini_available:
-                    self.model_provider = "AWS Bedrock (Claude 3.5) + Gemini 1.5 Flash"
+                    self.model_provider = "AWS Bedrock (Claude 3.5) + Gemini 2.5 Flash"
                 else:
                     self.model_provider = "AWS Bedrock (Claude 3.5 Sonnet)"
                 logger.info("AWS Bedrock initialized.")
@@ -106,7 +106,7 @@ class GeminiService:
         return result_body["content"][0]["text"]
 
     async def _query_gemini(self, prompt: str) -> str:
-        """Query Google Gemini 1.5 Flash."""
+        """Query Google Gemini 2.5 Flash."""
         response = await self.gemini_model.generate_content_async(prompt)
         return response.text
 

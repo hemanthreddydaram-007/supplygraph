@@ -102,3 +102,35 @@ def test_empty_content_produces_no_findings(analyzer):
     """Empty workflow should produce no findings."""
     findings = analyzer.analyze("empty.yml", "")
     assert len(findings) == 0
+
+
+def test_detects_curl_pipe_bash(analyzer):
+    """curl piped to bash should be detected."""
+    content = """
+    name: Build
+    jobs:
+      test:
+        runs-on: ubuntu-latest
+        steps:
+          - run: curl -sSL https://install.example.com/setup.sh | bash
+    """
+    findings = analyzer.analyze("ci.yml", content)
+    types = [f.evidence_type for f in findings]
+    assert "CICD-CURL-PIPE-BASH" in types
+
+
+def test_detects_gitlab_ci_unpinned_image(analyzer):
+    """GitLab CI configuration using unpinned :latest image should be flagged."""
+    content = """
+    image: node:latest
+    stages:
+      - test
+    test_job:
+      stage: test
+      script:
+        - npm test
+    """
+    findings = analyzer.analyze(".gitlab-ci.yml", content)
+    types = [f.evidence_type for f in findings]
+    assert "CICD-UNPINNED-IMAGE" in types
+

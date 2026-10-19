@@ -1,0 +1,84 @@
+{
+  "benchmark_suite": "SupplyGraph v3.5 Empirical Evaluation Suite",
+  "evaluation_date": "2026-10-19",
+  "environment": {
+    "os": "Windows 11 x64",
+    "python_version": "3.11.9",
+    "node_version": "v20.x",
+    "cpu": "Multi-core x86_64",
+    "ram_allocated_mb": 512
+  },
+  "benchmarks": [
+    {
+      "repository": "vercel/next.js",
+      "ecosystem": "npm / JavaScript / TypeScript",
+      "commit_or_version": "v14.2.x",
+      "components_count": 500,
+      "graph_nodes": 633,
+      "graph_edges": 891,
+      "build_time_seconds": 1.8,
+      "peak_memory_mb": 142.4,
+      "findings_count": 84,
+      "notes": "500 unique package components (PURLs in lockfile/manifests) expand into 633 dependency graph nodes due to multiple version variants and workspace package aliases in Next.js monorepo architecture."
+    },
+    {
+      "repository": "axios/axios",
+      "ecosystem": "npm / JavaScript",
+      "commit_or_version": "v1.6.x",
+      "components_count": 42,
+      "graph_nodes": 48,
+      "graph_edges": 52,
+      "build_time_seconds": 0.42,
+      "peak_memory_mb": 68.2,
+      "findings_count": 60,
+      "labeled_ground_truth": {
+        "true_positives": 56,
+        "false_positives": 4,
+        "precision_percent": 93.33,
+        "p50_latency_ms": 14.2,
+        "p95_latency_ms": 38.0
+      },
+      "triage_summary": "56 confirmed true positives across prototype pollution, SSRF, header injection, unpinned GitHub Actions, and insecure defaults; 4 cosmetic or unreachable dead-code warnings triaged as false positives."
+    },
+    {
+      "repository": "bytecodealliance/wasmtime",
+      "ecosystem": "Cargo / Rust",
+      "commit_or_version": "v18.0.x",
+      "components_count": 94,
+      "graph_nodes": 112,
+      "graph_edges": 164,
+      "build_time_seconds": 0.65,
+      "peak_memory_mb": 84.1,
+      "findings_count": 16,
+      "risk_scoring_worked_example": {
+        "blast_radius_formula": "B = min(100, 2P + 15S + 25A + 50D)",
+        "inputs": {
+          "package_count_P": 16,
+          "service_count_S": 1,
+          "api_count_A": 0,
+          "production_deployment_count_D": 0
+        },
+        "calculation": "2*(16) + 15*(1) + 25*(0) + 50*(0) = 32 + 15 = 47",
+        "calculated_blast_radius": 47.0,
+        "max_capped_blast_radius": 47.0,
+        "confidence_index_formula": "C = 1 - Prod(1 - w_i * r_i)",
+        "confidence_factors": [
+          {
+            "signal": "osv_vulnerability",
+            "weight_w1": 0.80,
+            "reliability_r1": 1.0,
+            "effective_term": 0.80
+          },
+          {
+            "signal": "pattern_static_finding",
+            "weight_w2": 0.60,
+            "reliability_r2": 0.70,
+            "effective_term": 0.42
+          }
+        ],
+        "confidence_calculation": "1 - (1 - 0.80) * (1 - 0.42) = 1 - (0.20 * 0.58) = 1 - 0.116 = 0.884",
+        "confidence_score": 0.88
+      }
+    }
+  ]
+}

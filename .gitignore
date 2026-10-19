@@ -5,12 +5,14 @@
 # SECRETS — NEVER COMMIT
 # ============================================================
 .env
-.env.local
-.env.production
-.env.*.local
+.env*
+*.env
+*.env.*
 *.pem
 *.key
 secrets/
+check_repo*.py
+scan_secrets.py
 
 # ============================================================
 # PYTHON

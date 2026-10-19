@@ -1,0 +1,30 @@
+{
+  "attestation_record": {
+    "network": "Polygon Amoy Testnet (Chain ID: 80002)",
+    "contract_address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "repository": "https://github.com/supplygraph/demo-target",
+    "sbom_sha256": "0x52ab394aa97471b4e815657c021d984d51807250cc05dafda4575032f334b488",
+    "merkle_root": "0x175a0983fd0e949b7b1c31e1de3009a11a023eb244bce9a6f488a35a9099c847",
+    "blast_radius_score": 47.0,
+    "payload_hash": "0xba9878aa8e7c7573287d6ac28b6d161e68427586be4bdcea0a759cadab02da15",
+    "attestation_timestamp": "2026-10-19T11:16:20.865806+00:00",
+    "status": "ATTESTED",
+    "verification_note": "This attestation anchors the SBOM hash and security posture on Polygon Amoy Testnet. The payload_hash is a deterministic SHA-256 of (repo|sbom_sha256|merkle_root|date) and can be independently verified without a wallet.",
+    "solidity_verification": "keccak256(abi.encodePacked(\"https://github.com/supplygraph/demo-target\", \"0x52ab394aa97471b4e815657c021d984d51807250cc05dafda4575032f334b488\", \"0x175a0983fd0e949b7b1c31e1de3009a11a023eb244bce9a6f488a35a9099c847\"))"
+  },
+  "cyclonedx_sbom_summary": {
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.5",
+    "components_count": 2,
+    "canonical_sbom_sha256": "0x52ab394aa97471b4e815657c021d984d51807250cc05dafda4575032f334b488",
+    "posture_fingerprint_digest": "0x175a0983fd0e949b7b1c31e1de3009a11a023eb244bce9a6f488a35a9099c847"
+  },
+  "on_chain_parameters": {
+    "network_name": "Polygon Amoy Testnet",
+    "chain_id": 80002,
+    "contract_address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "explorer_url": "https://amoy.polygonscan.com/address/0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "verification_mechanism": "Solidity keccak256 event emission & state storage",
+    "audit_trail_scope": "Strengthens NIST SP 800-218 (SSDF) and EO 14028 post-build software provenance."
+  }
+}
