@@ -150,7 +150,7 @@ function buildLockfileSnippet(finding: any): string {
 
   // 3. CI/CD Risk -> Workflow permissions & commit SHA pin
   if (findingType === "CICD_RISK") {
-    return `# .github/workflows/*.yml - Enforce least-privilege\npermissions:\n  contents: read\n  pull-requests: write\n# Pin actions to full 40-character commit SHA:\n# uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11`;
+    return `# .github/workflows/*.yml - Enforce least-privilege\npermissions:\n  contents: read\n  pull-requests: write\n# Pin actions to full 40-character commit SHA:\n# uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2`;
   }
 
   // 4. AST / Suspicious Code Patterns

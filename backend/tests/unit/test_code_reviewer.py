@@ -76,3 +76,49 @@ class TestCodeReviewerService:
         code = "// Note: checking if x == y\nconst msg = 'Does a == b here?';\nif (val == null) { return; }\n"
         results = self.reviewer.review_snippet(code, language="javascript", file_path="safe.js")
         assert not any("Loose Equality" in r.title for r in results)
+
+    def test_yaml_surgical_diff_and_sha_mapping(self):
+        code = """name: Book Workflow
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+"""
+        results = self.reviewer.review_snippet(code, language="yaml", file_path=".github/workflows/book.yml")
+        assert len(results) == 2
+
+        # Check setup-python item
+        py_item = next(r for r in results if "setup-python" in r.title)
+        assert py_item.line_number == 9
+        # Fix 2: Check accurate SHA
+        assert "42375524e23c412d93fb67b49958b491fce71c38" in py_item.corrected_code
+        # Fix 3: Check indentation preserved
+        assert "        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0" in py_item.corrected_code
+        assert "        # Pinned to full immutable commit SHA" in py_item.corrected_code
+
+        # Fix 1 & 4: Check surgical unified diff preserves context lines without marking them '-'
+        diff = py_item.unified_diff
+        assert diff is not None
+        assert "--- a/.github/workflows/book.yml" in diff
+        assert "+++ b/.github/workflows/book.yml" in diff
+        assert "@@ -7,5 +7,6 @@" in diff
+        # Context lines MUST be prefixed with space ' '
+        assert "       - name: Set up Python 3.10" in diff
+        assert "         with:" in diff
+        assert "           python-version: '3.10'" in diff
+        # Only target line is marked '-'
+        assert "-        uses: actions/setup-python@v5" in diff
+        # Added lines are marked '+'
+        assert "+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0" in diff
+
+        # Check checkout item has different SHA
+        checkout_item = next(r for r in results if "checkout" in r.title)
+        assert "11bd71901bbe5b1630ceea73d27597364c9af683" in checkout_item.corrected_code
+        assert checkout_item.corrected_code != py_item.corrected_code
+

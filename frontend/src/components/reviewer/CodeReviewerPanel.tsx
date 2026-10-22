@@ -28,7 +28,7 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
   codeReviews,
   onReviewsUpdated,
 }: CodeReviewerPanelProps) {
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedState, setCopiedState] = useState<string | null>(null);
   const [showTester, setShowTester] = useState(false);
   const [customCode, setCustomCode] = useState("");
   const [language, setLanguage] = useState("python");
@@ -39,20 +39,26 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
   const [showAll, setShowAll] = useState(false);
   const [viewMode, setViewMode] = useState<"stacked" | "diff">("diff");
 
-  const handleCopy = (code: string, id: string) => {
+  const handleCopy = (code: string, key: string) => {
     navigator.clipboard.writeText(code);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    setCopiedState(key);
+    setTimeout(() => setCopiedState(null), 2000);
   };
 
   const handleDownloadPatch = (item: CodeReviewItem) => {
-    const patchHeader = `// SupplyGraph Corrected Patch\n// Target: ${item.file_path} (Line ${item.line_number})\n// Severity: ${item.severity} | Category: ${item.category}\n// Issue: ${item.title}\n\n`;
-    const blob = new Blob([patchHeader + item.corrected_code], { type: "text/plain" });
+    let patchContent = item.unified_diff;
+    if (!patchContent) {
+      patchContent = `--- a/${item.file_path}\n+++ b/${item.file_path}\n@@ -${item.line_number},1 +${item.line_number},1 @@\n-${item.buggy_code}\n+${item.corrected_code}\n`;
+    }
+    if (!patchContent.endsWith("\n")) {
+      patchContent += "\n";
+    }
+    const blob = new Blob([patchContent], { type: "text/x-diff;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const baseName = item.file_path.split("/").pop() || "patch.txt";
-    a.download = `patch-${baseName}`;
+    const baseName = item.file_path.split("/").pop() || "patch";
+    a.download = `${baseName}.patch`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -229,7 +235,6 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
         {allDisplayReviews && allDisplayReviews.length > 0 ? (
           <>
             {(showAll ? allDisplayReviews : allDisplayReviews.slice(0, 25)).map((item, idx) => {
-              const isCopied = copiedId === item.id;
               return (
                 <div
                   key={item.id || idx}
@@ -273,35 +278,96 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
 
                   {/* UNIFIED GIT DIFF OR STACKED COMPARISON (Fix #10) */}
                   {viewMode === "diff" ? (
-                    <div className="rounded-lg overflow-hidden border border-zinc-800 bg-zinc-950/80 font-mono text-[10px]">
+                    <div className="rounded-lg overflow-hidden border border-zinc-800 bg-zinc-950/80 font-mono text-[11px]">
                       <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-900/90 border-b border-zinc-800 text-zinc-400">
-                        <span>git diff: {item.file_path}</span>
-                        <button
-                          onClick={() => handleCopy(item.corrected_code, item.id)}
-                          className="flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 transition-colors"
-                        >
-                          {isCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                          <span>{isCopied ? "Copied!" : "Copy Fix"}</span>
-                        </button>
-                      </div>
-                      <div className="p-2 space-y-0.5 overflow-x-auto">
-                        <div className="text-cyan-400 select-none">--- a/{item.file_path}</div>
-                        <div className="text-cyan-400 select-none">+++ b/{item.file_path}</div>
-                        <div className="text-indigo-400 select-none py-0.5">
-                          @@ -{item.line_number},{item.buggy_code.split("\n").length} +{item.line_number},{item.corrected_code.split("\n").length} @@
+                        <span className="text-[10px] text-zinc-400 font-mono">git diff: {item.file_path}</span>
+                        <div className="flex items-center space-x-2 text-[10px]">
+                          <button
+                            onClick={() => handleCopy(item.unified_diff || item.corrected_code, `${item.id}-diff`)}
+                            className="flex items-center space-x-1 text-zinc-400 hover:text-zinc-200 transition-colors"
+                            title="Copy full git diff"
+                          >
+                            {copiedState === `${item.id}-diff` ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                            <span>{copiedState === `${item.id}-diff` ? "Copied Diff!" : "Copy Diff"}</span>
+                          </button>
+                          <button
+                            onClick={() => handleCopy(item.corrected_code, `${item.id}-fix`)}
+                            className="flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 transition-colors font-semibold"
+                            title="Copy corrected code replacement"
+                          >
+                            {copiedState === `${item.id}-fix` ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                            <span>{copiedState === `${item.id}-fix` ? "Copied Fix!" : "Copy Fix"}</span>
+                          </button>
                         </div>
-                        {item.buggy_code.split("\n").map((line, lIdx) => (
-                          <div key={`del-${lIdx}`} className="bg-red-950/30 text-red-300 px-1.5 py-0.5 rounded-sm">
-                            <span className="text-red-500 select-none mr-2 font-bold">-</span>
-                            <span>{line}</span>
-                          </div>
-                        ))}
-                        {item.corrected_code.split("\n").map((line, lIdx) => (
-                          <div key={`add-${lIdx}`} className="bg-emerald-950/30 text-emerald-300 px-1.5 py-0.5 rounded-sm">
-                            <span className="text-emerald-500 select-none mr-2 font-bold">+</span>
-                            <span>{line}</span>
-                          </div>
-                        ))}
+                      </div>
+                      <div className="p-3 space-y-0.5 overflow-x-auto whitespace-pre select-text bg-black/60 font-mono text-[11px] leading-relaxed">
+                        {(() => {
+                          const diffText = item.unified_diff || [
+                            `--- a/${item.file_path}`,
+                            `+++ b/${item.file_path}`,
+                            `@@ -${item.line_number},1 +${item.line_number},1 @@`,
+                            `-${item.buggy_code}`,
+                            `+${item.corrected_code}`,
+                          ].join("\n");
+                          const lines = diffText.split("\n");
+                          return lines.map((line, lIdx) => {
+                            if (line.startsWith("---") || line.startsWith("+++")) {
+                              return (
+                                <div key={lIdx} className="text-cyan-400 font-semibold select-none whitespace-pre">
+                                  {line}
+                                </div>
+                              );
+                            }
+                            if (line.startsWith("@@")) {
+                              return (
+                                <div key={lIdx} className="text-indigo-400 font-semibold select-none py-1 whitespace-pre">
+                                  {line}
+                                </div>
+                              );
+                            }
+                            if (line.startsWith("-")) {
+                              return (
+                                <div
+                                  key={lIdx}
+                                  className="bg-red-950/40 text-red-300 px-1.5 py-0.5 rounded-sm whitespace-pre flex items-start"
+                                >
+                                  <span className="text-red-500 font-bold select-none mr-2 flex-shrink-0">-</span>
+                                  <span className="whitespace-pre">{line.slice(1)}</span>
+                                </div>
+                              );
+                            }
+                            if (line.startsWith("+")) {
+                              return (
+                                <div
+                                  key={lIdx}
+                                  className="bg-emerald-950/40 text-emerald-300 px-1.5 py-0.5 rounded-sm whitespace-pre flex items-start"
+                                >
+                                  <span className="text-emerald-500 font-bold select-none mr-2 flex-shrink-0">+</span>
+                                  <span className="whitespace-pre">{line.slice(1)}</span>
+                                </div>
+                              );
+                            }
+                            // Context lines (prefixed with space ' ' in unified diff)
+                            const content = line.startsWith(" ") ? line.slice(1) : line;
+                            return (
+                              <div
+                                key={lIdx}
+                                className="text-zinc-400 px-1.5 py-0.5 rounded-sm whitespace-pre flex items-start hover:text-zinc-300"
+                              >
+                                <span className="text-zinc-600 select-none mr-2 flex-shrink-0 opacity-40"> </span>
+                                <span className="whitespace-pre">{content}</span>
+                              </div>
+                            );
+                          });
+                        })()}
                       </div>
                     </div>
                   ) : (
@@ -312,7 +378,7 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
                         <div className="flex items-center justify-between px-2.5 py-1 bg-red-950/40 border-b border-red-900/30 text-[10px] font-mono text-red-300">
                           <span>❌ Original Error / Vulnerable Code (Line {item.line_number})</span>
                         </div>
-                        <pre className="p-2.5 text-[10px] font-mono text-red-200 overflow-x-auto whitespace-pre-wrap break-all leading-tight">
+                        <pre className="p-2.5 text-[11px] font-mono text-red-200 overflow-x-auto whitespace-pre leading-relaxed">
                           {item.buggy_code}
                         </pre>
                       </div>
@@ -322,14 +388,18 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
                         <div className="flex items-center justify-between px-2.5 py-1 bg-emerald-950/40 border-b border-emerald-900/30 text-[10px] font-mono text-emerald-300">
                           <span>✅ Corrected Code by SupplyGraph</span>
                           <button
-                            onClick={() => handleCopy(item.corrected_code, item.id)}
+                            onClick={() => handleCopy(item.corrected_code, `${item.id}-fix`)}
                             className="flex items-center space-x-1 hover:text-emerald-100 transition-colors"
                           >
-                            {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                            <span>{isCopied ? "Copied!" : "Copy Fix"}</span>
+                            {copiedState === `${item.id}-fix` ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                            <span>{copiedState === `${item.id}-fix` ? "Copied!" : "Copy Fix"}</span>
                           </button>
                         </div>
-                        <pre className="p-2.5 text-[10px] font-mono text-emerald-200 overflow-x-auto whitespace-pre-wrap break-all leading-tight">
+                        <pre className="p-2.5 text-[11px] font-mono text-emerald-200 overflow-x-auto whitespace-pre leading-relaxed">
                           {item.corrected_code}
                         </pre>
                       </div>
@@ -339,11 +409,17 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
                   {/* Card Action Footer */}
                   <div className="flex items-center justify-end space-x-2 pt-1 text-[10px] font-mono">
                     <button
-                      onClick={() => handleCopy(item.corrected_code, item.id)}
+                      onClick={() => handleCopy(item.corrected_code, `${item.id}-code`)}
                       className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center space-x-1 transition-colors"
                     >
-                      {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      <span>{isCopied ? "✓ Copied Corrected Code!" : "Copy Corrected Code"}</span>
+                      {copiedState === `${item.id}-code` ? (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                      <span>
+                        {copiedState === `${item.id}-code` ? "✓ Copied Corrected Code!" : "Copy Corrected Code"}
+                      </span>
                     </button>
 
                     <button

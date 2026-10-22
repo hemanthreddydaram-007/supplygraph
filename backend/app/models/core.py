@@ -623,6 +623,8 @@ class CodeReviewItem(BaseModel):
     error_explanation: str
     buggy_code: str
     corrected_code: str
+    unified_diff: Optional[str] = None
+
 
 
 class UploadedFile(BaseModel):

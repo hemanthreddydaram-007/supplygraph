@@ -107,6 +107,7 @@ export interface CodeReviewItem {
   error_explanation: string;
   buggy_code: string;
   corrected_code: string;
+  unified_diff?: string;
 }
 
 export interface AnalysisResponse {
