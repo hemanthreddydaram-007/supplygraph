@@ -104,13 +104,14 @@ class AnalysisService:
         all_repo_files = self.github_service.list_files(request.github_url, ref=request.branch)
         supported_lockfiles = [
             "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "package.json",
-            "poetry.lock", "requirements.txt",
+            "poetry.lock", "requirements.txt", "pipfile.lock",
             "go.mod",
             "Cargo.lock", "Cargo.toml"
         ]
         found_lockfiles = [
             f for f in all_repo_files
             if any(f.lower().endswith(ext.lower()) for ext in supported_lockfiles)
+            or ("requirements" in f.lower() and f.lower().endswith(".txt"))
         ]
 
         # Directory-aware precedence:
@@ -175,6 +176,10 @@ class AnalysisService:
             unique_components_map.values(),
             key=lambda c: (not c.is_direct, getattr(c, "depth", 0))
         )[:500]
+
+        # Apply production_only filter — strip dev-only components if requested
+        if getattr(request, 'production_only', False):
+            deduped_components = [c for c in deduped_components if not getattr(c, 'is_dev', False)]
 
         sbom = self.sbom_engine.build_sbom(deduped_components, repo_name)
         scan_metadata.sbom_generated = True
@@ -420,7 +425,9 @@ class AnalysisService:
             for f in findings if f.entity_id or f.origin_candidate
         ]
         target_ids = [str(a.id) for a in target_assets]
-        attack_paths = self.path_engine.find_attack_paths(graph, origin_ids, target_ids)
+        attack_paths = self.path_engine.find_attack_paths(
+            graph, origin_ids, target_ids, cutoff=getattr(request, 'max_transitive_depth', 10)
+        )
         for ap in attack_paths:
             ap.scan_id = scan_id
 
@@ -584,13 +591,14 @@ class AnalysisService:
         # 1. Parse lockfiles and manifests
         supported_lockfiles = [
             "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "package.json",
-            "poetry.lock", "requirements.txt",
+            "poetry.lock", "requirements.txt", "pipfile.lock",
             "go.mod",
             "Cargo.lock", "Cargo.toml"
         ]
         found_lockfiles = [
             p for p in files_map.keys()
             if any(p.lower().endswith(ext.lower()) for ext in supported_lockfiles)
+            or ("requirements" in p.lower() and p.lower().endswith(".txt"))
         ]
 
         npm_lock_exts = ("package-lock.json", "yarn.lock", "pnpm-lock.yaml")
@@ -676,6 +684,10 @@ class AnalysisService:
             unique_components_map.values(),
             key=lambda c: (not c.is_direct, getattr(c, "depth", 0))
         )[:500]
+
+        # Apply production_only filter — strip dev-only components if requested
+        if getattr(request, 'production_only', False):
+            deduped_components = [c for c in deduped_components if not getattr(c, 'is_dev', False)]
 
         sbom = self.sbom_engine.build_sbom(deduped_components, project_name)
         scan_metadata.sbom_generated = True
@@ -879,7 +891,9 @@ class AnalysisService:
             for f in findings if f.entity_id or f.origin_candidate
         ]
         asset_ids = [str(a.id) for a in target_assets]
-        attack_paths = self.path_engine.find_attack_paths(graph, origin_ids, asset_ids)
+        attack_paths = self.path_engine.find_attack_paths(
+            graph, origin_ids, asset_ids, cutoff=getattr(request, 'max_transitive_depth', 10)
+        )
 
         # Edge attack path coloring
         attack_path_node_ids = set()

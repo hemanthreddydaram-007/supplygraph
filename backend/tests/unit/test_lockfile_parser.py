@@ -213,6 +213,12 @@ class TestPackageJsonFallback:
         assert jest is not None
         assert jest.version == "29.5.0"
         assert jest.is_direct is False
+        assert jest.is_dev is True
+
+        # Check production-only filtering
+        prod_only = [c for c in components if not getattr(c, "is_dev", False)]
+        assert len(prod_only) == 5
+        assert all(c.name not in ("jest", "@babel/core") for c in prod_only)
 
 
 class TestLockfileParserRouter:

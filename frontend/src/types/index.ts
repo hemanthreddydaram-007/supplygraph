@@ -59,6 +59,8 @@ export interface SBOMComponent {
   purl: string;
   is_direct?: boolean;
   is_transitive?: boolean;
+  is_dev?: boolean;
+  declared_in?: string;
 }
 
 export interface SBOM {
@@ -149,4 +151,15 @@ export interface SandboxExecutionResponse {
   detonation_alerts: string[];
   timestamp?: string;
 }
+
+export interface ScanHistoryRecord {
+  id: string;
+  timestamp: string;
+  target: string;
+  total_components: number;
+  total_findings: number;
+  blast_radius_score: number;
+  data: AnalysisResponse;
+}
+
 

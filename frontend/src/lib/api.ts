@@ -18,13 +18,21 @@ export async function fetchDemoAnalysis(scenarioId: string): Promise<AnalysisRes
   return response.json();
 }
 
-export async function fetchRepositoryAnalysis(githubUrl: string): Promise<AnalysisResponse> {
+export async function fetchRepositoryAnalysis(
+  githubUrl: string,
+  productionOnly?: boolean,
+  maxTransitiveDepth?: number
+): Promise<AnalysisResponse> {
   const response = await fetch(`${API_BASE}/api/v1/analyze`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ github_url: githubUrl }),
+    body: JSON.stringify({
+      github_url: githubUrl,
+      production_only: Boolean(productionOnly),
+      max_transitive_depth: maxTransitiveDepth ?? 10,
+    }),
   });
 
   if (!response.ok) {
@@ -41,14 +49,22 @@ export async function fetchRepositoryAnalysis(githubUrl: string): Promise<Analys
 
 export async function fetchFolderAnalysis(
   projectName: string,
-  files: { path: string; content: string }[]
+  files: { path: string; content: string }[],
+  productionOnly?: boolean,
+  maxTransitiveDepth?: number
 ): Promise<AnalysisResponse> {
   const response = await fetch(`${API_BASE}/api/v1/analyze/folder`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ project_name: projectName, files, enable_code_review: true }),
+    body: JSON.stringify({
+      project_name: projectName,
+      files,
+      enable_code_review: true,
+      production_only: Boolean(productionOnly),
+      max_transitive_depth: maxTransitiveDepth ?? 10,
+    }),
   });
 
   if (!response.ok) {
@@ -105,4 +121,24 @@ export async function executeSandbox(
 
   return response.json();
 }
+
+export async function compareScans(
+  scanA: AnalysisResponse,
+  scanB: AnalysisResponse
+): Promise<any> {
+  const response = await fetch(`${API_BASE}/api/v1/compare`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ scan_a: scanA, scan_b: scanB }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Comparison error: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
 

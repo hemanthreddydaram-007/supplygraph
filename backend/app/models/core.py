@@ -262,6 +262,8 @@ class SBOMComponent(BaseModel):
     is_direct: bool = True
     is_transitive: bool = False
     depth: int = 0
+    is_dev: bool = False  # True for devDependencies / dev = true
+    declared_in: Optional[str] = None  # Path to manifest/lockfile where component is declared
 
 
 class SBOMDependency(BaseModel):
@@ -590,6 +592,7 @@ class AnalysisRequest(BaseModel):
     enable_simulated_runtime: bool = False
     enable_gemini_explanation: bool = True
     max_transitive_depth: int = Field(default=10, ge=1, le=20)
+    production_only: bool = False  # Strip dev-only components when True
 
     @field_validator('github_url')
     @classmethod
@@ -631,6 +634,8 @@ class FolderAnalysisRequest(BaseModel):
     project_name: str = "Uploaded Project"
     files: List[UploadedFile] = Field(default_factory=list)
     enable_code_review: bool = True
+    production_only: bool = False  # Strip dev-only components when True
+    max_transitive_depth: int = Field(default=10, ge=1, le=20)
 
 
 class CodeReviewRequest(BaseModel):

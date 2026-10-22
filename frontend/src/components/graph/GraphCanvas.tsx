@@ -28,8 +28,10 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
   focusNodeId,
   onNodeClick,
 }: GraphCanvasProps) {
-  const { fitView } = useReactFlow();
+  const { fitView, setCenter } = useReactFlow();
   const [filter, setFilter] = useState<GraphFilter>("attack");
+  const [ecoFilter, setEcoFilter] = useState<string>("all");
+  const [sevFilter, setSevFilter] = useState<string>("all");
 
   // Determine if we should default to attack-path-only view
   const totalNodes = graph.nodes.length;
@@ -116,6 +118,26 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
     return kept;
   }, [graph]);
 
+  // Collect unique ecosystems and severities from graph nodes
+  const ecosystems = useMemo(() => {
+    const ecoSet = new Set<string>();
+    graph.nodes.forEach(n => {
+      const eco = n.data?.ecosystem as string | undefined;
+      if (eco && eco !== "unknown") ecoSet.add(eco);
+    });
+    return Array.from(ecoSet).sort();
+  }, [graph.nodes]);
+
+  const severities = useMemo(() => {
+    const sevSet = new Set<string>();
+    graph.nodes.forEach(n => {
+      const sev = n.data?.severity as string | undefined;
+      if (sev) sevSet.add(sev);
+    });
+    // Return in severity order
+    return ["CRITICAL","HIGH","MEDIUM","LOW","INFO"].filter(s => sevSet.has(s));
+  }, [graph.nodes]);
+
   // Hard-cap nodes in "All Nodes" mode: top 180 prioritized nodes if > 200 nodes
   const isCapped = filter === "all" && graph.nodes.length > 200;
 
@@ -156,9 +178,25 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
 
   // Compute layout positions with multi-column grid wrapping (max 8 per column)
   const visibleNodes: Node[] = useMemo(() => {
-    const rawNodes = filter === "all"
+    let rawNodes: typeof graph.nodes = filter === "all"
       ? prioritizedAllNodes
       : graph.nodes.filter(n => threatNodeIds.has(n.id));
+
+    // Apply ecosystem filter
+    if (ecoFilter !== "all") {
+      rawNodes = rawNodes.filter(n => {
+        const eco = n.data?.ecosystem as string | undefined;
+        return eco === ecoFilter || n.data?.node_type === "Repository" || n.data?.node_type === "Service";
+      });
+    }
+
+    // Apply severity filter
+    if (sevFilter !== "all") {
+      rawNodes = rawNodes.filter(n => {
+        const sev = n.data?.severity as string | undefined;
+        return sev === sevFilter || n.data?.node_type === "Repository";
+      });
+    }
 
     // Group nodes by X coordinate to detect columns with > 8 nodes
     const colGroups = new Map<number, typeof rawNodes>();
@@ -203,7 +241,7 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
         type: "default",
       };
     });
-  }, [graph.nodes, filter, prioritizedAllNodes, threatNodeIds]);
+  }, [graph.nodes, filter, prioritizedAllNodes, threatNodeIds, ecoFilter, sevFilter]);
 
   const visibleEdges: Edge[] = useMemo(() => {
     const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
@@ -261,7 +299,7 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
       });
   }, [graph.edges, visibleNodes, threatNodeIds, filter]);
 
-  // Focus on a specific node when focusNodeId changes
+  // Focus on a specific node when focusNodeId changes — smooth zoom to center
   useEffect(() => {
     if (!focusNodeId) return;
     const node = graph.nodes.find(n =>
@@ -270,14 +308,18 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
       focusNodeId.includes(n.id)
     );
     if (node) {
+      // Switch to "all" view if node is not in attack path subset
       if (!threatNodeIds.has(node.id)) {
         setFilter("all");
       }
+      // Use setCenter for precise, smooth zoom to the node
       setTimeout(() => {
-        fitView({ nodes: [{ id: node.id }], duration: 600, padding: 0.3 });
-      }, 100);
+        const x = node.position.x + 80; // offset to center of node card
+        const y = node.position.y + 20;
+        setCenter(x, y, { zoom: 1.4, duration: 800 });
+      }, 150);
     }
-  }, [focusNodeId, fitView, graph.nodes, threatNodeIds]);
+  }, [focusNodeId, setCenter, graph.nodes, threatNodeIds]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -325,6 +367,62 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
         {isCapped && (
           <div className="px-2.5 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded text-[9px] font-mono text-amber-300">
             Showing top 180 of {allCount} nodes for 60 FPS performance
+          </div>
+        )}
+
+        {/* Ecosystem Filter Pills */}
+        {ecosystems.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap justify-end max-w-[200px]">
+            <button
+              onClick={() => setEcoFilter("all")}
+              className={`px-2 py-0.5 rounded text-[9px] font-mono border transition-all ${
+                ecoFilter === "all"
+                  ? "bg-zinc-700/80 text-zinc-100 border-zinc-600"
+                  : "bg-zinc-950/80 text-zinc-500 border-zinc-800 hover:text-zinc-300"
+              }`}
+            >
+              All Ecosystems
+            </button>
+            {ecosystems.map(eco => (
+              <button
+                key={eco}
+                onClick={() => setEcoFilter(ecoFilter === eco ? "all" : eco)}
+                className={`px-2 py-0.5 rounded text-[9px] font-mono border transition-all ${
+                  ecoFilter === eco
+                    ? "bg-indigo-700/60 text-indigo-100 border-indigo-600/60"
+                    : "bg-zinc-950/80 text-zinc-500 border-zinc-800 hover:text-zinc-300"
+                }`}
+              >
+                {eco}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Severity Filter Pills */}
+        {severities.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap justify-end max-w-[200px]">
+            {severities.map(sev => {
+              const sevColors: Record<string, string> = {
+                CRITICAL: "bg-red-900/60 text-red-300 border-red-700/60",
+                HIGH: "bg-orange-900/60 text-orange-300 border-orange-700/60",
+                MEDIUM: "bg-amber-900/60 text-amber-300 border-amber-700/60",
+                LOW: "bg-blue-900/60 text-blue-300 border-blue-700/60",
+                INFO: "bg-zinc-800/60 text-zinc-400 border-zinc-700/60",
+              };
+              const inactiveStyle = "bg-zinc-950/80 text-zinc-600 border-zinc-800 hover:text-zinc-300";
+              return (
+                <button
+                  key={sev}
+                  onClick={() => setSevFilter(sevFilter === sev ? "all" : sev)}
+                  className={`px-2 py-0.5 rounded text-[9px] font-mono border transition-all ${
+                    sevFilter === sev ? sevColors[sev] || inactiveStyle : inactiveStyle
+                  }`}
+                >
+                  {sev}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

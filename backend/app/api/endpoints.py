@@ -1,9 +1,11 @@
 # SupplyGraph - API Endpoints v3.0
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from pydantic import BaseModel
 from app.models.core import (
     AnalysisRequest, DemoRequest, AnalysisResponse,
     FolderAnalysisRequest, CodeReviewRequest, CodeReviewItem,
-    SandboxExecutionRequest, SandboxExecutionResponse
+    SandboxExecutionRequest, SandboxExecutionResponse,
+    ScanComparison, DependencyChange, FindingChange
 )
 from app.services.analysis_service import AnalysisService
 from app.services.code_reviewer import CodeReviewerService
@@ -328,10 +330,144 @@ async def execute_sandbox(request: SandboxExecutionRequest):
             )
 
         # Default: auto router
+        # Fix #4: If mode is "auto" and files contain a raw script without any manifest,
+        # route to detonate_raw_script for direct analysis/execution
         response = router_service.route_and_execute(request)
+
+        # Post-route: if result has empty logs and no violations but files exist, try raw detonation
+        if (
+            request.mode == "auto"
+            and request.files
+            and not request.archive_base64
+            and response.target_type in ("generic_file", "python_script", "shell_script", "node_script")
+        ):
+            # Check if any file looks like a raw script without a manifest
+            manifest_names = {"package.json", "requirements.txt", "setup.py", "pyproject.toml", "go.mod", "cargo.toml"}
+            has_manifest = any(
+                os.path.basename(f.path).lower() in manifest_names
+                for f in request.files
+            )
+            if not has_manifest:
+                # Run raw script detonation alongside the router result
+                target = request.target_file or (request.files[0].path if request.files else None)
+                if target:
+                    script_file = next((f for f in request.files if f.path == target), None)
+                    if script_file:
+                        raw_report = detonation_service.detonate_raw_script(
+                            script_file.content, os.path.basename(target)
+                        )
+                        # Merge raw detonation alerts into response
+                        merged_violations = list(response.security_violations or []) + raw_report.alerts
+                        merged_logs = response.logs + "\n\n=== RAW SCRIPT DETONATION ===\n" + (raw_report.stdout or raw_report.stderr or "No output.")
+                        response.security_violations = merged_violations
+                        response.logs = merged_logs
+                        if merged_violations:
+                            response.status = "violation"
+
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Sandbox execution failed: {str(e)}")
+
+
+class CompareRequest(BaseModel):
+    scan_a: AnalysisResponse
+    scan_b: AnalysisResponse
+
+
+@router.post("/compare", response_model=ScanComparison)
+def compare_scans(req: CompareRequest):
+    a = req.scan_a
+    b = req.scan_b
+
+    # Components diff
+    comps_a = {c.name.lower(): c for c in a.components}
+    comps_b = {c.name.lower(): c for c in b.components}
+
+    dep_changes: List[DependencyChange] = []
+    for name, c_b in comps_b.items():
+        if name not in comps_a:
+            dep_changes.append(DependencyChange(
+                change_type="added",
+                package_name=c_b.name,
+                ecosystem=c_b.ecosystem.value if hasattr(c_b.ecosystem, "value") else str(c_b.ecosystem),
+                version_after=c_b.version,
+                purl_after=c_b.purl
+            ))
+        elif comps_a[name].version != c_b.version:
+            dep_changes.append(DependencyChange(
+                change_type="version_changed",
+                package_name=c_b.name,
+                ecosystem=c_b.ecosystem.value if hasattr(c_b.ecosystem, "value") else str(c_b.ecosystem),
+                version_before=comps_a[name].version,
+                version_after=c_b.version,
+                purl_before=comps_a[name].purl,
+                purl_after=c_b.purl
+            ))
+
+    for name, c_a in comps_a.items():
+        if name not in comps_b:
+            dep_changes.append(DependencyChange(
+                change_type="removed",
+                package_name=c_a.name,
+                ecosystem=c_a.ecosystem.value if hasattr(c_a.ecosystem, "value") else str(c_a.ecosystem),
+                version_before=c_a.version,
+                purl_before=c_a.purl
+            ))
+
+    # Findings diff
+    titles_a = {f.title: f for f in a.findings}
+    titles_b = {f.title: f for f in b.findings}
+
+    finding_changes: List[FindingChange] = []
+    for title, f_b in titles_b.items():
+        if title not in titles_a:
+            finding_changes.append(FindingChange(
+                change_type="new",
+                finding_id=str(f_b.id),
+                finding_type=f_b.finding_type,
+                severity=f_b.severity,
+                entity_name=f_b.origin_candidate or str(f_b.entity_id or "unknown"),
+                confidence_after=f_b.confidence.score if hasattr(f_b.confidence, "score") else 0.0
+            ))
+
+    for title, f_a in titles_a.items():
+        if title not in titles_b:
+            finding_changes.append(FindingChange(
+                change_type="resolved",
+                finding_id=str(f_a.id),
+                finding_type=f_a.finding_type,
+                severity=f_a.severity,
+                entity_name=f_a.origin_candidate or str(f_a.entity_id or "unknown"),
+                confidence_before=f_a.confidence.score if hasattr(f_a.confidence, "score") else 0.0
+            ))
+
+    blast_delta = round((b.scan.blast_radius_score or 0.0) - (a.scan.blast_radius_score or 0.0), 2)
+    conf_b = b.scan.max_confidence or 0.0
+    conf_a = a.scan.max_confidence or 0.0
+    conf_delta = round(conf_b - conf_a, 4)
+
+    new_count = sum(1 for fc in finding_changes if fc.change_type == "new")
+    res_count = sum(1 for fc in finding_changes if fc.change_type == "resolved")
+    summary = f"Delta Comparison: {new_count} new findings, {res_count} resolved. Blast Radius changed by {blast_delta:+0.1f}."
+
+    return ScanComparison(
+        scan_a_id=str(a.scan.id),
+        scan_b_id=str(b.scan.id),
+        scan_a_timestamp=a.scan.started_at,
+        scan_b_timestamp=b.scan.started_at,
+        dependency_changes=dep_changes,
+        finding_changes=finding_changes,
+        blast_radius_delta=blast_delta,
+        confidence_delta=conf_delta,
+        summary=summary
+    )
+
+
+@router.get("/github/rate-limit")
+def github_rate_limit():
+    from app.services.github_service import GitHubService
+    service = GitHubService()
+    return service.get_rate_limit_status()
 
 
 @router.get("/health")

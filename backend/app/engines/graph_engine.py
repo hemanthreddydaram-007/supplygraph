@@ -26,7 +26,12 @@ class GraphEngine:
                     entity_id=comp_id,
                     purl=comp.purl,
                     version=comp.version,
-                    ecosystem=comp.ecosystem.value if comp.ecosystem else None
+                    ecosystem=comp.ecosystem.value if comp.ecosystem else None,
+                    metadata={
+                        "declared_in": getattr(comp, "declared_in", None),
+                        "is_direct": comp.is_direct,
+                        "is_dev": getattr(comp, "is_dev", False)
+                    }
                 ))
                 # Add CONTAINS edge from repo to direct dependencies
                 if comp.is_direct:

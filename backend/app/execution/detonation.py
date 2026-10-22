@@ -38,6 +38,52 @@ class TestSuiteReport:
     error_message: Optional[str] = None
 
 
+
+# Patterns for outbound-tool interception (Fix #5: Mock curl/wget blocking)
+_BLOCKED_EXFIL_TOOLS = [
+    "curl", "wget", "nc", "netcat", "ncat",
+    "python -c", "python3 -c", "python -m http",
+    "certutil", "bitsadmin", "scp", "rsync",
+    "ftp", "tftp", "telnet",
+]
+
+# Regex patterns that match dangerous execution flows
+_BLOCKED_PIPE_PATTERNS = [
+    re.compile(r'curl\s+.*\|\s*(bash|sh|python|node|ruby|perl)', re.IGNORECASE),
+    re.compile(r'wget\s+.*-O\s*-?\s*\|', re.IGNORECASE),
+    re.compile(r'bash\s+-c\s+["\'].*curl', re.IGNORECASE),
+    re.compile(r'eval\s*\(\s*(curl|wget)', re.IGNORECASE),
+]
+
+
+def _intercept_blocked_command(cmd_str: str) -> List[str]:
+    """
+    Pre-execution command scanner. Returns a list of block-reason strings
+    if the command should NOT be executed (contains known exfil tools/patterns).
+    Empty list means command is safe to attempt execution.
+    """
+    blocked: List[str] = []
+    cmd_lower = cmd_str.lower()
+
+    for tool in _BLOCKED_EXFIL_TOOLS:
+        if tool in cmd_lower:
+            blocked.append(
+                f"[BLOCKED] Sandbox watchdog intercepted outbound command containing '{tool}'. "
+                f"Network exfiltration tools are disabled in the sandboxed environment."
+            )
+            break  # One block message is sufficient
+
+    for pattern in _BLOCKED_PIPE_PATTERNS:
+        if pattern.search(cmd_str):
+            blocked.append(
+                f"[BLOCKED] Sandbox watchdog intercepted remote-script-pipe pattern "
+                f"(e.g. `curl | bash`). This is a known supply-chain attack vector."
+            )
+            break
+
+    return blocked
+
+
 class DetonationService:
     """
     Executes automated test runner suites and simulates installation lifecycle hook detonation
@@ -46,6 +92,78 @@ class DetonationService:
 
     def __init__(self, timeout_seconds: float = 10.0):
         self.timeout_seconds = timeout_seconds
+
+    def detonate_raw_script(self, script_content: str, filename: str = "script.sh") -> DetonationReport:
+        """
+        Fix #4: Detonate a raw script string (no manifest) in the sandbox.
+        Performs static interception of outbound tools + safe execution.
+        """
+        ext = os.path.splitext(filename)[1].lower()
+        alerts: List[str] = []
+        violations: List[str] = []
+
+        # Phase 1: Static pre-execution analysis
+        for line in script_content.splitlines():
+            line_stripped = line.strip()
+            if not line_stripped or line_stripped.startswith("#"):
+                continue
+            blocked = _intercept_blocked_command(line_stripped)
+            if blocked:
+                violations.extend(blocked)
+
+        # Phase 2: Dangerous pattern regex scan on full content
+        for pattern in _BLOCKED_PIPE_PATTERNS:
+            if pattern.search(script_content):
+                violations.append(
+                    "[BLOCKED] Remote-execution pipe pattern detected in script body "
+                    "(curl/wget piped to shell interpreter)."
+                )
+                break
+
+        # Phase 3: Execute the script in sandbox (if no critical blocks)
+        stdout_log = ""
+        stderr_log = ""
+        exit_code = 0
+        duration = 0.0
+
+        if violations:
+            # Don't execute — just report what was blocked
+            stdout_log = "\n".join(violations)
+            status = "violation"
+        else:
+            with SecureSandboxRunner(timeout_seconds=self.timeout_seconds) as sandbox:
+                sandbox.write_file(filename, script_content)
+                if ext in (".py",):
+                    cmd = ["python", filename]
+                elif ext in (".sh", ".bash"):
+                    cmd = ["bash", filename]
+                elif ext in (".js",):
+                    cmd = ["node", filename]
+                else:
+                    # Try sh for unknown/no extension
+                    cmd = ["sh", filename]
+
+                start = time.time()
+                res = sandbox.run(cmd, timeout=self.timeout_seconds)
+                duration = time.time() - start
+
+                stdout_log = res.stdout
+                stderr_log = res.stderr
+                exit_code = res.exit_code
+                violations.extend(res.security_violations)
+                alerts.extend(res.security_violations)
+                status = "violation" if violations else ("error" if not res.success else "clean")
+
+        return DetonationReport(
+            hook_name=f"raw_script:{filename}",
+            command=f"sandbox exec {filename}",
+            status=status,
+            alerts=alerts,
+            exit_code=exit_code,
+            duration_seconds=round(duration, 3),
+            stdout=stdout_log,
+            stderr=stderr_log,
+        )
 
     def detonate_project_hooks(self, files: List[UploadedFile]) -> List[DetonationReport]:
         """
@@ -101,7 +219,25 @@ class DetonationService:
                 if any(x in cmd_str.lower() for x in ["rm -rf", "del /f", "format"]):
                     alerts.append(f"Lifecycle hook `{hook}` contains destructive file deletion commands: '{cmd_str}'")
 
-                # Detonate command in restricted sandbox
+                # Fix #5: Pre-execution watchdog intercept — block curl/wget/nc before execution
+                pre_block = _intercept_blocked_command(cmd_str)
+                if pre_block:
+                    alerts.extend(pre_block)
+                    all_alerts = alerts
+                    reports.append(
+                        DetonationReport(
+                            hook_name=hook,
+                            command=cmd_str,
+                            status="violation",
+                            alerts=all_alerts,
+                            exit_code=1,
+                            duration_seconds=0.0,
+                            stdout="\n".join(pre_block),
+                            stderr=""
+                        )
+                    )
+                    continue  # Skip actual execution
+
                 # Tokenize simple command
                 cmd_tokens = cmd_str.split()
                 start_time = time.time()

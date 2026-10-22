@@ -37,7 +37,7 @@ async def test_real_repo_analysis_mocked():
             return SecurityGraph(scan_id="test", nodes=[], edges=[], attack_path_count=0)
             
     class MockPath:
-        def find_attack_paths(self, graph, findings, assets): return []
+        def find_attack_paths(self, graph, findings, assets, *args, **kwargs): return []
         
     class MockContainment:
         def generate_recommendations(self, finding): return []

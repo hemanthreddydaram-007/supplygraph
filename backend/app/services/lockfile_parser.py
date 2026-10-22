@@ -165,18 +165,18 @@ def parse_cargo_toml_data(data: Dict[str, Any]) -> List[SBOMComponent]:
     """Parses parsed Cargo.toml dictionary tables into SBOMComponents."""
     components: List[SBOMComponent] = []
     sections = [
-        (data.get("dependencies", {}), True),
-        (data.get("dev-dependencies", {}), False),
-        (data.get("build-dependencies", {}), False)
+        (data.get("dependencies", {}), True, False),
+        (data.get("dev-dependencies", {}), False, True),
+        (data.get("build-dependencies", {}), False, False)
     ]
 
     target_table = data.get("target", {})
     if isinstance(target_table, dict):
         for target_name, target_cfg in target_table.items():
             if isinstance(target_cfg, dict) and "dependencies" in target_cfg:
-                sections.append((target_cfg.get("dependencies", {}), True))
+                sections.append((target_cfg.get("dependencies", {}), True, False))
 
-    for dep_table, is_direct in sections:
+    for dep_table, is_direct, is_dev in sections:
         if not isinstance(dep_table, dict):
             continue
         for name, spec in dep_table.items():
@@ -202,7 +202,8 @@ def parse_cargo_toml_data(data: Dict[str, Any]) -> List[SBOMComponent]:
                             purl=purl_obj.canonical,
                             is_direct=is_direct,
                             is_transitive=not is_direct,
-                            depth=1 if is_direct else 2
+                            depth=1 if is_direct else 2,
+                            is_dev=is_dev
                         )
                     )
     return _dedupe_components(components)
@@ -259,11 +260,11 @@ def parse_package_json(content: str) -> List[SBOMComponent]:
 
     components: List[SBOMComponent] = []
     dep_sections = [
-        (data.get("dependencies", {}), True),
-        (data.get("devDependencies", {}), False)
+        (data.get("dependencies", {}), True, False),
+        (data.get("devDependencies", {}), False, True)
     ]
 
-    for deps_dict, is_direct in dep_sections:
+    for deps_dict, is_direct, is_dev in dep_sections:
         if not isinstance(deps_dict, dict):
             continue
         for name, version_constraint in deps_dict.items():
@@ -295,7 +296,8 @@ def parse_package_json(content: str) -> List[SBOMComponent]:
                     purl=purl_obj.canonical,
                     is_direct=is_direct,
                     is_transitive=not is_direct,
-                    depth=1 if is_direct else 2
+                    depth=1 if is_direct else 2,
+                    is_dev=is_dev
                 )
             )
 
@@ -314,25 +316,35 @@ class LockfileParser:
 
     def parse_lockfile(self, content: str, filename: str) -> List[SBOMComponent]:
         fname = filename.lower()
+        comps: List[SBOMComponent] = []
         if fname.endswith("package-lock.json"):
-            return self._parse_package_lock_json(content)
+            comps = self._parse_package_lock_json(content)
         elif fname.endswith("poetry.lock"):
-            return self._parse_poetry_lock(content)
+            comps = self._parse_poetry_lock(content)
         elif fname.endswith("requirements.txt") or ("requirements" in fname and fname.endswith(".txt")):
-            return self._parse_requirements_txt(content)
+            comps = self._parse_requirements_txt(content)
         elif fname.endswith("go.mod"):
-            return self.parse_go_mod(content)
+            comps = self.parse_go_mod(content)
         elif fname.endswith("cargo.lock"):
-            return self.parse_cargo_lock(content)
+            comps = self.parse_cargo_lock(content)
         elif fname.endswith("cargo.toml"):
-            return self.parse_cargo_lock(content)
+            comps = self.parse_cargo_toml(content)
         elif fname.endswith("package.json"):
-            return self.parse_package_json(content)
+            comps = self.parse_package_json(content)
+        elif fname.endswith("pipfile.lock"):
+            comps = self._parse_pipfile_lock(content)
         elif fname.endswith("yarn.lock"):
             # Graceful yarn.lock handler if present without crashing
-            return []
+            comps = []
         else:
             raise ValueError(f"Unsupported lockfile format: {filename}")
+
+        # Stamp declared_in on all components for monorepo submodule attribution
+        for c in comps:
+            if not getattr(c, "declared_in", None):
+                c.declared_in = filename
+
+        return comps
 
     def _parse_package_lock_json(self, content: str) -> List[SBOMComponent]:
         try:
@@ -408,6 +420,10 @@ class LockfileParser:
             name = pkg.get("name")
             version = pkg.get("version")
             if name and version:
+                category = pkg.get("category", "")
+                groups = pkg.get("groups", [])
+                is_dev = (category == "dev") or ("dev" in groups)
+
                 purl_obj = PURL(ecosystem=Ecosystem.PYPI, name=name, version=version)
                 components.append(
                     SBOMComponent(
@@ -415,7 +431,8 @@ class LockfileParser:
                         name=name,
                         version=version,
                         ecosystem=Ecosystem.PYPI,
-                        purl=purl_obj.canonical
+                        purl=purl_obj.canonical,
+                        is_dev=is_dev
                     )
                 )
 
@@ -464,4 +481,38 @@ class LockfileParser:
                         )
                     )
 
+        return _dedupe_components(components)
+
+    def _parse_pipfile_lock(self, content: str) -> List[SBOMComponent]:
+        try:
+            data = json.loads(content)
+        except Exception:
+            return []
+
+        components = []
+        sections = [
+            (data.get("default", {}), True, False),
+            (data.get("develop", {}), False, True)
+        ]
+        for sec, is_direct, is_dev in sections:
+            if not isinstance(sec, dict):
+                continue
+            for name, spec in sec.items():
+                if isinstance(spec, dict):
+                    ver = spec.get("version", "").lstrip("=")
+                    if ver:
+                        purl_obj = PURL(ecosystem=Ecosystem.PYPI, name=name, version=ver)
+                        components.append(
+                            SBOMComponent(
+                                bom_ref=purl_obj.canonical,
+                                name=name,
+                                version=ver,
+                                ecosystem=Ecosystem.PYPI,
+                                purl=purl_obj.canonical,
+                                is_direct=is_direct,
+                                is_transitive=not is_direct,
+                                depth=1 if is_direct else 2,
+                                is_dev=is_dev
+                            )
+                        )
         return _dedupe_components(components)

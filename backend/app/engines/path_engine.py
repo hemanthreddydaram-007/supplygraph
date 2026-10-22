@@ -4,7 +4,13 @@ from typing import List, Union
 import uuid
 
 class PathEngine:
-    def find_attack_paths(self, graph: Union[SecurityGraph, nx.DiGraph], origin_node_ids: List[str], target_node_ids: List[str]) -> List[AttackPath]:
+    def find_attack_paths(
+        self,
+        graph: Union[SecurityGraph, nx.DiGraph],
+        origin_node_ids: List[str],
+        target_node_ids: List[str],
+        cutoff: int = 10
+    ) -> List[AttackPath]:
         if isinstance(graph, SecurityGraph):
             scan_id_str = str(graph.scan_id) if graph.scan_id else str(uuid.uuid4())
             G = nx.DiGraph()
@@ -29,7 +35,7 @@ class PathEngine:
             scan_id = uuid.uuid4()
             
         paths = []
-        cutoff = 10
+        depth_cutoff = max(1, min(20, cutoff))
         
         for origin in origin_node_ids:
             if not G.has_node(origin):
@@ -39,7 +45,7 @@ class PathEngine:
                     continue
                     
                 try:
-                    simple_paths = list(nx.all_simple_paths(G, origin, target, cutoff=cutoff))
+                    simple_paths = list(nx.all_simple_paths(G, origin, target, cutoff=depth_cutoff))
                 except nx.NetworkXNoPath:
                     continue
                     

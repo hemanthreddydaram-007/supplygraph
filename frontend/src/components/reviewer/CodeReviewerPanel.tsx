@@ -37,6 +37,7 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
   const [testError, setTestError] = useState<string | null>(null);
   const [adHocReviews, setAdHocReviews] = useState<CodeReviewItem[]>([]);
   const [showAll, setShowAll] = useState(false);
+  const [viewMode, setViewMode] = useState<"stacked" | "diff">("diff");
 
   const handleCopy = (code: string, id: string) => {
     navigator.clipboard.writeText(code);
@@ -192,6 +193,37 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
         )}
       </div>
 
+      {/* TOOLBAR: REVIEW COUNT & VIEW TOGGLE (Fix #10) */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[11px] font-mono text-zinc-400">
+          Issues Detected: <b className="text-zinc-100">{allDisplayReviews.length}</b>
+        </span>
+        <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 text-[10px] font-mono">
+          <button
+            onClick={() => setViewMode("diff")}
+            className={cn(
+              "px-2.5 py-1 rounded-md transition-all font-medium",
+              viewMode === "diff"
+                ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-300"
+            )}
+          >
+            Unified Git Diff
+          </button>
+          <button
+            onClick={() => setViewMode("stacked")}
+            className={cn(
+              "px-2.5 py-1 rounded-md transition-all font-medium",
+              viewMode === "stacked"
+                ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-300"
+            )}
+          >
+            Stacked View
+          </button>
+        </div>
+      </div>
+
       {/* REVIEWS LIST */}
       <div className="space-y-4">
         {allDisplayReviews && allDisplayReviews.length > 0 ? (
@@ -239,35 +271,70 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
                     </p>
                   </div>
 
-                  {/* STACKED CODE COMPARISON */}
-                  <div className="space-y-2 pt-1">
-                    {/* Problematic Code */}
-                    <div className="rounded-lg overflow-hidden border border-red-900/40 bg-red-950/20">
-                      <div className="flex items-center justify-between px-2.5 py-1 bg-red-950/40 border-b border-red-900/30 text-[10px] font-mono text-red-300">
-                        <span>❌ Original Error / Vulnerable Code (Line {item.line_number})</span>
-                      </div>
-                      <pre className="p-2.5 text-[10px] font-mono text-red-200 overflow-x-auto whitespace-pre-wrap break-all leading-tight">
-                        {item.buggy_code}
-                      </pre>
-                    </div>
-
-                    {/* Corrected Replacement Code */}
-                    <div className="rounded-lg overflow-hidden border border-emerald-900/40 bg-emerald-950/20">
-                      <div className="flex items-center justify-between px-2.5 py-1 bg-emerald-950/40 border-b border-emerald-900/30 text-[10px] font-mono text-emerald-300">
-                        <span>✅ Corrected Code by SupplyGraph</span>
+                  {/* UNIFIED GIT DIFF OR STACKED COMPARISON (Fix #10) */}
+                  {viewMode === "diff" ? (
+                    <div className="rounded-lg overflow-hidden border border-zinc-800 bg-zinc-950/80 font-mono text-[10px]">
+                      <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-900/90 border-b border-zinc-800 text-zinc-400">
+                        <span>git diff: {item.file_path}</span>
                         <button
                           onClick={() => handleCopy(item.corrected_code, item.id)}
-                          className="flex items-center space-x-1 hover:text-emerald-100 transition-colors"
+                          className="flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 transition-colors"
                         >
-                          {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          {isCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                           <span>{isCopied ? "Copied!" : "Copy Fix"}</span>
                         </button>
                       </div>
-                      <pre className="p-2.5 text-[10px] font-mono text-emerald-200 overflow-x-auto whitespace-pre-wrap break-all leading-tight">
-                        {item.corrected_code}
-                      </pre>
+                      <div className="p-2 space-y-0.5 overflow-x-auto">
+                        <div className="text-cyan-400 select-none">--- a/{item.file_path}</div>
+                        <div className="text-cyan-400 select-none">+++ b/{item.file_path}</div>
+                        <div className="text-indigo-400 select-none py-0.5">
+                          @@ -{item.line_number},{item.buggy_code.split("\n").length} +{item.line_number},{item.corrected_code.split("\n").length} @@
+                        </div>
+                        {item.buggy_code.split("\n").map((line, lIdx) => (
+                          <div key={`del-${lIdx}`} className="bg-red-950/30 text-red-300 px-1.5 py-0.5 rounded-sm">
+                            <span className="text-red-500 select-none mr-2 font-bold">-</span>
+                            <span>{line}</span>
+                          </div>
+                        ))}
+                        {item.corrected_code.split("\n").map((line, lIdx) => (
+                          <div key={`add-${lIdx}`} className="bg-emerald-950/30 text-emerald-300 px-1.5 py-0.5 rounded-sm">
+                            <span className="text-emerald-500 select-none mr-2 font-bold">+</span>
+                            <span>{line}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    /* STACKED CODE COMPARISON */
+                    <div className="space-y-2 pt-1">
+                      {/* Problematic Code */}
+                      <div className="rounded-lg overflow-hidden border border-red-900/40 bg-red-950/20">
+                        <div className="flex items-center justify-between px-2.5 py-1 bg-red-950/40 border-b border-red-900/30 text-[10px] font-mono text-red-300">
+                          <span>❌ Original Error / Vulnerable Code (Line {item.line_number})</span>
+                        </div>
+                        <pre className="p-2.5 text-[10px] font-mono text-red-200 overflow-x-auto whitespace-pre-wrap break-all leading-tight">
+                          {item.buggy_code}
+                        </pre>
+                      </div>
+
+                      {/* Corrected Replacement Code */}
+                      <div className="rounded-lg overflow-hidden border border-emerald-900/40 bg-emerald-950/20">
+                        <div className="flex items-center justify-between px-2.5 py-1 bg-emerald-950/40 border-b border-emerald-900/30 text-[10px] font-mono text-emerald-300">
+                          <span>✅ Corrected Code by SupplyGraph</span>
+                          <button
+                            onClick={() => handleCopy(item.corrected_code, item.id)}
+                            className="flex items-center space-x-1 hover:text-emerald-100 transition-colors"
+                          >
+                            {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                            <span>{isCopied ? "Copied!" : "Copy Fix"}</span>
+                          </button>
+                        </div>
+                        <pre className="p-2.5 text-[10px] font-mono text-emerald-200 overflow-x-auto whitespace-pre-wrap break-all leading-tight">
+                          {item.corrected_code}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Card Action Footer */}
                   <div className="flex items-center justify-end space-x-2 pt-1 text-[10px] font-mono">

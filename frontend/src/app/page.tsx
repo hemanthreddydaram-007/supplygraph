@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { fetchRepositoryAnalysis, fetchDemoAnalysis, fetchFolderAnalysis } from "@/lib/api";
-import { AnalysisResponse, DetectorBreakdown, PolygonAttestation, SBOM, CodeReviewItem } from "@/types";
+import { fetchRepositoryAnalysis, fetchDemoAnalysis, fetchFolderAnalysis, compareScans } from "@/lib/api";
+import { AnalysisResponse, DetectorBreakdown, PolygonAttestation, SBOM, CodeReviewItem, ScanHistoryRecord } from "@/types";
 import { GraphCanvas } from "@/components/graph/GraphCanvas";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { OverviewDashboard } from "@/components/dashboard/OverviewDashboard";
@@ -28,6 +28,14 @@ import {
   FolderUp,
   LogOut,
   ArrowRight,
+  FileText,
+  Clock,
+  History,
+  ArrowUpRight,
+  ArrowDownRight,
+  RotateCcw,
+  Trash2,
+  GitCompare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -261,9 +269,97 @@ export default function Dashboard() {
   const [attestCopied, setAttestCopied] = useState(false);
   const [showFormulaTooltip, setShowFormulaTooltip] = useState(false);
   const [showAllFindings, setShowAllFindings] = useState(false);
+  const [prodOnly, setProdOnly] = useState(false);
+  const [transitiveDepth, setTransitiveDepth] = useState<number>(10);
+  const [scanHistory, setScanHistory] = useState<ScanHistoryRecord[]>([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedHistoryScan, setSelectedHistoryScan] = useState<ScanHistoryRecord | null>(null);
+  const [comparisonResult, setComparisonResult] = useState<any | null>(null);
+  const [comparingLoading, setComparingLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+
+  // Restore scan history from localStorage
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem("supplygraph_scan_history");
+      if (savedHistory) {
+        setScanHistory(JSON.parse(savedHistory));
+      }
+    } catch (_) {}
+  }, []);
+
+  // Record scan in history when data updates (keep top 10)
+  useEffect(() => {
+    if (!data || !data.scan) return;
+    try {
+      const scanId = data.scan.id || `scan-${Date.now()}`;
+      const target =
+        data.scan.repository_url?.replace("https://github.com/", "") ||
+        (activeScenario ? `Scenario ${activeScenario}` : "Uploaded Project");
+
+      const record: ScanHistoryRecord = {
+        id: scanId,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        target,
+        total_components: data.scan.total_components || data.components?.length || 0,
+        total_findings: data.scan.total_findings || data.findings?.length || 0,
+        blast_radius_score: data.scan.blast_radius_score || 0,
+        data,
+      };
+
+      setScanHistory((prev) => {
+        if (prev.length > 0 && prev[0].id === scanId) return prev;
+        const filtered = prev.filter((item) => item.id !== scanId);
+        const updated = [record, ...filtered].slice(0, 10);
+        localStorage.setItem("supplygraph_scan_history", JSON.stringify(updated));
+        return updated;
+      });
+    } catch (_) {}
+  }, [data, activeScenario]);
+
+  const handleSelectHistoryScan = useCallback(async (record: ScanHistoryRecord) => {
+    setSelectedHistoryScan(record);
+    if (!data) return;
+    setComparingLoading(true);
+    try {
+      const res = await compareScans(record.data, data);
+      setComparisonResult(res);
+    } catch (e) {
+      console.warn("Backend comparison fallback:", e);
+      const currentComps = new Set((data.components || []).map((c: any) => c.name));
+      const oldComps = new Set((record.data.components || []).map((c: any) => c.name));
+      const added = (data.components || [])
+        .filter((c: any) => !oldComps.has(c.name))
+        .map((c: any) => ({ change_type: "added", package_name: c.name, ecosystem: c.ecosystem, version_after: c.version }));
+      const removed = (record.data.components || [])
+        .filter((c: any) => !currentComps.has(c.name))
+        .map((c: any) => ({ change_type: "removed", package_name: c.name, ecosystem: c.ecosystem, version_before: c.version }));
+      setComparisonResult({
+        blast_radius_delta: (data.scan?.blast_radius_score || 0) - (record.data.scan?.blast_radius_score || 0),
+        dependency_changes: [...added, ...removed],
+        finding_changes: [],
+        summary: `Delta comparison between ${record.target} and current active scan.`,
+      });
+    } finally {
+      setComparingLoading(false);
+    }
+  }, [data]);
+
+  const handleLoadHistoryScan = useCallback((record: ScanHistoryRecord) => {
+    setData(record.data);
+    setSelectedHistoryScan(null);
+    setComparisonResult(null);
+    setShowHistoryModal(false);
+  }, []);
+
+  const handleClearHistory = useCallback(() => {
+    localStorage.removeItem("supplygraph_scan_history");
+    setScanHistory([]);
+    setSelectedHistoryScan(null);
+    setComparisonResult(null);
+  }, []);
 
   // Restore or set default user session
   useEffect(() => {
@@ -309,7 +405,7 @@ export default function Dashboard() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const executeAnalysis = useCallback(async (urlToScan: string) => {
+  const executeAnalysis = useCallback(async (urlToScan: string, overrideProdOnly?: boolean) => {
     const trimmed = urlToScan.trim();
     if (!trimmed) return;
     if (!/^https:\/\/github\.com\/[^\/]+\/[^\/]+/.test(trimmed)) {
@@ -324,15 +420,16 @@ export default function Dashboard() {
     setFocusNodeId(null);
     setShowAllFindings(false);
     setCurrentView("scanner");
+    const useProd = overrideProdOnly !== undefined ? overrideProdOnly : prodOnly;
     try {
-      const result = await fetchRepositoryAnalysis(trimmed);
+      const result = await fetchRepositoryAnalysis(trimmed, useProd, transitiveDepth);
       setData(result);
     } catch (err: any) {
       setError(err.message || "Failed to establish secure handshake with analysis engine.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [prodOnly, transitiveDepth]);
 
   const executeScenario = useCallback(async (scenarioId: ScenarioId) => {
     setLoading(true);
@@ -443,7 +540,7 @@ export default function Dashboard() {
         })
       );
 
-      const result = await fetchFolderAnalysis(folderName, readFiles);
+      const result = await fetchFolderAnalysis(folderName, readFiles, prodOnly, transitiveDepth);
       setLastUploadedFiles(readFiles);
       setData(result);
     } catch (err: any) {
@@ -521,6 +618,148 @@ export default function Dashboard() {
     a.click();
     URL.revokeObjectURL(url);
   }, [data]);
+
+  const handleDownloadPatchedManifest = useCallback(() => {
+    if (!data) return;
+    const isPython = (data?.components || []).some(c => c.ecosystem === "pypi") ||
+      (data?.scan?.lockfile_types || []).some((t: string) => t.toLowerCase().includes("requirements") || t.toLowerCase().includes("poetry"));
+
+    let content = "";
+    let filename = "";
+
+    if (isPython) {
+      filename = "requirements.patched.txt";
+      content = `# SupplyGraph Auto-Patched Manifest\n# Generated: ${new Date().toISOString()}\n# Repository: ${data?.scan?.repository_url || "Local Project"}\n\n`;
+      const patchedDeps = new Map<string, string>();
+      (data.findings || []).forEach(f => {
+        const pkg = f.origin_candidate?.split("@")?.[0] || f.entity_id;
+        let fixedVer = f.recommendations?.[0]?.fixed_version;
+        if (!fixedVer && f.evidence) {
+          for (const ev of f.evidence) {
+            if (ev?.raw_data?.fixed_version) { fixedVer = ev.raw_data.fixed_version; break; }
+            if (ev?.raw_data?.fixed) { fixedVer = ev.raw_data.fixed; break; }
+          }
+        }
+        if (pkg && fixedVer) {
+          patchedDeps.set(pkg, `>=${fixedVer}`);
+        }
+      });
+      (data.components || []).forEach(c => {
+        const pin = patchedDeps.get(c.name);
+        if (pin) {
+          content += `${c.name}${pin}  # Patched by SupplyGraph (Secured)\n`;
+        } else if (c.is_direct && c.version) {
+          content += `${c.name}==${c.version}\n`;
+        }
+      });
+    } else {
+      filename = "package.patched.json";
+      const overrides: Record<string, string> = {};
+      (data.findings || []).forEach(f => {
+        const pkg = f.origin_candidate?.split("@")?.[0] || f.entity_id;
+        let fixedVer = f.recommendations?.[0]?.fixed_version || "latest";
+        if (pkg) {
+          overrides[pkg] = fixedVer.startsWith("^") || fixedVer.startsWith(">=") ? fixedVer : `^${fixedVer}`;
+        }
+      });
+      const patchedPkg = {
+        name: data?.scan?.repository_url?.split("/").pop() || "patched-project",
+        version: "1.0.0",
+        description: "Auto-remediated dependency manifest generated by SupplyGraph",
+        overrides: overrides,
+        dependencies: (data.components || [])
+          .filter(c => c.is_direct && !c.is_dev)
+          .reduce((acc: any, c) => {
+            acc[c.name] = overrides[c.name] || `^${c.version || "1.0.0"}`;
+            return acc;
+          }, {})
+      };
+      content = JSON.stringify(patchedPkg, null, 2);
+    }
+
+    const blob = new Blob([content], { type: isPython ? "text/plain" : "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [data]);
+
+  const handleDownloadExecutiveHtml = useCallback(() => {
+    if (!data) return;
+    const repoTitle = data?.scan?.repository_url?.replace("https://github.com/", "") || (activeScenario ? `Demo Scenario ${activeScenario}` : "Audited Project");
+    const blast = data?.scan?.blast_radius_score || 0;
+    const totalComps = data?.scan?.total_components || 0;
+    const totalFindings = data?.scan?.total_findings || 0;
+    const codeReviews = data?.code_reviews?.length || 0;
+
+    let html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SupplyGraph Executive Audit: ${repoTitle}</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #09090b; color: #f4f4f5; margin: 0; padding: 40px; }
+  .header { border-bottom: 2px solid #27272a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: center; }
+  .badge { background: #18181b; border: 1px solid #3f3f46; color: #38bdf8; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600; font-family: monospace; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .card { background: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 20px; }
+  .card-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #71717a; margin-bottom: 6px; }
+  .card-val { font-size: 28px; font-weight: 700; font-family: monospace; }
+  .briefing { background: #1e1b4b; border: 1px solid #3730a3; border-radius: 12px; padding: 24px; margin-bottom: 32px; }
+  .finding { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+  .tag-crit { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; font-family: monospace; }
+  pre { background: #09090b; border: 1px solid #27272a; padding: 12px; border-radius: 8px; font-size: 11px; overflow-x: auto; color: #a1a1aa; font-family: monospace; }
+  @media print { body { background: white; color: black; padding: 20px; } .card, .briefing, .finding { border-color: #ccc; background: #fafafa; color: black; } pre { background: #f4f4f4; color: black; border-color: #ddd; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <h1 style="margin:0; font-size: 26px;">SupplyGraph Executive Audit</h1>
+    <p style="margin: 6px 0 0; color: #71717a; font-size: 13px;">Target: <b>${repoTitle}</b> &bull; Generated: ${new Date().toUTCString()}</p>
+  </div>
+  <div class="badge">SECURED BY SUPPLYGRAPH</div>
+</div>
+
+<div class="grid">
+  <div class="card"><div class="card-label">Blast Radius</div><div class="card-val" style="color: ${blast > 70 ? '#ef4444' : blast > 0 ? '#f59e0b' : '#10b981'}">${blast.toFixed(1)}/100</div></div>
+  <div class="card"><div class="card-label">Components</div><div class="card-val">${totalComps}</div></div>
+  <div class="card"><div class="card-label">Threat Findings</div><div class="card-val" style="color: #ef4444">${totalFindings}</div></div>
+  <div class="card"><div class="card-label">AI Code Patches</div><div class="card-val" style="color: #6366f1">${codeReviews}</div></div>
+</div>
+
+<div class="briefing">
+  <h2 style="margin:0 0 12px; font-size: 16px; color: #a5b4fc;">Executive AI Briefing</h2>
+  <div style="font-size: 13px; line-height: 1.6; color: #e0e7ff; white-space: pre-wrap;">${data?.gemini_explanation || "No executive summary recorded for this analysis."}</div>
+</div>
+
+<h2 style="font-size: 18px; margin-bottom: 16px;">Detailed Security Findings (${data?.findings?.length || 0})</h2>
+`;
+
+    (data?.findings || []).forEach((f: any, idx: number) => {
+      html += `<div class="finding">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <b style="font-size:14px;">[${idx + 1}] ${f.title}</b>
+          <span class="tag-crit">${f.severity}</span>
+        </div>
+        <p style="font-size:12px; color:#a1a1aa; margin:0 0 10px;">${f.description}</p>
+        ${f.recommendations?.[0] ? `<div style="font-size:12px; color:#38bdf8; margin-bottom:6px;"><b>Recommendation:</b> ${f.recommendations[0].title} - ${f.recommendations[0].why}</div>` : ''}
+        <pre>${buildLockfileSnippet(f)}</pre>
+      </div>`;
+    });
+
+    html += `</body></html>`;
+
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `supplygraph-executive-report-${data?.scan?.repository_url?.split("/").pop() || "audit"}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [data, activeScenario]);
 
   const handleDownloadSbom = useCallback(() => {
     if (!data?.sbom && !data?.components) return;
@@ -763,6 +1002,49 @@ export default function Dashboard() {
                 <FolderUp className="w-3.5 h-3.5 text-indigo-400" />
                 <span>📂 Upload Folder</span>
               </button>
+
+              {/* Production Only vs All Dependencies Toggle (Fix #1) */}
+              <button
+                type="button"
+                onClick={() => setProdOnly(!prodOnly)}
+                className={cn(
+                  "px-3 py-2 rounded-xl text-xs font-mono font-medium flex items-center space-x-2 border transition-all shrink-0 shadow-sm",
+                  prodOnly
+                    ? "bg-emerald-950/50 border-emerald-500/60 text-emerald-300 shadow-emerald-950/20"
+                    : "bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                )}
+                title={prodOnly ? "Filtering: Production Only (Dev Dependencies Omitted)" : "Filtering: All Dependencies (Including Dev Dependencies)"}
+              >
+                <span className={cn("w-2 h-2 rounded-full", prodOnly ? "bg-emerald-400 animate-pulse" : "bg-zinc-600")} />
+                <span>{prodOnly ? "Prod Only" : "All Deps (Inc. Dev)"}</span>
+              </button>
+
+              {/* Configurable Transitive Depth Stepper (Fix #8) */}
+              <div
+                className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs font-mono text-zinc-300 shrink-0 shadow-sm"
+                title="Max Transitive Dependency Depth (1–20 hops)"
+              >
+                <span className="text-zinc-500 text-[10px] uppercase">Depth:</span>
+                <span className="text-indigo-400 font-semibold">{transitiveDepth} hops</span>
+                <div className="flex items-center space-x-1 ml-1">
+                  <button
+                    type="button"
+                    onClick={() => setTransitiveDepth(prev => Math.max(1, prev - 1))}
+                    disabled={transitiveDepth <= 1}
+                    className="w-5 h-5 rounded flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 text-xs transition-colors"
+                  >
+                    -
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTransitiveDepth(prev => Math.min(20, prev + 1))}
+                    disabled={transitiveDepth >= 20}
+                    className="w-5 h-5 rounded flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 text-xs transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Scenario Pills */}
@@ -924,6 +1206,26 @@ export default function Dashboard() {
                           <span className="text-yellow-300">CI/CD: {data.detector_breakdown.cicd_count || 0}</span>
                         </div>
                       )}
+
+                      {/* Scan History & Delta Comparison Button (Fix #12) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedHistoryScan(null);
+                          setComparisonResult(null);
+                          setShowHistoryModal(true);
+                        }}
+                        className="mt-2.5 w-full py-1.5 px-2.5 rounded-lg bg-zinc-900/90 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 text-[10px] font-mono text-zinc-300 flex items-center justify-between transition-colors shadow-sm"
+                        title="View Scan History & Delta Regression"
+                      >
+                        <span className="flex items-center space-x-1.5">
+                          <Clock className="w-3 h-3 text-indigo-400" />
+                          <span>Scan History & Delta</span>
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded bg-zinc-800 text-indigo-300 text-[9px] font-semibold border border-zinc-700/50">
+                          {scanHistory.length}
+                        </span>
+                      </button>
                     </div>
                   </div>
 
@@ -999,13 +1301,35 @@ export default function Dashboard() {
                       </button>
                     </div>
 
-                    <button
-                      onClick={handleDownloadReport}
-                      className="p-1.5 text-zinc-400 hover:text-zinc-200 rounded-md hover:bg-zinc-800/60 transition-colors mb-2"
-                      title="Export Executive Report (.md)"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center space-x-1 mb-2">
+                      {/* 1-Click Download Patched Manifest (Fix #9) */}
+                      <button
+                        onClick={handleDownloadPatchedManifest}
+                        className="px-2 py-1 text-[10px] font-mono font-semibold text-emerald-300 bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-800/60 rounded-lg flex items-center space-x-1 transition-all shadow-sm"
+                        title="1-Click Download Patched Manifest (package.patched.json / requirements.patched.txt)"
+                      >
+                        <Download className="w-3 h-3 text-emerald-400" />
+                        <span>Patched Manifest</span>
+                      </button>
+
+                      {/* 1-Click Executive HTML/PDF Report (Fix #11) */}
+                      <button
+                        onClick={handleDownloadExecutiveHtml}
+                        className="px-2 py-1 text-[10px] font-mono font-semibold text-indigo-300 bg-indigo-950/50 hover:bg-indigo-900/60 border border-indigo-800/60 rounded-lg flex items-center space-x-1 transition-all shadow-sm"
+                        title="Download Executive HTML Report (Printable to PDF)"
+                      >
+                        <FileText className="w-3 h-3 text-indigo-400" />
+                        <span>PDF/HTML</span>
+                      </button>
+
+                      <button
+                        onClick={handleDownloadReport}
+                        className="p-1.5 text-zinc-400 hover:text-zinc-200 rounded-lg hover:bg-zinc-800/60 transition-colors"
+                        title="Export Markdown Report (.md)"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* TAB CONTENT SCROLLABLE BODY */}
@@ -1296,6 +1620,265 @@ export default function Dashboard() {
               <span>{attestCopied ? "Copied Proof JSON!" : "Copy Verification Proof"}</span>
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* ============================================================
+          SCAN HISTORY & DELTA COMPARISON MODAL (Fix #12)
+      ============================================================ */}
+      <Modal
+        open={showHistoryModal}
+        onClose={() => {
+          setShowHistoryModal(false);
+          setSelectedHistoryScan(null);
+          setComparisonResult(null);
+        }}
+        title={
+          <div className="flex items-center space-x-2 text-indigo-300">
+            <Clock className="w-4 h-4 text-indigo-400" />
+            <span>Scan History & Delta Regression Engine</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 font-mono text-xs">
+          {/* Active Scan Context Bar */}
+          <div className="p-3.5 rounded-xl bg-indigo-950/30 border border-indigo-800/40 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Active Workspace</span>
+              <span className="text-zinc-200 font-bold text-sm">
+                {data?.scan?.repository_url?.replace("https://github.com/", "") ||
+                  (activeScenario ? `Demo Scenario ${activeScenario}` : "Active Project")}
+              </span>
+            </div>
+            <div className="flex items-center space-x-4 text-right">
+              <div>
+                <span className="text-[10px] text-zinc-500 block">Blast Radius</span>
+                <span className="text-amber-400 font-bold">{data?.scan?.blast_radius_score?.toFixed(1) || 0}/100</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-zinc-500 block">Components</span>
+                <span className="text-zinc-200 font-bold">{data?.scan?.total_components || data?.components?.length || 0}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-zinc-500 block">Findings</span>
+                <span className="text-red-400 font-bold">{data?.scan?.total_findings || data?.findings?.length || 0}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Historical Scan Selected: Show Delta Comparison */}
+          {selectedHistoryScan ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800">
+                <button
+                  onClick={() => {
+                    setSelectedHistoryScan(null);
+                    setComparisonResult(null);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[11px] flex items-center space-x-1 transition-colors"
+                >
+                  <ArrowRight className="w-3 h-3 rotate-180" />
+                  <span>Back to Scan List</span>
+                </button>
+                <div className="text-zinc-400 text-[11px]">
+                  Comparing against: <b className="text-zinc-200">{selectedHistoryScan.target}</b> ({selectedHistoryScan.timestamp})
+                </div>
+                <button
+                  onClick={() => handleLoadHistoryScan(selectedHistoryScan)}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold flex items-center space-x-1 transition-colors shadow-sm"
+                  title="Switch active workspace to this historical scan"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Load this Scan</span>
+                </button>
+              </div>
+
+              {/* Delta Telemetry Comparison Cards */}
+              {(() => {
+                const currentBlast = data?.scan?.blast_radius_score || 0;
+                const oldBlast = selectedHistoryScan.blast_radius_score;
+                const blastDelta = currentBlast - oldBlast;
+
+                const currentComps = data?.scan?.total_components || data?.components?.length || 0;
+                const oldComps = selectedHistoryScan.total_components;
+                const compDelta = currentComps - oldComps;
+
+                const currentFinds = data?.scan?.total_findings || data?.findings?.length || 0;
+                const oldFinds = selectedHistoryScan.total_findings;
+                const findsDelta = currentFinds - oldFinds;
+
+                return (
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {/* Blast Radius Delta */}
+                    <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Blast Radius Δ</div>
+                      <div className="flex items-center space-x-1.5 mt-1">
+                        {blastDelta < 0 ? (
+                          <ArrowDownRight className="w-4 h-4 text-emerald-400" />
+                        ) : blastDelta > 0 ? (
+                          <ArrowUpRight className="w-4 h-4 text-red-400" />
+                        ) : null}
+                        <span
+                          className={cn(
+                            "text-base font-bold",
+                            blastDelta < 0 ? "text-emerald-400" : blastDelta > 0 ? "text-red-400" : "text-zinc-300"
+                          )}
+                        >
+                          {blastDelta > 0 ? `+${blastDelta.toFixed(1)}` : blastDelta.toFixed(1)}
+                        </span>
+                      </div>
+                      <div className="text-[9px] text-zinc-500 mt-1">
+                        {blastDelta < 0 ? "🛡️ Risk reduced (Improvement)" : blastDelta > 0 ? "⚠️ Risk increased (Regression)" : "Unchanged"}
+                      </div>
+                    </div>
+
+                    {/* Components Delta */}
+                    <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Components Δ</div>
+                      <div className="flex items-center space-x-1.5 mt-1">
+                        <span
+                          className={cn(
+                            "text-base font-bold",
+                            compDelta > 0 ? "text-indigo-400" : compDelta < 0 ? "text-amber-400" : "text-zinc-300"
+                          )}
+                        >
+                          {compDelta > 0 ? `+${compDelta}` : compDelta}
+                        </span>
+                      </div>
+                      <div className="text-[9px] text-zinc-500 mt-1">
+                        {compDelta > 0 ? `${compDelta} new dependencies` : compDelta < 0 ? `${Math.abs(compDelta)} removed` : "Same count"}
+                      </div>
+                    </div>
+
+                    {/* Findings Delta */}
+                    <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Threat Findings Δ</div>
+                      <div className="flex items-center space-x-1.5 mt-1">
+                        <span
+                          className={cn(
+                            "text-base font-bold",
+                            findsDelta < 0 ? "text-emerald-400" : findsDelta > 0 ? "text-red-400" : "text-zinc-300"
+                          )}
+                        >
+                          {findsDelta > 0 ? `+${findsDelta}` : findsDelta}
+                        </span>
+                      </div>
+                      <div className="text-[9px] text-zinc-500 mt-1">
+                        {findsDelta < 0 ? "Fixes resolved threats" : findsDelta > 0 ? "New security risks" : "Zero change"}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Dependency & Finding Change Breakdown */}
+              <div className="rounded-xl border border-zinc-800 bg-black/60 p-3 space-y-2.5">
+                <div className="text-[11px] font-semibold text-zinc-300 flex items-center justify-between">
+                  <span>Delta Manifest Changes</span>
+                  {comparingLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />}
+                </div>
+
+                {comparisonResult?.dependency_changes && comparisonResult.dependency_changes.length > 0 ? (
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                    {comparisonResult.dependency_changes.map((dc: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "px-2.5 py-1.5 rounded-lg border text-[10px] flex items-center justify-between",
+                          dc.change_type === "added"
+                            ? "bg-indigo-950/30 border-indigo-800/40 text-indigo-300"
+                            : dc.change_type === "removed"
+                            ? "bg-amber-950/30 border-amber-800/40 text-amber-300"
+                            : "bg-purple-950/30 border-purple-800/40 text-purple-300"
+                        )}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold uppercase tracking-wider text-[9px] px-1 py-0.2 rounded bg-black/40">
+                            {dc.change_type}
+                          </span>
+                          <span className="font-semibold text-zinc-200">{dc.package_name}</span>
+                          <span className="text-zinc-500 text-[9px]">({dc.ecosystem})</span>
+                        </div>
+                        <div className="text-zinc-400 text-[9px]">
+                          {dc.version_before && <span className="line-through mr-1 text-zinc-500">{dc.version_before}</span>}
+                          {dc.version_after && <span className="text-emerald-400">{dc.version_after}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-zinc-500 text-[10px] py-2 text-center">
+                    No structural package additions or removals detected between these two snapshots.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Historical Scans List */
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-zinc-400 text-[11px]">
+                <span>Saved Scan Snapshots ({scanHistory.length})</span>
+                {scanHistory.length > 0 && (
+                  <button
+                    onClick={handleClearHistory}
+                    className="text-red-400 hover:text-red-300 flex items-center space-x-1 text-[10px] transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Clear History</span>
+                  </button>
+                )}
+              </div>
+
+              {scanHistory.length === 0 ? (
+                <div className="p-8 text-center border border-dashed border-zinc-800 rounded-xl text-zinc-500 text-xs">
+                  <Clock className="w-6 h-6 mx-auto mb-2 opacity-40" />
+                  <p>No previous scans recorded in this browser session yet.</p>
+                  <p className="text-[10px] text-zinc-600 mt-1">Run a scan or load a scenario to start tracking deltas.</p>
+                </div>
+              ) : (
+                <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+                  {scanHistory.map((rec, idx) => (
+                    <div
+                      key={rec.id || idx}
+                      className="p-3 rounded-xl border border-zinc-800/80 bg-zinc-900/40 hover:bg-zinc-900/80 transition-all flex items-center justify-between group"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-zinc-200 font-semibold text-xs">{rec.target}</span>
+                          <span className="text-[10px] text-zinc-500">{rec.timestamp}</span>
+                        </div>
+                        <div className="flex items-center space-x-3 text-[10px] text-zinc-400">
+                          <span>Blast: <b className="text-amber-400">{rec.blast_radius_score.toFixed(1)}/100</b></span>
+                          <span>Comps: <b className="text-zinc-300">{rec.total_components}</b></span>
+                          <span>Findings: <b className="text-red-400">{rec.total_findings}</b></span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleSelectHistoryScan(rec)}
+                          className="px-2.5 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 text-[10px] font-semibold flex items-center space-x-1 transition-all shadow-sm"
+                          title="Compare with active workspace"
+                        >
+                          <GitCompare className="w-3 h-3" />
+                          <span>Compare Delta</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleLoadHistoryScan(rec)}
+                          className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-semibold flex items-center space-x-1 transition-all"
+                          title="Restore and view this scan"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Load</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </Modal>
     </div>

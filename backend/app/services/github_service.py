@@ -4,9 +4,15 @@ from github import Github, Auth
 from github.GithubException import GithubException
 from app.models.core import RepositoryModel
 from app.core.config import get_settings
-from typing import Optional, List
+from typing import Optional, List, Dict, Tuple
 import re
+import time
 from urllib.parse import urlparse
+
+_FILE_CACHE: Dict[str, Tuple[float, Optional[str]]] = {}
+_LIST_CACHE: Dict[str, Tuple[float, List[str]]] = {}
+_CACHE_TTL_SECONDS = 300.0  # 5 minutes in-memory cache to prevent GitHub rate limits
+
 
 class GitHubService:
     def __init__(self):
@@ -16,6 +22,32 @@ class GitHubService:
             self.github = Github(auth=auth)
         else:
             self.github = Github()
+
+    def get_rate_limit_status(self) -> dict:
+        """Returns the current remaining GitHub API rate limit for telemetry/warnings."""
+        try:
+            rate = self.github.get_rate_limit()
+            core = rate.core
+            reset_epoch = core.reset.timestamp() if core.reset else 0
+            return {
+                "remaining": core.remaining,
+                "limit": core.limit,
+                "reset_epoch": reset_epoch,
+                "is_low": core.remaining < 10,
+                "is_exceeded": core.remaining == 0
+            }
+        except Exception:
+            return {"remaining": 60, "limit": 60, "reset_epoch": 0, "is_low": False, "is_exceeded": False}
+
+    def _format_github_error(self, full_name: str, e: GithubException) -> str:
+        msg = str(e.data.get("message", str(e)) if hasattr(e, "data") and isinstance(e.data, dict) else str(e))
+        if e.status == 403 or "rate limit" in msg.lower():
+            return (
+                f"GitHub API rate limit reached for {full_name} (HTTP 403). "
+                f"Tip: Set GITHUB_TOKEN on backend for 5,000 req/hr, or click '📂 Upload Folder' "
+                f"to scan this repository locally with zero rate limits."
+            )
+        return f"Failed to access GitHub repository {full_name}: {msg}"
 
     def _extract_repo_name(self, repo_url: str) -> str:
         """Extracts owner/repo from a GitHub URL."""
@@ -42,9 +74,16 @@ class GitHubService:
                 stars=repo.stargazers_count
             )
         except GithubException as e:
-            raise ValueError(f"Failed to fetch repository metadata for {full_name}: {e.data.get('message', str(e))}")
+            raise ValueError(self._format_github_error(full_name, e))
 
     def get_file_content(self, repo_url: str, file_path: str, ref: str = None) -> Optional[str]:
+        cache_key = f"{repo_url}:{file_path}:{ref or ''}"
+        now = time.time()
+        if cache_key in _FILE_CACHE:
+            ts, cached_val = _FILE_CACHE[cache_key]
+            if now - ts < _CACHE_TTL_SECONDS:
+                return cached_val
+
         full_name = self._extract_repo_name(repo_url)
         try:
             repo = self.github.get_repo(full_name)
@@ -56,11 +95,14 @@ class GitHubService:
             if isinstance(content_file, list):
                 raise ValueError(f"Path {file_path} is a directory, not a file.")
             
-            return content_file.decoded_content.decode('utf-8')
+            res_content = content_file.decoded_content.decode('utf-8')
+            _FILE_CACHE[cache_key] = (now, res_content)
+            return res_content
         except GithubException as e:
             if e.status == 404:
+                _FILE_CACHE[cache_key] = (now, None)
                 return None
-            raise ValueError(f"Failed to fetch file content for {file_path}: {e.data.get('message', str(e))}")
+            raise ValueError(self._format_github_error(full_name, e))
 
     async def get_file_content_async(self, repo_url: str, file_path: str, ref: str = None, timeout: float = 4.0) -> Optional[str]:
         """Fetch raw file content asynchronously with a strict timeout."""
@@ -98,6 +140,13 @@ class GitHubService:
         return out
 
     def list_files(self, repo_url: str, path: str = "", ref: str = None) -> List[str]:
+        cache_key = f"{repo_url}:{path}:{ref or ''}"
+        now = time.time()
+        if cache_key in _LIST_CACHE:
+            ts, cached_files = _LIST_CACHE[cache_key]
+            if now - ts < _CACHE_TTL_SECONDS:
+                return cached_files
+
         full_name = self._extract_repo_name(repo_url)
         try:
             repo = self.github.get_repo(full_name)
@@ -114,6 +163,7 @@ class GitHubService:
                     if tree and tree.tree:
                         tree_files = [item.path for item in tree.tree if item.type == "blob"]
                         if tree_files:
+                            _LIST_CACHE[cache_key] = (now, tree_files)
                             return tree_files
                 except Exception:
                     pass
@@ -135,6 +185,7 @@ class GitHubService:
                     except Exception:
                         continue
                 if discovered_files:
+                    _LIST_CACHE[cache_key] = (now, discovered_files)
                     return discovered_files
 
             # Standard listing for specific non-root path or fallback
@@ -142,10 +193,12 @@ class GitHubService:
             if not isinstance(contents, list):
                 contents = [contents]
                 
-            return [content.path for content in contents]
+            res_files = [content.path for content in contents]
+            _LIST_CACHE[cache_key] = (now, res_files)
+            return res_files
         except GithubException as e:
             if e.status == 404:
                 return []
-            raise ValueError(f"Failed to list files for {path}: {e.data.get('message', str(e))}")
+            raise ValueError(self._format_github_error(full_name, e))
         except Exception:
             return []

