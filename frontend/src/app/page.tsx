@@ -260,7 +260,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"findings" | "briefing" | "reviewer" | "sandbox">("findings");
   const [lastUploadedFiles, setLastUploadedFiles] = useState<{ path: string; content: string }[]>([]);
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | string | null>(null);
   const [activeScenario, setActiveScenario] = useState<ScenarioId | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [showSbomModal, setShowSbomModal] = useState(false);
@@ -553,11 +553,51 @@ export default function Dashboard() {
     }
   };
 
-  const copyToClipboard = useCallback((text: string, index: number) => {
+  const copyToClipboard = useCallback((text: string, index: number | string) => {
     navigator.clipboard.writeText(text);
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 1800);
   }, []);
+
+  const formatSingleFindingText = useCallback((f: any) => {
+    const detectorTag = getDetectorTag(f);
+    const snippet = buildLockfileSnippet(f);
+    let text = `[${f.severity || "MEDIUM"}] ${f.title}\n`;
+    text += `Detector: ${detectorTag} | Type: ${f.finding_type || "N/A"}\n`;
+    if (f.origin_candidate) {
+      text += `Target Component: ${f.origin_candidate}\n`;
+    }
+    if (f.description) {
+      text += `Description: ${f.description}\n`;
+    }
+    if (f.recommendations && f.recommendations.length > 0) {
+      text += `\nRemediation Strategy: ${f.recommendations[0]?.title || ""}\n`;
+      if (f.recommendations[0]?.why) {
+        text += `Why: ${f.recommendations[0]?.why}\n`;
+      }
+      if (snippet) {
+        text += `Fix / Configuration Snippet:\n${snippet}\n`;
+      }
+    }
+    return text.trim();
+  }, []);
+
+  const formatAllFindingsText = useCallback((findings: any[]) => {
+    const repo = data?.scan?.repository_url || "Target Repository";
+    let text = `# SupplyGraph Security Findings Summary\n`;
+    text += `Repository: ${repo}\n`;
+    text += `Total Findings: ${findings.length}\n`;
+    text += `Blast Radius: ${data?.scan?.blast_radius_score || 0}/100\n`;
+    text += `Generated: ${new Date().toISOString()}\n\n`;
+    text += `============================================================\n\n`;
+
+    findings.forEach((f, idx) => {
+      text += `### Finding #${idx + 1}: ${formatSingleFindingText(f)}\n\n`;
+      text += `------------------------------------------------------------\n\n`;
+    });
+
+    return text.trim();
+  }, [data, formatSingleFindingText]);
 
   const handleFindingClick = useCallback((finding: any) => {
     const nodeId = finding?.origin_candidate || finding?.entity_id || null;
@@ -1343,6 +1383,31 @@ export default function Dashboard() {
                       <div className="space-y-3.5">
                         {data?.findings && data.findings.length > 0 ? (
                           <>
+                            {/* Findings Top Toolbar: Count + Copy All Findings */}
+                            <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800 text-xs font-mono">
+                              <span className="text-zinc-400">
+                                Total Findings: <b className="text-zinc-100">{data.findings.length}</b>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(formatAllFindingsText(data.findings), "all-findings")}
+                                className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-300 hover:text-zinc-100 transition-colors shadow-sm text-[11px]"
+                                title="Copy all findings to clipboard as a complete Markdown report"
+                              >
+                                {copiedIndex === "all-findings" ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span className="text-emerald-400 font-semibold">Copied All Findings!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3.5 h-3.5 text-zinc-400" />
+                                    <span>Copy All Findings</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
                             {displayedFindings.map((f: any, idx: number) => {
                               const detectorTag = getDetectorTag(f);
                               const lockSnippet = buildLockfileSnippet(f);
@@ -1353,10 +1418,31 @@ export default function Dashboard() {
                                   onClick={() => handleFindingClick(f)}
                                 >
                                   <div className="flex items-start justify-between mb-2">
-                                    <h4 className="text-xs font-semibold text-zinc-200 pr-4 leading-snug group-hover:text-red-300 transition-colors">
+                                    <h4 className="text-xs font-semibold text-zinc-200 pr-3 leading-snug group-hover:text-red-300 transition-colors">
                                       {f.title}
                                     </h4>
-                                    <div className="flex items-center space-x-1 shrink-0">
+                                    <div className="flex items-center space-x-1.5 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          copyToClipboard(formatSingleFindingText(f), `finding-${idx}`);
+                                        }}
+                                        className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-zinc-800/90 hover:bg-zinc-750 border border-zinc-750 text-zinc-300 hover:text-white transition-colors text-[9px] font-mono"
+                                        title="Copy full finding details and remediation to clipboard"
+                                      >
+                                        {copiedIndex === `finding-${idx}` ? (
+                                          <>
+                                            <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                            <span className="text-emerald-400 font-bold">Copied!</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy className="w-2.5 h-2.5 text-zinc-400" />
+                                            <span>Copy</span>
+                                          </>
+                                        )}
+                                      </button>
                                       <span
                                         className={cn(
                                           "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",

@@ -63,6 +63,39 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
     URL.revokeObjectURL(url);
   };
 
+  const handleCopyAllReviews = () => {
+    let text = `# SupplyGraph Code Review & Remediation Patches\n`;
+    text += `Total Issues Detected: ${allDisplayReviews.length}\n`;
+    text += `Timestamp: ${new Date().toISOString()}\n\n`;
+    text += `============================================================\n\n`;
+
+    allDisplayReviews.forEach((item, idx) => {
+      text += `### Review #${idx + 1}: ${item.title} [${item.severity}] (${item.category})\n`;
+      text += `File: ${item.file_path} : Line ${item.line_number}\n`;
+      text += `Explanation: ${item.error_explanation}\n\n`;
+      if (item.unified_diff) {
+        text += `\`\`\`diff\n${item.unified_diff}\n\`\`\`\n\n`;
+      } else {
+        text += `Vulnerable Code:\n\`\`\`\n${item.buggy_code}\n\`\`\`\n\nCorrected Replacement Code:\n\`\`\`\n${item.corrected_code}\n\`\`\`\n\n`;
+      }
+      text += `------------------------------------------------------------\n\n`;
+    });
+
+    handleCopy(text.trim(), "all-reviews");
+  };
+
+  const handleCopySingleReview = (item: CodeReviewItem) => {
+    let text = `[${item.severity}] ${item.title} (${item.category})\n`;
+    text += `Target: ${item.file_path} : Line ${item.line_number}\n`;
+    text += `Explanation: ${item.error_explanation}\n\n`;
+    if (item.unified_diff) {
+      text += `Unified Diff:\n${item.unified_diff}\n`;
+    } else {
+      text += `Original Code:\n${item.buggy_code}\n\nCorrected Code:\n${item.corrected_code}\n`;
+    }
+    handleCopy(text.trim(), `${item.id}-review`);
+  };
+
   const handleRunAdHocReview = async () => {
     if (!customCode.trim()) return;
     setIsReviewing(true);
@@ -201,33 +234,56 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
       </div>
 
       {/* TOOLBAR: REVIEW COUNT & VIEW TOGGLE (Fix #10) */}
-      <div className="flex items-center justify-between px-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
         <span className="text-[11px] font-mono text-zinc-400">
           Issues Detected: <b className="text-zinc-100">{allDisplayReviews.length}</b>
         </span>
-        <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 text-[10px] font-mono">
-          <button
-            onClick={() => setViewMode("diff")}
-            className={cn(
-              "px-2.5 py-1 rounded-md transition-all font-medium",
-              viewMode === "diff"
-                ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-300"
-            )}
-          >
-            Unified Git Diff
-          </button>
-          <button
-            onClick={() => setViewMode("stacked")}
-            className={cn(
-              "px-2.5 py-1 rounded-md transition-all font-medium",
-              viewMode === "stacked"
-                ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-300"
-            )}
-          >
-            Stacked View
-          </button>
+
+        <div className="flex items-center space-x-2">
+          {allDisplayReviews.length > 0 && (
+            <button
+              onClick={handleCopyAllReviews}
+              className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white transition-colors text-[10px] font-mono shadow-sm"
+              title="Copy all code reviews and git diffs to clipboard"
+            >
+              {copiedState === "all-reviews" ? (
+                <>
+                  <Check className="w-3 h-3 text-emerald-400" />
+                  <span className="text-emerald-400 font-semibold">Copied All ({allDisplayReviews.length}) Reviews!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3 h-3 text-zinc-400" />
+                  <span>Copy All Reviews</span>
+                </>
+              )}
+            </button>
+          )}
+
+          <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 text-[10px] font-mono">
+            <button
+              onClick={() => setViewMode("diff")}
+              className={cn(
+                "px-2.5 py-1 rounded-md transition-all font-medium",
+                viewMode === "diff"
+                  ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-300"
+              )}
+            >
+              Unified Git Diff
+            </button>
+            <button
+              onClick={() => setViewMode("stacked")}
+              className={cn(
+                "px-2.5 py-1 rounded-md transition-all font-medium",
+                viewMode === "stacked"
+                  ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-300"
+              )}
+            >
+              Stacked View
+            </button>
+          </div>
         </div>
       </div>
 
@@ -257,14 +313,34 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
                       </span>
                     </div>
 
-                    <span
-                      className={cn(
-                        "px-2 py-0.5 rounded-full text-[9px] font-mono border",
-                        getCategoryBadge(item.category)
-                      )}
-                    >
-                      {item.category}
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleCopySingleReview(item)}
+                        className="flex items-center space-x-1 px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/60 text-zinc-300 hover:text-white transition-colors text-[9px] font-mono shadow-sm"
+                        title="Copy complete review details and fix to clipboard"
+                      >
+                        {copiedState === `${item.id}-review` ? (
+                          <>
+                            <Check className="w-2.5 h-2.5 text-emerald-400" />
+                            <span className="text-emerald-400 font-bold">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-2.5 h-2.5 text-zinc-400" />
+                            <span>Copy Review</span>
+                          </>
+                        )}
+                      </button>
+
+                      <span
+                        className={cn(
+                          "px-2 py-0.5 rounded-full text-[9px] font-mono border",
+                          getCategoryBadge(item.category)
+                        )}
+                      >
+                        {item.category}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Title & Explanation */}
