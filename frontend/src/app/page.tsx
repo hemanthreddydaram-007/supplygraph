@@ -25,6 +25,13 @@ import {
   FileCode2,
   Link2,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Boxes,
+  Layers,
+  ListFilter,
+  Maximize2,
+  Minimize2,
   Info,
   FolderUp,
   LogOut,
@@ -222,6 +229,50 @@ function buildLockfileSnippet(finding: any): string {
   }
 }
 
+function getFindingPackage(f: any): { pkgName: string; version: string; ecosystem: string; key: string } {
+  const origin = f?.origin_candidate || f?.title || "";
+  let clean = origin.replace(/^Vulnerability in\s*/i, "").replace(/^pkg:(npm|pypi|cargo|golang)\//, "");
+  try { clean = decodeURIComponent(clean); } catch (_) {}
+
+  let eco = "pypi";
+  if (origin.includes("npm") || clean.startsWith("@")) {
+    eco = "npm";
+  } else if (f?.finding_type === "CICD_RISK") {
+    eco = "ci/cd";
+  }
+
+  let pkgName = clean;
+  let version = "";
+
+  if (clean.startsWith("@")) {
+    const atIdx = clean.indexOf("@", 1);
+    if (atIdx !== -1) {
+      pkgName = clean.substring(0, atIdx);
+      version = clean.substring(atIdx + 1);
+    }
+  } else {
+    const atIdx = clean.indexOf("@");
+    if (atIdx !== -1) {
+      pkgName = clean.substring(0, atIdx);
+      version = clean.substring(atIdx + 1);
+    }
+  }
+
+  if (f?.finding_type === "CICD_RISK") {
+    pkgName = "GitHub Actions Workflows";
+    eco = "ci/cd";
+  } else if (!pkgName || pkgName.trim() === "") {
+    pkgName = f?.entity_type || "Direct Project Dependency";
+  }
+
+  return {
+    pkgName,
+    version,
+    ecosystem: eco,
+    key: `${pkgName}${version ? `@${version}` : ""}`,
+  };
+}
+
 // ============================================================
 // MODAL COMPONENT
 // ============================================================
@@ -295,6 +346,11 @@ export default function Dashboard() {
   const [selectedHistoryScan, setSelectedHistoryScan] = useState<ScanHistoryRecord | null>(null);
   const [comparisonResult, setComparisonResult] = useState<any | null>(null);
   const [comparingLoading, setComparingLoading] = useState(false);
+  const [showScenariosDropdown, setShowScenariosDropdown] = useState(false);
+  const [hudCollapsed, setHudCollapsed] = useState(false);
+  const [findingsGrouping, setFindingsGrouping] = useState<"package" | "flat">("package");
+  const [expandedPackageKeys, setExpandedPackageKeys] = useState<Record<string, boolean>>({});
+  const [findingsSearch, setFindingsSearch] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -938,6 +994,96 @@ export default function Dashboard() {
     return showAllFindings ? data.findings : data.findings.slice(0, 25);
   }, [data?.findings, showAllFindings]);
 
+  const groupedFindings = useMemo(() => {
+    if (!data?.findings || data.findings.length === 0) return [];
+    const groups: Record<
+      string,
+      {
+        key: string;
+        pkgName: string;
+        version: string;
+        ecosystem: string;
+        findings: any[];
+        highestSeverity: string;
+        fixVersion: string;
+      }
+    > = {};
+
+    data.findings.forEach((f) => {
+      const { pkgName, version, ecosystem, key } = getFindingPackage(f);
+      if (!groups[key]) {
+        groups[key] = {
+          key,
+          pkgName,
+          version,
+          ecosystem,
+          findings: [],
+          highestSeverity: "LOW",
+          fixVersion: "",
+        };
+      }
+      groups[key].findings.push(f);
+
+      // Highest severity calculation
+      const currentSev = f.severity?.toUpperCase() || "LOW";
+      const sevOrder = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"];
+      const groupSevIdx = sevOrder.indexOf(groups[key].highestSeverity);
+      const curSevIdx = sevOrder.indexOf(currentSev);
+      if (curSevIdx !== -1 && (groupSevIdx === -1 || curSevIdx < groupSevIdx)) {
+        groups[key].highestSeverity = currentSev;
+      }
+
+      // Best fix recommendation
+      if (!groups[key].fixVersion) {
+        const fix =
+          f.recommendations?.[0]?.fixed_version ||
+          f.evidence?.find((e: any) => e.raw_data?.fixed)?.raw_data?.fixed;
+        if (fix && fix !== "latest" && !fix.includes("patched_version")) {
+          groups[key].fixVersion = fix;
+        }
+      }
+    });
+
+    const list = Object.values(groups).sort((a, b) => {
+      const sevOrder = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"];
+      const aIdx = sevOrder.indexOf(a.highestSeverity);
+      const bIdx = sevOrder.indexOf(b.highestSeverity);
+      if (aIdx !== bIdx) return aIdx - bIdx;
+      return b.findings.length - a.findings.length;
+    });
+
+    return list;
+  }, [data?.findings]);
+
+  // Auto-expand the first package by default when grouped findings load
+  useEffect(() => {
+    if (groupedFindings.length > 0) {
+      setExpandedPackageKeys((prev) => {
+        if (Object.keys(prev).length === 0 && groupedFindings[0]) {
+          return { [groupedFindings[0].key]: true };
+        }
+        return prev;
+      });
+    }
+  }, [groupedFindings]);
+
+  const togglePackageExpanded = useCallback((key: string) => {
+    setExpandedPackageKeys((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  }, []);
+
+  const toggleAllPackages = useCallback((expand: boolean) => {
+    if (!expand) {
+      setExpandedPackageKeys({});
+    } else {
+      const all: Record<string, boolean> = {};
+      groupedFindings.forEach((g) => { all[g.key] = true; });
+      setExpandedPackageKeys(all);
+    }
+  }, [groupedFindings]);
+
   // STAGE 1: LOGIN VIEW
   if (currentView === "login" || !currentUser) {
     return <LoginPage onLogin={handleLogin} />;
@@ -1105,11 +1251,11 @@ export default function Dashboard() {
       {/* STAGE 3 & 4: SCANNER WORKSPACE */}
       {currentView === "scanner" && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* SCANNER CONTROLS HEADER */}
-          <div className="border-b border-zinc-800/80 bg-zinc-950/90 px-6 py-3 space-y-2.5 shrink-0">
-            {/* Dual Input Controls: URL bar + Upload Project Folder */}
+          {/* SCANNER CONTROLS HEADER (Sleek Unified Command Bar) */}
+          <div className="border-b border-zinc-800/80 bg-zinc-950/90 px-6 py-2.5 shrink-0">
             <div className="flex flex-wrap items-center gap-2.5">
-              <div className="relative flex-1 min-w-[300px]">
+              {/* URL Input */}
+              <div className="relative flex-1 min-w-[280px]">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   ref={inputRef}
@@ -1117,13 +1263,13 @@ export default function Dashboard() {
                   value={githubUrl}
                   onChange={(e) => setGithubUrl(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && executeAnalysis(githubUrl)}
-                  placeholder="https://github.com/owner/repository (e.g. appsecco/dvna) — Press Enter to scan"
-                  className="w-full pl-10 pr-24 py-2 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs font-mono text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all"
+                  placeholder="https://github.com/owner/repository — Press Enter to scan"
+                  className="w-full pl-10 pr-24 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs font-mono text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all"
                 />
                 <button
                   onClick={() => executeAnalysis(githubUrl)}
                   disabled={loading}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center space-x-1 transition-colors shadow-sm"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-1 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center space-x-1 transition-colors shadow-sm"
                 >
                   {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
                   <span>Scan</span>
@@ -1139,22 +1285,72 @@ export default function Dashboard() {
                 className="hidden"
               />
 
+              {/* Upload Folder Button */}
               <button
                 onClick={() => folderInputRef.current?.click()}
                 disabled={loading}
-                className="px-3.5 py-2 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 hover:border-indigo-500/50 text-indigo-300 hover:text-indigo-200 text-xs font-semibold flex items-center space-x-2 transition-all shrink-0 shadow-sm"
+                className="px-3 py-1.5 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 hover:border-indigo-500/50 text-indigo-300 hover:text-indigo-200 text-xs font-semibold flex items-center space-x-1.5 transition-all shrink-0 shadow-sm"
                 title="Upload and scan a local project directory from your computer"
               >
                 <FolderUp className="w-3.5 h-3.5 text-indigo-400" />
-                <span>📂 Upload Folder</span>
+                <span>Upload Folder</span>
               </button>
 
-              {/* Production Only vs All Dependencies Toggle (Fix #1) */}
+              {/* Demo Scenarios Dropdown */}
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowScenariosDropdown(!showScenariosDropdown)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-xs font-mono font-medium flex items-center space-x-1.5 border transition-all shadow-sm",
+                    activeScenario
+                      ? "bg-red-500/15 border-red-500/40 text-red-300 font-semibold"
+                      : "bg-zinc-900/80 border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700"
+                  )}
+                  title="Test deterministic evaluation scenarios (A–E)"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{activeScenario ? `Scenario ${activeScenario}` : "Demo Scenarios"}</span>
+                  <ChevronDown className={cn("w-3.5 h-3.5 text-zinc-400 transition-transform", showScenariosDropdown && "rotate-180")} />
+                </button>
+
+                {showScenariosDropdown && (
+                  <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-80 bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl z-50 p-2 space-y-1 backdrop-blur-2xl">
+                    <div className="px-2.5 py-1.5 text-[10px] font-mono uppercase text-zinc-500 border-b border-zinc-800/80 flex items-center justify-between">
+                      <span>Deterministic Scenarios</span>
+                      <span className="text-[9px] text-zinc-600">5 Evaluator Modes</span>
+                    </div>
+                    {SCENARIOS.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => {
+                          setShowScenariosDropdown(false);
+                          executeScenario(s.id);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-2.5 transition-colors",
+                          activeScenario === s.id ? "bg-red-500/20 text-red-200 border border-red-500/30" : "hover:bg-zinc-900 text-zinc-300"
+                        )}
+                      >
+                        <span className="text-base">{s.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-zinc-100 flex items-center justify-between">
+                            <span>Scenario {s.id}</span>
+                          </div>
+                          <div className="text-[10px] text-zinc-400 truncate">{s.label}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Production Only vs All Dependencies Toggle */}
               <button
                 type="button"
                 onClick={() => setProdOnly(!prodOnly)}
                 className={cn(
-                  "px-3 py-2 rounded-xl text-xs font-mono font-medium flex items-center space-x-2 border transition-all shrink-0 shadow-sm",
+                  "px-2.5 py-1.5 rounded-xl text-xs font-mono font-medium flex items-center space-x-1.5 border transition-all shrink-0 shadow-sm",
                   prodOnly
                     ? "bg-emerald-950/50 border-emerald-500/60 text-emerald-300 shadow-emerald-950/20"
                     : "bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
@@ -1162,22 +1358,22 @@ export default function Dashboard() {
                 title={prodOnly ? "Filtering: Production Only (Dev Dependencies Omitted)" : "Filtering: All Dependencies (Including Dev Dependencies)"}
               >
                 <span className={cn("w-2 h-2 rounded-full", prodOnly ? "bg-emerald-400 animate-pulse" : "bg-zinc-600")} />
-                <span>{prodOnly ? "Prod Only" : "All Deps (Inc. Dev)"}</span>
+                <span>{prodOnly ? "Prod Only" : "All Deps"}</span>
               </button>
 
-              {/* Configurable Transitive Depth Stepper (Fix #8) */}
+              {/* Configurable Transitive Depth Stepper */}
               <div
-                className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs font-mono text-zinc-300 shrink-0 shadow-sm"
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs font-mono text-zinc-300 shrink-0 shadow-sm"
                 title="Max Transitive Dependency Depth (1–20 hops)"
               >
                 <span className="text-zinc-500 text-[10px] uppercase">Depth:</span>
-                <span className="text-indigo-400 font-semibold">{transitiveDepth} hops</span>
-                <div className="flex items-center space-x-1 ml-1">
+                <span className="text-indigo-400 font-semibold">{transitiveDepth}</span>
+                <div className="flex items-center space-x-1 ml-0.5">
                   <button
                     type="button"
                     onClick={() => setTransitiveDepth(prev => Math.max(1, prev - 1))}
                     disabled={transitiveDepth <= 1}
-                    className="w-5 h-5 rounded flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 text-xs transition-colors"
+                    className="w-4 h-4 rounded flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 text-[10px] transition-colors"
                   >
                     -
                   </button>
@@ -1185,7 +1381,7 @@ export default function Dashboard() {
                     type="button"
                     onClick={() => setTransitiveDepth(prev => Math.min(20, prev + 1))}
                     disabled={transitiveDepth >= 20}
-                    className="w-5 h-5 rounded flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 text-xs transition-colors"
+                    className="w-4 h-4 rounded flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 text-[10px] transition-colors"
                   >
                     +
                   </button>
@@ -1193,33 +1389,9 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Scenario Pills */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider mr-1">
-                Demo Scenarios:
-              </span>
-              {SCENARIOS.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => executeScenario(s.id)}
-                  disabled={loading}
-                  className={cn(
-                    "px-2.5 py-1 rounded-lg text-xs font-mono transition-all flex items-center space-x-1.5 border",
-                    activeScenario === s.id
-                      ? "bg-red-500/15 border-red-500/40 text-red-300 font-semibold shadow-sm"
-                      : "bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
-                  )}
-                >
-                  <span>{s.icon}</span>
-                  <span>Scenario {s.id}</span>
-                  <span className="text-zinc-500 text-[10px]">({s.label})</span>
-                </button>
-              ))}
-            </div>
-
             {/* Error banner */}
             {error && (
-              <div className="p-2.5 rounded-lg bg-red-950/40 border border-red-800/40 text-red-300 text-xs font-mono flex items-center justify-between">
+              <div className="mt-2 p-2.5 rounded-lg bg-red-950/40 border border-red-800/40 text-red-300 text-xs font-mono flex items-center justify-between">
                 <span>{error}</span>
                 <button onClick={() => setError(null)} className="text-zinc-400 hover:text-white">
                   <X className="w-3.5 h-3.5" />
@@ -1281,14 +1453,58 @@ export default function Dashboard() {
                 <div className="flex-1 flex flex-col h-full relative">
                   {/* FLOATING TELEMETRY HUD */}
                   <div className="absolute top-4 left-4 z-20">
-                    <div className="bg-zinc-950/85 backdrop-blur-xl border border-zinc-800/90 rounded-xl px-4 py-3 shadow-2xl min-w-[220px]">
-                      <div className="flex items-center space-x-2 mb-2.5">
-                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                        <span className="text-[11px] font-mono font-semibold text-zinc-100 truncate max-w-[180px]">
+                    {hudCollapsed ? (
+                      <div className="bg-zinc-950/90 backdrop-blur-xl border border-zinc-800 rounded-xl px-3 py-1.5 shadow-2xl flex items-center space-x-3 text-xs font-mono">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-zinc-200 font-semibold truncate max-w-[140px]">
                           {data?.scan?.repository_url?.replace("https://github.com/", "") ||
-                            (activeScenario ? `Demo Scenario ${activeScenario}` : "Project")}
+                            (activeScenario ? `Demo ${activeScenario}` : "Scan")}
                         </span>
+                        <span className="text-zinc-600">|</span>
+                        <span className="text-zinc-400">Comps: <b className="text-zinc-200">{data?.scan?.total_components || 0}</b></span>
+                        <span className="text-zinc-400">Findings: <b className="text-red-400">{data?.scan?.total_findings || 0}</b></span>
+                        <span className="text-zinc-400">Blast: <b className="text-amber-400">{(Number(data?.scan?.blast_radius_score) || 0).toFixed(1)}/100</b></span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedHistoryScan(null);
+                            setComparisonResult(null);
+                            setShowHistoryModal(true);
+                          }}
+                          className="px-2 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 text-indigo-300 text-[10px] flex items-center space-x-1 border border-zinc-700/60"
+                          title="View Scan History & Delta Regression"
+                        >
+                          <Clock className="w-3 h-3 text-indigo-400" />
+                          <span>Delta ({scanHistory.length})</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setHudCollapsed(false)}
+                          className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-lg transition-colors ml-1"
+                          title="Expand Telemetry HUD"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
+                    ) : (
+                      <div className="bg-zinc-950/85 backdrop-blur-xl border border-zinc-800/90 rounded-xl px-4 py-3 shadow-2xl min-w-[220px]">
+                        <div className="flex items-center justify-between space-x-2 mb-2.5">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shrink-0" />
+                            <span className="text-[11px] font-mono font-semibold text-zinc-100 truncate max-w-[150px]">
+                              {data?.scan?.repository_url?.replace("https://github.com/", "") ||
+                                (activeScenario ? `Demo Scenario ${activeScenario}` : "Project")}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setHudCollapsed(true)}
+                            className="p-1 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60 rounded-md transition-colors"
+                            title="Minimize HUD to see graph nodes behind it"
+                          >
+                            <Minimize2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
 
                       <div className="flex items-center space-x-4 text-[11px] font-mono pt-2 border-t border-zinc-800/60">
                         <div>
@@ -1377,7 +1593,8 @@ export default function Dashboard() {
                         </span>
                       </button>
                     </div>
-                  </div>
+                  )}
+                </div>
 
                   {/* REACT FLOW CANVAS */}
                   {currentGraph && (
@@ -1486,143 +1703,405 @@ export default function Dashboard() {
                   <div className="flex-1 overflow-y-auto p-5 space-y-4">
                     {/* ============ FINDINGS TAB ============ */}
                     {activeTab === "findings" && (
-                      <div className="space-y-3.5">
+                      <div className="space-y-3">
                         {data?.findings && data.findings.length > 0 ? (
                           <>
-                            {/* Findings Top Toolbar: Count + Copy All Findings */}
-                            <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800 text-xs font-mono">
-                              <span className="text-zinc-400">
-                                Total Findings: <b className="text-zinc-100">{data.findings.length}</b>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => copyToClipboard(formatAllFindingsText(data.findings), "all-findings")}
-                                className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-300 hover:text-zinc-100 transition-colors shadow-sm text-[11px]"
-                                title="Copy all findings to clipboard as a complete Markdown report"
-                              >
-                                {copiedIndex === "all-findings" ? (
-                                  <>
-                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                    <span className="text-emerald-400 font-semibold">Copied All Findings!</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy className="w-3.5 h-3.5 text-zinc-400" />
-                                    <span>Copy All Findings</span>
-                                  </>
+                            {/* Findings Top Control Bar */}
+                            <div className="space-y-2 p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800 text-xs font-mono">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-1 bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setFindingsGrouping("package")}
+                                    className={cn(
+                                      "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center space-x-1.5",
+                                      findingsGrouping === "package"
+                                        ? "bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 shadow-sm"
+                                        : "text-zinc-400 hover:text-zinc-200"
+                                    )}
+                                  >
+                                    <Boxes className="w-3 h-3 text-sky-400" />
+                                    <span>Packages ({groupedFindings.length})</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setFindingsGrouping("flat")}
+                                    className={cn(
+                                      "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center space-x-1.5",
+                                      findingsGrouping === "flat"
+                                        ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                                        : "text-zinc-400 hover:text-zinc-200"
+                                    )}
+                                  >
+                                    <FileText className="w-3 h-3 text-zinc-400" />
+                                    <span>Flat List ({data.findings.length})</span>
+                                  </button>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(formatAllFindingsText(data.findings), "all-findings")}
+                                  className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-850 border border-zinc-700/60 text-zinc-300 hover:text-white transition-colors shadow-sm text-[11px]"
+                                  title="Copy all findings to clipboard as a complete Markdown report"
+                                >
+                                  {copiedIndex === "all-findings" ? (
+                                    <>
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                      <span className="text-emerald-400 font-semibold">Copied!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3 h-3 text-zinc-400" />
+                                      <span>Copy All</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+
+                              {/* Search & Bulk Expand Controls */}
+                              <div className="flex items-center space-x-2 pt-1 border-t border-zinc-800/60">
+                                <div className="relative flex-1">
+                                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
+                                  <input
+                                    type="text"
+                                    value={findingsSearch}
+                                    onChange={(e) => setFindingsSearch(e.target.value)}
+                                    placeholder="Filter by package or CVE..."
+                                    className="w-full pl-7 pr-2 py-1 rounded-lg bg-zinc-900/90 border border-zinc-800/80 text-[11px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700"
+                                  />
+                                </div>
+                                {findingsGrouping === "package" && (
+                                  <div className="flex items-center space-x-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleAllPackages(true)}
+                                      className="px-2 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-[10px] text-zinc-400 hover:text-zinc-200"
+                                      title="Expand all packages"
+                                    >
+                                      Expand All
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleAllPackages(false)}
+                                      className="px-2 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-[10px] text-zinc-400 hover:text-zinc-200"
+                                      title="Collapse all packages"
+                                    >
+                                      Collapse
+                                    </button>
+                                  </div>
                                 )}
-                              </button>
+                              </div>
                             </div>
 
-                            {displayedFindings.map((f: any, idx: number) => {
-                              const detectorTag = getDetectorTag(f);
-                              const lockSnippet = buildLockfileSnippet(f);
-                              return (
-                                <div
-                                  key={idx}
-                                  className="p-3.5 rounded-xl border border-zinc-800/80 bg-zinc-900/40 hover:bg-zinc-900/70 transition-all group cursor-pointer"
-                                  onClick={() => handleFindingClick(f)}
-                                >
-                                  <div className="flex items-start justify-between mb-2">
-                                    <h4 className="text-xs font-semibold text-zinc-200 pr-3 leading-snug group-hover:text-red-300 transition-colors">
-                                      {f.title}
-                                    </h4>
-                                    <div className="flex items-center space-x-1.5 shrink-0">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          copyToClipboard(formatSingleFindingText(f), `finding-${idx}`);
-                                        }}
-                                        className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-zinc-800/90 hover:bg-zinc-750 border border-zinc-750 text-zinc-300 hover:text-white transition-colors text-[9px] font-mono"
-                                        title="Copy full finding details and remediation to clipboard"
+                            {/* ============ GROUPED BY PACKAGE ACCORDIONS ============ */}
+                            {findingsGrouping === "package" ? (
+                              <div className="space-y-2.5">
+                                {groupedFindings
+                                  .filter(g => {
+                                    if (!findingsSearch.trim()) return true;
+                                    const q = findingsSearch.toLowerCase();
+                                    return (
+                                      g.pkgName.toLowerCase().includes(q) ||
+                                      g.findings.some(f => f.title?.toLowerCase().includes(q) || f.description?.toLowerCase().includes(q))
+                                    );
+                                  })
+                                  .map((g) => {
+                                    const isExpanded = expandedPackageKeys[g.key] ?? false;
+                                    return (
+                                      <div
+                                        key={g.key}
+                                        className="rounded-xl border border-zinc-800/90 bg-zinc-900/40 overflow-hidden transition-all shadow-sm"
                                       >
-                                        {copiedIndex === `finding-${idx}` ? (
-                                          <>
-                                            <Check className="w-2.5 h-2.5 text-emerald-400" />
-                                            <span className="text-emerald-400 font-bold">Copied!</span>
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Copy className="w-2.5 h-2.5 text-zinc-400" />
-                                            <span>Copy</span>
-                                          </>
-                                        )}
-                                      </button>
-                                      <span
-                                        className={cn(
-                                          "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
-                                          getDetectorTagClass(detectorTag)
-                                        )}
-                                      >
-                                        {detectorTag}
-                                      </span>
-                                      <span
-                                        className={cn(
-                                          "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
-                                          getSeverityClass(f.severity)
-                                        )}
-                                      >
-                                        {f.severity}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <p className="text-[11px] text-zinc-400 leading-relaxed mb-3">
-                                    {f.description}
-                                  </p>
-
-                                  <div className="text-[9px] text-zinc-600 font-mono mb-2">
-                                    ↗ Click to focus node in graph
-                                  </div>
-
-                                  {/* Containment Strategy */}
-                                  {f.recommendations && f.recommendations.length > 0 && (
-                                    <div className="mt-2.5 pt-2.5 border-t border-zinc-800/60">
-                                      <div className="flex items-center justify-between text-[10px] text-zinc-500 font-mono uppercase mb-1.5">
-                                        <span>Containment Strategy</span>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            copyToClipboard(lockSnippet, idx);
-                                          }}
-                                          className="flex items-center space-x-1 hover:text-zinc-300 transition-colors"
+                                        {/* Package Header Row */}
+                                        <div
+                                          onClick={() => togglePackageExpanded(g.key)}
+                                          className="p-3 bg-zinc-900/70 hover:bg-zinc-850/80 cursor-pointer flex items-center justify-between transition-colors border-b border-zinc-800/60"
                                         >
-                                          {copiedIndex === idx ? (
-                                            <Check className="w-3 h-3 text-emerald-400" />
-                                          ) : (
-                                            <Copy className="w-3 h-3" />
-                                          )}
-                                          <span>{copiedIndex === idx ? "Copied!" : "Copy Snippet"}</span>
-                                        </button>
-                                      </div>
-                                      <div className="p-2 rounded bg-black/60 border border-zinc-800/70 font-mono text-[10px] text-zinc-300">
-                                        <div className="text-emerald-400 font-semibold">
-                                          {f.recommendations[0]?.title}
-                                        </div>
-                                        <div className="text-zinc-400 text-[9px] mt-0.5">
-                                          {f.recommendations[0]?.why}
-                                        </div>
-                                        <pre className="mt-1.5 text-[9px] text-zinc-300 whitespace-pre-wrap break-all bg-zinc-900/60 rounded p-1.5 border border-zinc-800/50">
-                                          {lockSnippet}
-                                        </pre>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                          <div className="flex items-center space-x-2.5 min-w-0">
+                                            <div className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700/60 text-zinc-300">
+                                              <Boxes className="w-3.5 h-3.5 text-sky-400" />
+                                            </div>
+                                            <div className="min-w-0">
+                                              <div className="flex items-center space-x-2">
+                                                <span className="text-xs font-bold text-zinc-100 truncate">{g.pkgName}</span>
+                                                {g.version && (
+                                                  <span className="text-[10px] text-zinc-400 font-mono">@{g.version}</span>
+                                                )}
+                                                <span className="text-[9px] px-1.5 py-0.2 rounded uppercase font-mono font-bold border bg-zinc-800 text-zinc-400 border-zinc-700">
+                                                  {g.ecosystem}
+                                                </span>
+                                              </div>
+                                              <div className="text-[10px] text-zinc-500 font-mono mt-0.5 flex items-center space-x-2">
+                                                <span>{g.findings.length} Finding{g.findings.length !== 1 ? "s" : ""}</span>
+                                                {g.fixVersion && (
+                                                  <>
+                                                    <span>•</span>
+                                                    <span className="text-emerald-400 font-semibold">Recommended Fix: {g.fixVersion}</span>
+                                                  </>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
 
-                            {data.findings.length > 25 && (
-                              <div className="pt-2 text-center">
-                                <button
-                                  onClick={() => setShowAllFindings(!showAllFindings)}
-                                  className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/80 text-xs font-mono text-zinc-200 transition-colors shadow-sm"
-                                >
-                                  {showAllFindings
-                                    ? "Show First 25 Findings"
-                                    : `Show All (${data.findings.length}) Findings`}
-                                </button>
+                                          <div className="flex items-center space-x-2 shrink-0">
+                                            <span
+                                              className={cn(
+                                                "px-2 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
+                                                getSeverityClass(g.highestSeverity)
+                                              )}
+                                            >
+                                              {g.highestSeverity}
+                                            </span>
+                                            <div className="p-1 text-zinc-400 hover:text-white">
+                                              <ChevronDown
+                                                className={cn(
+                                                  "w-4 h-4 transition-transform duration-200",
+                                                  isExpanded && "rotate-180"
+                                                )}
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Package Findings Body */}
+                                        {isExpanded && (
+                                          <div className="p-2.5 space-y-2.5 bg-black/30">
+                                            {g.findings.map((f: any, fIdx: number) => {
+                                              const detectorTag = getDetectorTag(f);
+                                              const lockSnippet = buildLockfileSnippet(f);
+                                              return (
+                                                <div
+                                                  key={fIdx}
+                                                  className="p-3 rounded-xl border border-zinc-800/80 bg-zinc-950/60 hover:bg-zinc-900/60 transition-all group cursor-pointer"
+                                                  onClick={() => handleFindingClick(f)}
+                                                >
+                                                  <div className="flex items-start justify-between mb-1.5">
+                                                    <h4 className="text-xs font-semibold text-zinc-200 pr-2 leading-snug group-hover:text-red-300 transition-colors">
+                                                      {f.title}
+                                                    </h4>
+                                                    <div className="flex items-center space-x-1 shrink-0">
+                                                      <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          copyToClipboard(formatSingleFindingText(f), `finding-${g.key}-${fIdx}`);
+                                                        }}
+                                                        className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-750 text-zinc-300 hover:text-white transition-colors text-[9px] font-mono"
+                                                        title="Copy full finding details"
+                                                      >
+                                                        {copiedIndex === `finding-${g.key}-${fIdx}` ? (
+                                                          <>
+                                                            <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                                            <span className="text-emerald-400 font-bold">Copied!</span>
+                                                          </>
+                                                        ) : (
+                                                          <>
+                                                            <Copy className="w-2.5 h-2.5 text-zinc-400" />
+                                                            <span>Copy</span>
+                                                          </>
+                                                        )}
+                                                      </button>
+                                                      <span
+                                                        className={cn(
+                                                          "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
+                                                          getDetectorTagClass(detectorTag)
+                                                        )}
+                                                      >
+                                                        {detectorTag}
+                                                      </span>
+                                                      <span
+                                                        className={cn(
+                                                          "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
+                                                          getSeverityClass(f.severity)
+                                                        )}
+                                                      >
+                                                        {f.severity}
+                                                      </span>
+                                                    </div>
+                                                  </div>
+
+                                                  <p className="text-[11px] text-zinc-400 leading-relaxed mb-2">
+                                                    {f.description}
+                                                  </p>
+
+                                                  <div className="text-[9px] text-zinc-600 font-mono mb-2">
+                                                    ↗ Click to focus node in graph
+                                                  </div>
+
+                                                  {/* Containment Strategy */}
+                                                  {f.recommendations && f.recommendations.length > 0 && (
+                                                    <div className="mt-2 pt-2 border-t border-zinc-800/60">
+                                                      <div className="flex items-center justify-between text-[10px] text-zinc-500 font-mono uppercase mb-1">
+                                                        <span>Remediation</span>
+                                                        <span className="text-[9px] text-zinc-600">Least-privilege fix</span>
+                                                      </div>
+                                                      <div className="p-2 rounded-lg bg-zinc-950/80 border border-zinc-800 text-[11px]">
+                                                        <div className="font-semibold text-emerald-400 text-xs mb-0.5">
+                                                          {f.recommendations[0]?.title}
+                                                        </div>
+                                                        <div className="text-zinc-400 text-[10px] mb-1.5">
+                                                          {f.recommendations[0]?.why}
+                                                        </div>
+                                                        {lockSnippet && (
+                                                          <div className="relative group/code mt-1">
+                                                            <pre className="p-2 rounded-lg bg-black/70 border border-zinc-800/80 text-[10px] font-mono text-emerald-400/90 whitespace-pre-wrap overflow-x-auto leading-relaxed">
+                                                              {lockSnippet}
+                                                            </pre>
+                                                            <button
+                                                              type="button"
+                                                              onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                copyToClipboard(lockSnippet, `snippet-${g.key}-${fIdx}`);
+                                                              }}
+                                                              className="absolute top-1.5 right-1.5 flex items-center space-x-1 px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-all text-[9px] font-mono shadow-sm"
+                                                              title="Copy configuration snippet to clipboard"
+                                                            >
+                                                              {copiedIndex === `snippet-${g.key}-${fIdx}` ? (
+                                                                <>
+                                                                  <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                                                  <span className="text-emerald-400 font-bold">Copied!</span>
+                                                                </>
+                                                              ) : (
+                                                                <>
+                                                                  <Copy className="w-2.5 h-2.5 text-zinc-400" />
+                                                                  <span>Copy Snippet</span>
+                                                                </>
+                                                              )}
+                                                            </button>
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            ) : (
+                              /* ============ FLAT LIST VIEW ============ */
+                              <div className="space-y-3.5">
+                                {displayedFindings
+                                  .filter(f => {
+                                    if (!findingsSearch.trim()) return true;
+                                    const q = findingsSearch.toLowerCase();
+                                    return f.title?.toLowerCase().includes(q) || f.description?.toLowerCase().includes(q);
+                                  })
+                                  .map((f: any, idx: number) => {
+                                    const detectorTag = getDetectorTag(f);
+                                    const lockSnippet = buildLockfileSnippet(f);
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className="p-3.5 rounded-xl border border-zinc-800/80 bg-zinc-900/40 hover:bg-zinc-900/70 transition-all group cursor-pointer"
+                                        onClick={() => handleFindingClick(f)}
+                                      >
+                                        <div className="flex items-start justify-between mb-2">
+                                          <h4 className="text-xs font-semibold text-zinc-200 pr-3 leading-snug group-hover:text-red-300 transition-colors">
+                                            {f.title}
+                                          </h4>
+                                          <div className="flex items-center space-x-1.5 shrink-0">
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                copyToClipboard(formatSingleFindingText(f), `finding-${idx}`);
+                                              }}
+                                              className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-zinc-800/90 hover:bg-zinc-750 border border-zinc-750 text-zinc-300 hover:text-white transition-colors text-[9px] font-mono"
+                                              title="Copy full finding details and remediation to clipboard"
+                                            >
+                                              {copiedIndex === `finding-${idx}` ? (
+                                                <>
+                                                  <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                                  <span className="text-emerald-400 font-bold">Copied!</span>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Copy className="w-2.5 h-2.5 text-zinc-400" />
+                                                  <span>Copy</span>
+                                                </>
+                                              )}
+                                            </button>
+                                            <span
+                                              className={cn(
+                                                "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
+                                                getDetectorTagClass(detectorTag)
+                                              )}
+                                            >
+                                              {detectorTag}
+                                            </span>
+                                            <span
+                                              className={cn(
+                                                "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
+                                                getSeverityClass(f.severity)
+                                              )}
+                                            >
+                                              {f.severity}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <p className="text-[11px] text-zinc-400 leading-relaxed mb-3">
+                                          {f.description}
+                                        </p>
+
+                                        <div className="text-[9px] text-zinc-600 font-mono mb-2">
+                                          ↗ Click to focus node in graph
+                                        </div>
+
+                                        {/* Containment Strategy */}
+                                        {f.recommendations && f.recommendations.length > 0 && (
+                                          <div className="mt-2.5 pt-2.5 border-t border-zinc-800/60">
+                                            <div className="flex items-center justify-between text-[10px] text-zinc-500 font-mono uppercase mb-1.5">
+                                              <span>Containment Strategy</span>
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  copyToClipboard(lockSnippet, idx);
+                                                }}
+                                                className="flex items-center space-x-1 hover:text-zinc-300 transition-colors"
+                                              >
+                                                {copiedIndex === idx ? (
+                                                  <Check className="w-3 h-3 text-emerald-400" />
+                                                ) : (
+                                                  <Copy className="w-3 h-3" />
+                                                )}
+                                                <span>{copiedIndex === idx ? "Copied!" : "Copy Snippet"}</span>
+                                              </button>
+                                            </div>
+                                            <div className="p-2 rounded bg-black/60 border border-zinc-800/70 font-mono text-[10px] text-zinc-300">
+                                              <div className="text-emerald-400 font-semibold">
+                                                {f.recommendations[0]?.title}
+                                              </div>
+                                              <div className="text-zinc-400 text-[9px] mt-0.5">
+                                                {f.recommendations[0]?.why}
+                                              </div>
+                                              <pre className="mt-1.5 text-[9px] text-zinc-300 whitespace-pre-wrap break-all bg-zinc-900/60 rounded p-1.5 border border-zinc-800/50">
+                                                {lockSnippet}
+                                              </pre>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+
+                                {data.findings.length > 25 && (
+                                  <div className="pt-2 text-center">
+                                    <button
+                                      onClick={() => setShowAllFindings(!showAllFindings)}
+                                      className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/80 text-xs font-mono text-zinc-200 transition-colors shadow-sm"
+                                    >
+                                      {showAllFindings
+                                        ? "Show First 25 Findings"
+                                        : `Show All (${data.findings.length}) Findings`}
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </>

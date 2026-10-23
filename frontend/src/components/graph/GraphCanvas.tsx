@@ -21,7 +21,7 @@ interface GraphCanvasProps {
   onNodeClick?: (nodeId: string) => void;
 }
 
-type GraphFilter = "attack" | "all";
+type GraphFilter = "package" | "detailed" | "all";
 
 const GraphCanvasInner = React.memo(function GraphCanvasInner({
   graph,
@@ -29,7 +29,7 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
   onNodeClick,
 }: GraphCanvasProps) {
   const { fitView, setCenter } = useReactFlow();
-  const [filter, setFilter] = useState<GraphFilter>("attack");
+  const [filter, setFilter] = useState<GraphFilter>("package");
   const [ecoFilter, setEcoFilter] = useState<string>("all");
   const [sevFilter, setSevFilter] = useState<string>("all");
 
@@ -37,14 +37,10 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
   const safeEdges = useMemo(() => (Array.isArray(graph?.edges) ? graph.edges : []), [graph?.edges]);
   const scanId = graph?.scan_id || "default";
 
-  // Determine if we should default to attack-path-only view
-  const totalNodes = safeNodes.length;
-  const defaultFilter: GraphFilter = totalNodes > 35 ? "attack" : "all";
-
-  // Set default filter based on graph size on mount
+  // Set default filter based on graph on mount
   useEffect(() => {
-    setFilter(defaultFilter);
-  }, [scanId, defaultFilter]);
+    setFilter("package");
+  }, [scanId]);
 
   // Identify attack-path and threat nodes with bi-directional reachability
   const threatNodeIds = useMemo(() => {
@@ -180,11 +176,23 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
     return combined.slice(0, 180);
   }, [safeNodes, isCapped, threatNodeIds]);
 
+  const packageOnlyNodes = useMemo(() => {
+    return safeNodes.filter(n => {
+      const type = n?.data?.node_type;
+      return type !== "Vulnerability" && type !== "Finding";
+    });
+  }, [safeNodes]);
+
   // Compute layout positions with multi-column grid wrapping (max 8 per column)
   const visibleNodes: Node[] = useMemo(() => {
-    let rawNodes: typeof safeNodes = filter === "all"
-      ? prioritizedAllNodes
-      : safeNodes.filter(n => threatNodeIds.has(n.id));
+    let rawNodes: typeof safeNodes;
+    if (filter === "package") {
+      rawNodes = packageOnlyNodes;
+    } else if (filter === "detailed") {
+      rawNodes = safeNodes.filter(n => threatNodeIds.has(n.id));
+    } else {
+      rawNodes = prioritizedAllNodes;
+    }
 
     // Apply ecosystem filter
     if (ecoFilter !== "all") {
@@ -245,7 +253,7 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
         type: "default",
       };
     });
-  }, [safeNodes, filter, prioritizedAllNodes, threatNodeIds, ecoFilter, sevFilter]);
+  }, [safeNodes, filter, packageOnlyNodes, prioritizedAllNodes, threatNodeIds, ecoFilter, sevFilter]);
 
   const visibleEdges: Edge[] = useMemo(() => {
     const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
@@ -261,7 +269,7 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
 
         let animate = false;
         if (isAttack) {
-          if (filter === "attack") {
+          if (filter === "detailed" || filter === "package") {
             if (animatedCount < 40) {
               animate = true;
               animatedCount++;
@@ -339,21 +347,28 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
     <div className="w-full h-full bg-[#09090b] relative">
       {/* Filter Control — floating segmented control */}
       <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-1.5">
-        <div className="flex items-center bg-zinc-950/90 border border-zinc-800 rounded-lg overflow-hidden shadow-lg">
+        <div className="flex items-center bg-zinc-950/90 border border-zinc-800 rounded-lg overflow-hidden shadow-lg backdrop-blur-md">
           <button
-            onClick={() => setFilter("attack")}
+            onClick={() => setFilter("package")}
             className={`px-3 py-1.5 text-[10px] font-mono font-semibold transition-all ${
-              filter === "attack"
+              filter === "package"
+                ? "bg-indigo-950/70 text-indigo-300 border-r border-indigo-800/40"
+                : "text-zinc-500 hover:text-zinc-300 border-r border-zinc-800"
+            }`}
+            title="Clean, executive package dependency DAG without individual CVE clutter"
+          >
+            📦 Package Flow ({packageOnlyNodes.length})
+          </button>
+          <button
+            onClick={() => setFilter("detailed")}
+            className={`px-3 py-1.5 text-[10px] font-mono font-semibold transition-all ${
+              filter === "detailed"
                 ? "bg-red-950/60 text-red-300 border-r border-red-800/40"
                 : "text-zinc-500 hover:text-zinc-300 border-r border-zinc-800"
             }`}
+            title="Exploded forensic tree showing every individual CVE node"
           >
-            ⚡ Attack Paths Only
-            {filter === "attack" && (
-              <span className="ml-1.5 px-1 py-0.5 bg-red-900/40 text-red-400 rounded text-[9px]">
-                {attackCount}
-              </span>
-            )}
+            🔍 Exploded CVEs ({attackCount})
           </button>
           <button
             onClick={() => setFilter("all")}
