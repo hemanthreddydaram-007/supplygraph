@@ -128,6 +128,20 @@ class GraphEngine:
                 data=node_data["data"]
             ))
             
+        # Prioritize vulnerable and threat nodes first in the visualization array to maintain 60 FPS in React Flow
+        def node_priority(node: GraphNode) -> int:
+            if node.data.node_type == NodeType.VULNERABILITY:
+                return 0
+            if node.data.node_type in (NodeType.REPOSITORY, NodeType.ASSET):
+                return 1
+            if node.id in threat_node_ids or node.data.is_suspicious or node.data.is_origin_candidate or node.data.is_affected:
+                return 2
+            if getattr(node.data, "metadata", {}) and node.data.metadata.get("is_direct"):
+                return 3
+            return 4
+
+        nodes.sort(key=node_priority)
+
         edges = []
         for u, v, edge_data in G.edges(data=True):
             edges.append(GraphEdge(

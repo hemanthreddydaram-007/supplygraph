@@ -42,3 +42,22 @@ class TestASTAnalyzer:
         analyzer = ASTAnalyzer()
         findings = analyzer.analyze("math.py", clean_python_code)
         assert len(findings) == 0
+
+    def test_javascript_eval_and_child_process(self):
+        analyzer = ASTAnalyzer()
+        js_code = """
+        const cp = require('child_process');
+        function runCmd(userCmd) {
+            eval(userCmd);
+            cp.exec(userCmd);
+        }
+        """
+        findings = analyzer.analyze("server.js", js_code)
+        assert any("eval" in f.description.lower() for f in findings)
+        assert any("child_process" in f.description.lower() for f in findings)
+
+    def test_hardcoded_secrets_detected(self):
+        analyzer = ASTAnalyzer()
+        code = 'const AWS_KEY = "AKIAIOSFODNN7EXAMPLE";'
+        findings = analyzer.analyze("config.ts", code)
+        assert any("credential" in f.description.lower() or "secret" in f.description.lower() for f in findings)

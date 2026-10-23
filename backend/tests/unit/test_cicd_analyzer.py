@@ -134,3 +134,18 @@ def test_detects_gitlab_ci_unpinned_image(analyzer):
     types = [f.evidence_type for f in findings]
     assert "CICD-UNPINNED-IMAGE" in types
 
+
+def test_pinned_sha_with_comment_not_flagged(analyzer):
+    """An action pinned to a 40-character commit SHA with a comment should not be flagged."""
+    content = """
+    name: CI
+    jobs:
+      build:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: third-party/action@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    """
+    findings = analyzer.analyze("ci.yml", content)
+    unpinned = [f for f in findings if f.evidence_type == "CICD-UNPINNED-ACTION"]
+    assert len(unpinned) == 0
+

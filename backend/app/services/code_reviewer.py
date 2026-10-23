@@ -116,6 +116,9 @@ ACTION_SHA_REGISTRY: Dict[str, Dict[str, str]] = {
 }
 
 
+USES_REGEX = re.compile(r'^(\s*(?:-\s*)?)uses:\s*([a-zA-Z0-9_.-]+/[a-zA-Z0-9_./-]+)@([^\s#]+)')
+
+
 def resolve_action_pin(action_name: str, tag: str) -> tuple[str, str]:
     """
     Resolves the exact 40-character commit SHA and comment for a GitHub Action.
@@ -676,52 +679,64 @@ class CodeReviewerService:
         for idx, line in enumerate(lines, start=1):
             stripped = line.strip()
 
-            # Unpinned GitHub Action (e.g. uses: actions/checkout@v2)
-            if "uses:" in line and "@" in line and not stripped.startswith("#"):
-                leading_indent = line[:len(line) - len(line.lstrip())]
-                action_part = stripped.split("uses:", 1)[1].strip()
-                if not re.search(r'@[0-9a-f]{40}$', action_part):
-                    parts = action_part.split("@", 1)
-                    action_name = parts[0].strip()
-                    version_tag = parts[1].strip() if len(parts) > 1 else "latest"
+            # Unpinned GitHub Action (e.g. uses: actions/checkout@v2 or - uses: actions/checkout@v2)
+            match = USES_REGEX.match(line)
+            if match and not stripped.startswith("#"):
+                prefix = match.group(1)
+                action_name = match.group(2)
+                raw_ref = match.group(3)
 
-                    sha, ver_comment = resolve_action_pin(action_name, version_tag)
+                # Strip trailing comments from ref before checking SHA
+                ref = raw_ref.split("#")[0].strip()
+                if re.fullmatch(r'[0-9a-fA-F]{40}', ref):
+                    continue
 
+                sha, ver_comment = resolve_action_pin(action_name, ref)
+
+                # Retain the exact prefix (including '- ') so YAML list syntax is never broken
+                if "-" in prefix:
+                    hyphen_idx = prefix.index("-")
+                    comment_indent = prefix[:hyphen_idx]
                     new_lines = [
-                        f"{leading_indent}# Pinned to full immutable commit SHA",
-                        f"{leading_indent}uses: {action_name}@{sha} {ver_comment}"
+                        f"{comment_indent}# Pinned to full immutable commit SHA",
+                        f"{prefix}uses: {action_name}@{sha} {ver_comment}".rstrip()
+                    ]
+                else:
+                    new_lines = [
+                        f"{prefix}# Pinned to full immutable commit SHA",
+                        f"{prefix}uses: {action_name}@{sha} {ver_comment}".rstrip()
                     ]
 
-                    corrected_code_str = "\n".join(new_lines)
-                    unified_diff_str = self._build_unified_diff(
-                        file_path=file_path,
-                        lines=lines,
-                        target_line=idx,
-                        deleted_line=line,
-                        added_lines=new_lines,
-                        context_count=2
-                    )
+                corrected_code_str = "\n".join(new_lines)
+                unified_diff_str = self._build_unified_diff(
+                    file_path=file_path,
+                    lines=lines,
+                    target_line=idx,
+                    deleted_line=line,
+                    added_lines=new_lines,
+                    context_count=2
+                )
 
-                    is_official = any(action_name.lower().startswith(p) for p in ("actions/", "github/"))
-                    reviews.append(
-                        CodeReviewItem(
-                            id=str(uuid.uuid4()),
-                            file_path=file_path,
-                            line_number=idx,
-                            severity="MEDIUM" if is_official else "HIGH",
-                            category="CI/CD Security Hardening",
-                            title=f"Unpinned CI/CD Action `{action_name}`",
-                            error_explanation=(
-                                f"Official GitHub Action `{action_name}` uses mutable tag `@{version_tag}`. "
-                                f"Pin to full immutable commit SHA to protect against tag mutation and comply with OpenSSF Scorecard."
-                                if is_official
-                                else f"Using a mutable branch or tag (`@{version_tag}`) allows upstream supply-chain compromises to modify workflow execution. Pin to a full immutable commit SHA."
-                            ),
-                            buggy_code=line,
-                            corrected_code=corrected_code_str,
-                            unified_diff=unified_diff_str
-                        )
+                is_official = any(action_name.lower().startswith(p) for p in ("actions/", "github/"))
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="MEDIUM" if is_official else "HIGH",
+                        category="CI/CD Security Hardening",
+                        title=f"Unpinned CI/CD Action `{action_name}`",
+                        error_explanation=(
+                            f"Official GitHub Action `{action_name}` uses mutable tag `@{ref}`. "
+                            f"Pin to full immutable commit SHA to protect against tag mutation and comply with OpenSSF Scorecard."
+                            if is_official
+                            else f"Using a mutable branch or tag (`@{ref}`) allows upstream supply-chain compromises to modify workflow execution. Pin to a full immutable commit SHA."
+                        ),
+                        buggy_code=line,
+                        corrected_code=corrected_code_str,
+                        unified_diff=unified_diff_str
                     )
+                )
 
             # Excessive permissions: write-all
             if "permissions: write-all" in stripped or "permissions: 'write-all'" in stripped or 'permissions: "write-all"' in stripped:

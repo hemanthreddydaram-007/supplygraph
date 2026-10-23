@@ -122,3 +122,30 @@ jobs:
         assert "11bd71901bbe5b1630ceea73d27597364c9af683" in checkout_item.corrected_code
         assert checkout_item.corrected_code != py_item.corrected_code
 
+    def test_yaml_step_hyphen_prefix_preserved(self):
+        code = """name: CI
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+"""
+        results = self.reviewer.review_snippet(code, language="yaml", file_path=".github/workflows/ci.yml")
+        assert len(results) == 1
+        item = results[0]
+        # Hyphen prefix must be preserved on uses: line
+        assert "      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2" in item.corrected_code
+        # Comment must be aligned with step
+        assert "      # Pinned to full immutable commit SHA" in item.corrected_code
+
+    def test_already_pinned_action_with_comment_skipped(self):
+        code = """name: CI
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+"""
+        results = self.reviewer.review_snippet(code, language="yaml", file_path=".github/workflows/ci.yml")
+        assert len(results) == 0
+

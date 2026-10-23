@@ -14,10 +14,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Patterns for detecting unpinned 3rd party actions (mutable refs)
-_UNPINNED_ACTION_PATTERN = re.compile(
-    r'uses:\s*([a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+)@(v[\d.]+|main|master|latest|develop|HEAD)',
+USES_REGEX = re.compile(
+    r'^(\s*(?:-\s*)?)uses:\s*([a-zA-Z0-9_.-]+/[a-zA-Z0-9_./-]+)@([^\s#]+)',
     re.IGNORECASE
 )
+_UNPINNED_ACTION_PATTERN = USES_REGEX
 
 # Trusted first-party action prefixes that are OK to use with tags
 _FIRST_PARTY_PREFIXES = (
@@ -92,10 +93,16 @@ class CICDAnalyzer:
         """Detect third-party GitHub Actions using mutable version tags instead of pinned SHAs."""
         results = []
         for line_num, line in enumerate(content.splitlines(), start=1):
-            match = _UNPINNED_ACTION_PATTERN.search(line)
+            match = USES_REGEX.search(line)
             if match:
-                action_ref = match.group(1)
-                version_ref = match.group(2)
+                action_ref = match.group(2)
+                raw_ref = match.group(3)
+                clean_ref = raw_ref.split("#")[0].strip()
+
+                # If already pinned to 40-character commit SHA, skip entirely
+                if re.fullmatch(r'[0-9a-fA-F]{40}', clean_ref):
+                    continue
+
                 # Skip first-party GitHub/actions owned actions
                 if any(action_ref.startswith(p) for p in _FIRST_PARTY_PREFIXES):
                     continue
@@ -105,7 +112,7 @@ class CICDAnalyzer:
                     evidence_type="CICD-UNPINNED-ACTION",
                     classification=EvidenceClassification.HEURISTIC,
                     description=(
-                        f"Unpinned third-party GitHub Action '{action_ref}@{version_ref}' in "
+                        f"Unpinned third-party GitHub Action '{action_ref}@{clean_ref}' in "
                         f"'{workflow_name}'. Mutable tags can be redirected to inject malicious code. "
                         f"Pin to a full 40-character commit SHA instead."
                     ),
@@ -115,7 +122,7 @@ class CICDAnalyzer:
                     timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                     raw_data={
                         "action": action_ref,
-                        "ref": version_ref,
+                        "ref": clean_ref,
                         "rule": "CICD-UNPINNED-ACTION",
                         "remediation": f"Pin to a commit SHA: {action_ref}@<40-char-sha>"
                     }

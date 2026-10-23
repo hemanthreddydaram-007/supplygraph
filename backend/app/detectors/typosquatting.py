@@ -14,6 +14,16 @@ class TyposquattingDetector:
     - Tiered Levenshtein thresholds: distance == 1 for len <= 7; distance <= 2 with ratio >= 0.85 for len > 7.
     """
 
+    # Verified Organization Scopes (Trusted Ecosystem Guard)
+    VERIFIED_ORGANIZATIONS: Set[str] = {
+        "@babel", "@prettier", "@angular", "@types", "@jest", "@supabase", "@vercel",
+        "@eslint", "@eslint-community", "@typescript-eslint", "@react", "@vue", "@next",
+        "@tailwindcss", "@radix-ui", "@tanstack", "@rollup", "@vitejs", "@testing-library",
+        "@storybook", "@emotion", "@styled-system", "@trpc", "@grpc", "@aws-sdk", "@azure",
+        "@google-cloud", "@prisma", "@octokit", "@sentry", "@open-telemetry", "@turborepo",
+        "@cypress", "@chakra-ui", "@mui", "@sinonjs", "@stencil", "@webcomponents"
+    }
+
     # Comprehensive whitelist of legitimate libraries across npm and PyPI that must never be flagged
     WHITELIST: Set[str] = {
         # NPM Core & Frameworks
@@ -32,6 +42,16 @@ class TyposquattingDetector:
         "clean-css", "terser", "source-map", "core-js", "regenerator-runtime", "mime", "mime-types",
         "path-to-regexp", "ms", "etag", "fresh", "parseurl", "statuses", "type-is", "bytes", "http-errors",
         "inherits", "safe-buffer", "readable-stream", "once", "wrappy", "inflight", "minimatch",
+
+        # Highly Downloaded Utility & CLI Whitelist (Eliminates false-positive typosquats)
+        "dargs", "import-local", "dot-prop", "cross-spawn", "kind-of", "find-up", "locate-path", "p-locate",
+        "p-limit", "p-try", "path-exists", "execa", "strip-ansi", "string-width", "wrap-ansi", "cliui",
+        "escalade", "get-caller-file", "require-directory", "y18n", "ansi-regex", "ansi-styles", "color-convert",
+        "color-name", "is-fullwidth-code-point", "has-flag", "supports-color", "picocolors", "source-map-js",
+        "fast-deep-equal", "json-schema-traverse", "ajv", "shebang-regex", "shebang-command", "which", "isexe",
+        "signal-exit", "human-signals", "onetime", "mimic-fn", "restore-cursor", "cli-cursor", "cli-spinners",
+        "log-update", "slice-ansi", "wcwidth", "is-stream", "npm-run-path", "path-key", "resolve",
+        "supports-preserve-symlinks-flag", "is-core-module", "path-parse", "yocto-queue", "memfs",
 
         # PyPI Core & Frameworks
         "requests", "urllib3", "httpx", "aiohttp", "flask", "django", "fastapi", "starlette", "uvicorn",
@@ -76,8 +96,15 @@ class TyposquattingDetector:
         if not purl.name:
             return None
 
+        raw_name = purl.name.lower().strip()
+
+        # Trusted Ecosystem Guard: automatically exempt any verified organization scope
+        if raw_name.startswith("@"):
+            scope = raw_name.split("/")[0]
+            if scope in self.VERIFIED_ORGANIZATIONS or any(scope.startswith(vo) for vo in self.VERIFIED_ORGANIZATIONS):
+                return None
+
         # Clean namespace prefix if any (e.g. @scope/pkg -> pkg)
-        raw_name = purl.name.lower()
         target_name = raw_name.split("/")[-1] if "/" in raw_name else raw_name
 
         # 1. Whitelist check: legitimate libraries are never flagged as typosquats

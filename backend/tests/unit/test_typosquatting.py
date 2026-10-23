@@ -41,3 +41,21 @@ class TestTyposquattingDetector:
         evidence = detector.detect(purl)
         assert evidence is not None
         assert "express" in evidence.description
+
+    def test_verified_organizations_exempt(self):
+        detector = TyposquattingDetector()
+        verified_pkgs = [
+            "@babel/core", "@prettier/plugin-php", "@types/react",
+            "@supabase/supabase-js", "@vercel/analytics", "@jest/core",
+            "@angular/core"
+        ]
+        for pkg in verified_pkgs:
+            purl = PURL(ecosystem=Ecosystem.NPM, name=pkg)
+            assert detector.detect(purl) is None
+
+    def test_known_public_whitelist_not_flagged(self):
+        detector = TyposquattingDetector()
+        # Established public packages that must never be falsely flagged
+        for pkg in ["dargs", "import-local", "dot-prop", "cross-spawn", "kind-of"]:
+            purl = PURL(ecosystem=Ecosystem.NPM, name=pkg)
+            assert detector.detect(purl) is None

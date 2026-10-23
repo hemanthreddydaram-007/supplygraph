@@ -27,7 +27,16 @@ PUBLIC_SCOPE_WHITELIST: Set[str] = {
     "@open-telemetry", "@turborepo", "@jest", "@cypress", "@chakra-ui",
     "@mui", "@sinonjs", "@stencil", "@webcomponents", "@polkadot",
     "@solana", "@web3-react", "@metamask", "@floating-ui", "@headlessui",
-    "@tabler", "@phosphor-icons", "@fontsource", "@ant-design", "@semantic-release"
+    "@tabler", "@phosphor-icons", "@fontsource", "@ant-design", "@semantic-release",
+    "@prettier", "@vercel"
+}
+
+# Known public open-source packages that must never be flagged as dependency confusion
+KNOWN_PUBLIC_PACKAGES: Set[str] = {
+    "dargs", "import-local", "dot-prop", "cross-spawn", "kind-of", "find-up", "locate-path",
+    "p-locate", "p-limit", "p-try", "path-exists", "execa", "strip-ansi", "string-width",
+    "wrap-ansi", "cliui", "escalade", "get-caller-file", "require-directory", "y18n",
+    "ansi-regex", "ansi-styles", "color-convert", "color-name", "picocolors"
 }
 
 # Explicit Private/Corporate Scopes
@@ -114,6 +123,9 @@ class DependencyConfusionDetector:
             return None
 
         # Check non-scoped packages (strict prefix or suffix)
+        if name.lower() in KNOWN_PUBLIC_PACKAGES:
+            return None
+
         is_internal_name = bool(_INTERNAL_PREFIX_PATTERN.match(name) or _INTERNAL_SUFFIX_PATTERN.search(name))
         if is_internal_name:
             if eco == "pypi":

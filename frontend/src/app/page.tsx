@@ -85,6 +85,20 @@ function getDetectorTagClass(tag: string): string {
   }
 }
 
+function compareSemVer(v1: string, v2: string): number {
+  const clean1 = (v1 || "").replace(/^[v^~>=<\s]+/, "");
+  const clean2 = (v2 || "").replace(/^[v^~>=<\s]+/, "");
+  const parts1 = clean1.split(".").map(p => parseInt(p, 10) || 0);
+  const parts2 = clean2.split(".").map(p => parseInt(p, 10) || 0);
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    const p1 = parts1[i] || 0;
+    const p2 = parts2[i] || 0;
+    if (p1 > p2) return 1;
+    if (p1 < p2) return -1;
+  }
+  return 0;
+}
+
 function buildLockfileSnippet(finding: any): string {
   const findingType: string = finding?.finding_type || "";
   const title: string = finding?.title || "";
@@ -190,10 +204,12 @@ function buildLockfileSnippet(finding: any): string {
   }
 
   if (!isPypi) {
+    const majorMatch = curVer?.match(/^v?(\d+)/);
+    const overrideKey = majorMatch ? `${pkgName}@^${majorMatch[1]}.0.0` : pkgName;
     const npmVer = (fixedVer.startsWith(">=") || fixedVer.startsWith("^"))
       ? fixedVer
       : `^${fixedVer}`;
-    return `// package.json override\n"overrides": {\n  "${pkgName}": "${npmVer}"\n}`;
+    return `// package.json override\n"overrides": {\n  "${overrideKey}": "${npmVer}"\n}`;
   } else {
     const pipVer = (fixedVer.startsWith(">=") || fixedVer.startsWith("=="))
       ? fixedVer
@@ -696,7 +712,26 @@ export default function Dashboard() {
       filename = "package.patched.json";
       const overrides: Record<string, string> = {};
       (data.findings || []).forEach(f => {
-        const pkg = f.origin_candidate?.split("@")?.[0] || f.entity_id;
+        const origin = f.origin_candidate || f.title || "";
+        let clean = origin.replace(/^pkg:(npm|pypi)\//, "");
+        try { clean = decodeURIComponent(clean); } catch (_) {}
+
+        let pkg = clean;
+        let installedVer = "";
+        if (clean.startsWith("@")) {
+          const atIdx = clean.indexOf("@", 1);
+          if (atIdx !== -1) {
+            pkg = clean.substring(0, atIdx);
+            installedVer = clean.substring(atIdx + 1);
+          }
+        } else {
+          const atIdx = clean.indexOf("@");
+          if (atIdx !== -1) {
+            pkg = clean.substring(0, atIdx);
+            installedVer = clean.substring(atIdx + 1);
+          }
+        }
+
         let fixedVer = f.recommendations?.[0]?.fixed_version;
         if (!fixedVer && f.evidence) {
           for (const ev of f.evidence) {
@@ -704,8 +739,21 @@ export default function Dashboard() {
             if (ev?.raw_data?.fixed) { fixedVer = ev.raw_data.fixed; break; }
           }
         }
+
         if (pkg && fixedVer && fixedVer !== "latest" && !fixedVer.includes("patched_version")) {
-          overrides[pkg] = (fixedVer.startsWith("^") || fixedVer.startsWith(">=")) ? fixedVer : `^${fixedVer}`;
+          const majorMatch = installedVer.match(/^v?(\d+)/);
+          const overrideKey = majorMatch ? `${pkg}@^${majorMatch[1]}.0.0` : pkg;
+          const cleanFix = fixedVer.replace(/^[v^~>=<\s]+/, "");
+          const targetVer = (fixedVer.startsWith("^") || fixedVer.startsWith(">=")) ? fixedVer : `^${cleanFix}`;
+
+          if (overrides[overrideKey]) {
+            const existing = overrides[overrideKey];
+            if (compareSemVer(cleanFix, existing) > 0) {
+              overrides[overrideKey] = targetVer;
+            }
+          } else {
+            overrides[overrideKey] = targetVer;
+          }
         }
       });
       const patchedPkg = {

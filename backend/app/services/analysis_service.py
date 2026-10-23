@@ -171,11 +171,11 @@ class AnalysisService:
                 if not unique_components_map[key].is_direct and comp.is_direct:
                     unique_components_map[key] = comp
 
-        # Sort direct dependencies first, cap at 500 unique packages
+        # Sort direct dependencies first across 100% of discovered components (no hardcoded truncation)
         deduped_components = sorted(
             unique_components_map.values(),
             key=lambda c: (not c.is_direct, getattr(c, "depth", 0))
-        )[:500]
+        )
 
         # Apply production_only filter — strip dev-only components if requested
         if getattr(request, 'production_only', False):
@@ -319,25 +319,32 @@ class AnalysisService:
         except Exception as e:
             logger.warning(f"Dependency confusion detection failed: {e}")
 
-        # --- STEP 7: Static AST Analysis (Python files across repo) ---
+        # --- STEP 7: Static AST Analysis (Application Code Files: Python, JS, TS, JSX, TSX) ---
         ast_count = 0
         if request.enable_ast_analysis:
             try:
-                py_files = [
+                # Exclude node_modules, dist, test, vendor, build, and internal caches
+                source_ignore = [
+                    'node_modules/', 'dist/', 'test/', 'tests/', 'vendor/',
+                    '.git/', '.next/', 'venv/', '__pycache__/', 'build/'
+                ]
+                app_source_files = [
                     f for f in all_repo_files
-                    if f.endswith('.py') and not any(ign in f for ign in ['tests/', 'test/', 'venv/', 'node_modules/'])
-                ][:15]
+                    if any(f.lower().endswith(ext) for ext in ('.py', '.js', '.ts', '.jsx', '.tsx'))
+                    and not any(ign in f.lower() for ign in source_ignore)
+                ][:40]
+
                 ast_evidence_all: List[EvidenceItem] = []
-                py_map = await self._fetch_files_concurrently(
-                    request.github_url, py_files, request.branch, max_concurrency=8, timeout=4.0
+                source_map = await self._fetch_files_concurrently(
+                    request.github_url, app_source_files, request.branch, max_concurrency=12, timeout=4.0
                 )
-                for py_file, content in py_map.items():
-                    if content and len(content) < 50_000:
+                for src_file, content in source_map.items():
+                    if content and len(content) < 80_000:
                         try:
-                            ev_items = self.ast_analyzer.analyze(py_file, content)
+                            ev_items = self.ast_analyzer.analyze(src_file, content)
                             ast_evidence_all.extend(ev_items)
                         except Exception as fe:
-                            logger.debug(f"AST analyze failed for {py_file}: {fe}")
+                            logger.debug(f"AST analyze failed for {src_file}: {fe}")
 
                 if ast_evidence_all:
                     ast_count = len(ast_evidence_all)
@@ -347,21 +354,21 @@ class AnalysisService:
                         entity_type="Repository",
                         finding_type=FindingType.SUSPICIOUS,
                         severity=Severity.HIGH,
-                        title=f"Suspicious Code Patterns Detected ({ast_count} signals)",
+                        title=f"Static AST Code Security Findings ({ast_count} signals)",
                         description=(
-                            f"Static AST analysis found {ast_count} suspicious code pattern(s) "
+                            f"Static AST analysis identified {ast_count} code finding(s) across application sources "
                             f"including: {', '.join(set(e.evidence_type for e in ast_evidence_all[:5]))}"
                         ),
                         confidence=compute_confidence([
                             ConfidenceFactor(
                                 evidence_type="AST",
                                 source="ast",
-                                raw_weight=0.75,
-                                reliability=0.85
+                                raw_weight=0.80,
+                                reliability=0.90
                             )
                         ]),
                         impact=compute_blast_radius(package_count=0, service_count=1, api_count=1, production_deployment_count=0),
-                        evidence=ast_evidence_all[:20],
+                        evidence=ast_evidence_all[:30],
                         recommendations=[]
                     )
                     findings.append(ast_finding)
@@ -698,7 +705,7 @@ class AnalysisService:
         deduped_components = sorted(
             unique_components_map.values(),
             key=lambda c: (not c.is_direct, getattr(c, "depth", 0))
-        )[:500]
+        )
 
         # Apply production_only filter — strip dev-only components if requested
         if getattr(request, 'production_only', False):
