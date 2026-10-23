@@ -16,9 +16,10 @@ def test_resolve_higher_major_when_no_same_major():
 
 def test_resolve_never_downgrades():
     # Installed 2.5.0, but OSV candidate fix is backport for older 1.x branch: 1.8.2
-    # Should NOT downgrade to 1.8.2; should recommend next major >=3.0.0
+    # Should NOT downgrade to 1.8.2 and should NOT fabricate non-existent major versions (e.g. >=3.0.0);
+    # return None so containment engine knows no upstream fix exists.
     fixed = resolve_best_fixed_version("2.5.0", ["1.8.2"])
-    assert fixed == ">=3.0.0"
+    assert fixed is None
 
 def test_resolve_empty_or_none():
     assert resolve_best_fixed_version("1.0.0", []) is None

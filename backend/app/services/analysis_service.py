@@ -239,13 +239,6 @@ class AnalysisService:
 
                 fixed_ver = resolve_best_fixed_version(installed_ver, candidate_fixes)
 
-                # Fallback fixed version derivation if none provided
-                if not fixed_ver and installed_ver:
-                    import re
-                    match = re.match(r"^(\d+)", installed_ver)
-                    if match:
-                        fixed_ver = f">={int(match.group(1)) + 1}.0.0"
-
                 finding_id = str(uuid.uuid4())
                 finding = FindingModel(
                     id=finding_id,
@@ -254,7 +247,7 @@ class AnalysisService:
                     entity_type="Version",
                     title=f"{vuln.osv_id}: {purl_str}" if vuln.osv_id else f"Vulnerability in {purl_str}",
                     description=vuln.summary or vuln.details or "Known vulnerability identified by OSV.dev",
-                    severity=vuln.severity if (vuln.severity and vuln.severity != Severity.UNKNOWN) else Severity.HIGH,
+                    severity=vuln.severity if (vuln.severity and vuln.severity != Severity.UNKNOWN) else Severity.MEDIUM,
                     finding_type=FindingType.VULNERABLE,
                     origin_candidate=purl_str,
                     affected_assets=[],
@@ -765,10 +758,6 @@ class AnalysisService:
                             candidate_fixes.append(val)
 
                 fixed_ver = resolve_best_fixed_version(installed_ver, candidate_fixes)
-                if not fixed_ver and installed_ver:
-                    m = re.match(r"^(\d+)", installed_ver)
-                    if m:
-                        fixed_ver = f">={int(m.group(1)) + 1}.0.0"
 
                 finding_id = str(uuid.uuid4())
                 finding = FindingModel(
@@ -778,7 +767,7 @@ class AnalysisService:
                     entity_type="Version",
                     title=f"{vuln.osv_id}: {purl_str}" if vuln.osv_id else f"Vulnerability in {purl_str}",
                     description=vuln.summary or vuln.details or "Known vulnerability identified by OSV.dev",
-                    severity=vuln.severity if (vuln.severity and vuln.severity != Severity.UNKNOWN) else Severity.HIGH,
+                    severity=vuln.severity if (vuln.severity and vuln.severity != Severity.UNKNOWN) else Severity.MEDIUM,
                     finding_type=FindingType.VULNERABLE,
                     origin_candidate=purl_str,
                     affected_assets=[],

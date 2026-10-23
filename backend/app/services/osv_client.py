@@ -76,11 +76,49 @@ def resolve_best_fixed_version(installed_version: Optional[str], candidate_fixes
         return higher_major_upgrades[0][1]
 
     # 3. If all fixes are strictly lower than installed (backports to older branches),
-    # do NOT downgrade! Suggest next major
-    if inst_major is not None:
-        return f">={inst_major + 1}.0.0"
+    # do NOT downgrade and do NOT fabricate non-existent versions! Return None so caller knows no fix exists.
+    return None
 
-    return clean_candidates[-1]
+
+def compute_cvss3_score(vector_str: str) -> Optional[float]:
+    """Calculate CVSS v3.x base score from vector string."""
+    try:
+        clean = vector_str.replace("CVSS:3.1/", "").replace("CVSS:3.0/", "")
+        parts = dict(p.split(":") for p in clean.split("/") if ":" in p)
+        av_map = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2}
+        ac_map = {"L": 0.77, "H": 0.44}
+        pr_map_u = {"N": 0.85, "L": 0.62, "H": 0.27}
+        pr_map_c = {"N": 0.85, "L": 0.68, "H": 0.50}
+        ui_map = {"N": 0.85, "R": 0.62}
+        c_map = {"H": 0.56, "L": 0.22, "N": 0.0}
+
+        scope = parts.get("S", "U")
+        av = av_map.get(parts.get("AV", "N"), 0.85)
+        ac = ac_map.get(parts.get("AC", "L"), 0.77)
+        pr = (pr_map_c if scope == "C" else pr_map_u).get(parts.get("PR", "N"), 0.85)
+        ui = ui_map.get(parts.get("UI", "N"), 0.85)
+
+        c = c_map.get(parts.get("C", "N"), 0.0)
+        i = c_map.get(parts.get("I", "N"), 0.0)
+        a = c_map.get(parts.get("A", "N"), 0.0)
+
+        iss = 1.0 - ((1.0 - c) * (1.0 - i) * (1.0 - a))
+        if scope == "U":
+            impact = 6.42 * iss
+        else:
+            impact = 7.52 * (iss - 0.029) - 3.25 * ((iss - 0.02) ** 15)
+
+        exploitability = 8.22 * av * ac * pr * ui
+        if impact <= 0:
+            return 0.0
+        import math
+        if scope == "U":
+            base = min(impact + exploitability, 10.0)
+        else:
+            base = min(1.08 * (impact + exploitability), 10.0)
+        return round(math.ceil(base * 10) / 10, 1)
+    except Exception:
+        return None
 
 
 class OSVClient:
@@ -181,16 +219,82 @@ class OSVClient:
         except Exception:
             return None
             
-    def _parse_vuln(self, data: Dict[str, Any]) -> VulnerabilityModel:
-        cvss_score = None
-        cvss_vector = None
-        severity_enum = Severity.UNKNOWN
-        
-        severities = data.get("severity", [])
+    def _extract_severity(self, data: Dict[str, Any]) -> tuple[Severity, Optional[float], Optional[str]]:
+        """
+        Determines exact severity enum, cvss_score, and cvss_vector from OSV data.
+        Maps MODERATE -> MEDIUM (GitHub Advisory standard).
+        Computes CVSS score from CVSS:3 vector if available.
+        """
+        cvss_score: Optional[float] = None
+        cvss_vector: Optional[str] = None
+
+        # 1. Check raw severity string in database_specific or ecosystem_specific
+        raw_sev = None
+        db_spec = data.get("database_specific")
+        if isinstance(db_spec, dict) and db_spec.get("severity"):
+            raw_sev = str(db_spec["severity"]).upper().strip()
+        if not raw_sev:
+            eco_spec = data.get("ecosystem_specific")
+            if isinstance(eco_spec, dict) and eco_spec.get("severity"):
+                raw_sev = str(eco_spec["severity"]).upper().strip()
+
+        # 2. Check CVSS vectors / scores in data.get("severity", [])
+        severities = data.get("severity", []) or []
         for sev in severities:
-            if sev.get("type") == "CVSS_V3":
-                cvss_vector = sev.get("score")
-                
+            score_val = sev.get("score")
+            if not score_val:
+                continue
+            if sev.get("type") in ("CVSS_V3", "CVSS_V3.0", "CVSS_V3.1") or "CVSS:3" in str(score_val):
+                cvss_vector = str(score_val)
+                cvss_score = compute_cvss3_score(cvss_vector)
+                break
+            elif sev.get("type") in ("CVSS_V4", "CVSS_V2"):
+                cvss_vector = str(score_val)
+
+        # 3. Resolve severity enum
+        if raw_sev:
+            if raw_sev in ("MODERATE", "MEDIUM"):
+                return Severity.MEDIUM, cvss_score, cvss_vector
+            elif raw_sev == "CRITICAL":
+                return Severity.CRITICAL, cvss_score, cvss_vector
+            elif raw_sev == "HIGH":
+                return Severity.HIGH, cvss_score, cvss_vector
+            elif raw_sev == "LOW":
+                return Severity.LOW, cvss_score, cvss_vector
+            elif raw_sev == "NONE":
+                return Severity.NONE, cvss_score, cvss_vector
+
+        # Fallback to CVSS score mapping
+        if cvss_score is not None:
+            if cvss_score >= 9.0:
+                return Severity.CRITICAL, cvss_score, cvss_vector
+            elif cvss_score >= 7.0:
+                return Severity.HIGH, cvss_score, cvss_vector
+            elif cvss_score >= 4.0:
+                return Severity.MEDIUM, cvss_score, cvss_vector
+            elif cvss_score > 0.0:
+                return Severity.LOW, cvss_score, cvss_vector
+
+        return Severity.MEDIUM, cvss_score, cvss_vector
+
+    def _parse_vuln(self, data: Dict[str, Any]) -> VulnerabilityModel:
+        severity_enum, cvss_score, cvss_vector = self._extract_severity(data)
+
+        # Summary resolution with details fallback
+        summary = data.get("summary")
+        if not summary or str(summary).strip() in ("", "No summary provided", "None"):
+            details = data.get("details") or ""
+            if details:
+                first_sent = details.strip().split("\n")[0].split(". ")[0].strip()
+                if first_sent:
+                    summary = first_sent + ("." if not first_sent.endswith(".") else "")
+                else:
+                    summary = details[:120].strip() + "..."
+            else:
+                summary = f"Security vulnerability advisory {data.get('id', '')}"
+        else:
+            summary = str(summary).strip()
+
         published_str = data.get("published")
         modified_str = data.get("modified")
         
@@ -242,7 +346,7 @@ class OSVClient:
         return VulnerabilityModel(
             osv_id=data.get("id", ""),
             aliases=aliases,
-            summary=data.get("summary", "No summary provided"),
+            summary=summary,
             details=data.get("details"),
             severity=severity_enum,
             cvss_score=cvss_score,

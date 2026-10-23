@@ -17,29 +17,30 @@ class ContainmentEngine:
                         resolved_fixed = ev.raw_data.get("fixed_version")
                         break
             
-            if not resolved_fixed:
-                origin = finding.origin_candidate or ""
-                if "@" in origin:
-                    cur_ver = origin.split("@")[-1]
-                    import re
-                    match = re.match(r"^(\d+)", cur_ver)
-                    if match:
-                        next_major = int(match.group(1)) + 1
-                        resolved_fixed = f">={next_major}.0.0"
-            
-            resolved_fixed = resolved_fixed or "latest"
-            
-            recommendations.append(
-                ContainmentRecommendation(
-                    action_type=ContainmentActionType.PIN_VERSION,
-                    title="Pin or Upgrade Dependency",
-                    description=f"Upgrade or pin {finding.origin_candidate or 'package'} to safe version {resolved_fixed}.",
-                    why="To mitigate known vulnerabilities by upgrading to a patched release.",
-                    expected_effect="Eliminates the vulnerability and closes known attack paths.",
-                    priority="high",
-                    fixed_version=resolved_fixed
+            if resolved_fixed:
+                recommendations.append(
+                    ContainmentRecommendation(
+                        action_type=ContainmentActionType.PIN_VERSION,
+                        title="Pin or Upgrade Dependency",
+                        description=f"Upgrade or pin {finding.origin_candidate or 'package'} to safe version {resolved_fixed}.",
+                        why="To mitigate known vulnerabilities by upgrading to a patched release.",
+                        expected_effect="Eliminates the vulnerability and closes known attack paths.",
+                        priority="high",
+                        fixed_version=resolved_fixed
+                    )
                 )
-            )
+            else:
+                recommendations.append(
+                    ContainmentRecommendation(
+                        action_type=ContainmentActionType.AUDIT_WORKFLOW,
+                        title="No Upstream Fix Available (Vendor Mitigation Required)",
+                        description=f"No patched release exists in upstream registries for {finding.origin_candidate or 'this package'} (disputed or unpatched advisory). Monitor vendor disclosures or evaluate alternative libraries.",
+                        why="Upstream maintainers have not released a patched version in package registries.",
+                        expected_effect="Prevents pipeline failure caused by pinning non-existent releases.",
+                        priority="medium",
+                        fixed_version=None
+                    )
+                )
             
         # 2. Typosquatting -> Remove package immediately
         elif finding.finding_type == FindingType.TYPOSQUATTING:

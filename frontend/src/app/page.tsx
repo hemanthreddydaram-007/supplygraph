@@ -180,25 +180,24 @@ function buildLockfileSnippet(finding: any): string {
       }
     }
   }
-  if (!fixedVer && curVer) {
-    const match = curVer.match(/^(\d+)/);
-    if (match) {
-      fixedVer = `>=${parseInt(match[1], 10) + 1}.0.0`;
+
+  if (!fixedVer || fixedVer === "latest" || fixedVer.includes("patched_version")) {
+    if (!isPypi) {
+      return `// package.json mitigation for ${pkgName}\n// No upstream fixed release available yet (Disputed / Unpatched advisory)\n// Monitor vendor disclosures or evaluate alternative packages`;
+    } else {
+      return `# requirements.txt mitigation for ${pkgName}\n# No upstream fixed release available yet (Disputed / Unpatched advisory)\n# Audit vendor disclosures or consider alternative library`;
     }
-  }
-  if (!fixedVer || fixedVer.includes("patched_version")) {
-    fixedVer = "latest";
   }
 
   if (!isPypi) {
-    const npmVer = (fixedVer === "latest" || fixedVer.startsWith(">=") || fixedVer.startsWith("^"))
+    const npmVer = (fixedVer.startsWith(">=") || fixedVer.startsWith("^"))
       ? fixedVer
       : `^${fixedVer}`;
     return `// package.json override\n"overrides": {\n  "${pkgName}": "${npmVer}"\n}`;
   } else {
-    const pipVer = fixedVer === "latest"
-      ? ""
-      : (fixedVer.startsWith(">=") || fixedVer.startsWith("==") ? fixedVer : `>=${fixedVer}`);
+    const pipVer = (fixedVer.startsWith(">=") || fixedVer.startsWith("=="))
+      ? fixedVer
+      : `>=${fixedVer}`;
     return `# requirements.txt pin\n${pkgName}${pipVer}  # pinned by SupplyGraph`;
   }
 }
@@ -680,8 +679,9 @@ export default function Dashboard() {
             if (ev?.raw_data?.fixed) { fixedVer = ev.raw_data.fixed; break; }
           }
         }
-        if (pkg && fixedVer) {
-          patchedDeps.set(pkg, `>=${fixedVer}`);
+        if (pkg && fixedVer && fixedVer !== "latest" && !fixedVer.includes("patched_version")) {
+          const cleanPin = (fixedVer.startsWith(">=") || fixedVer.startsWith("==")) ? fixedVer : `>=${fixedVer}`;
+          patchedDeps.set(pkg, cleanPin);
         }
       });
       (data.components || []).forEach(c => {
@@ -697,9 +697,15 @@ export default function Dashboard() {
       const overrides: Record<string, string> = {};
       (data.findings || []).forEach(f => {
         const pkg = f.origin_candidate?.split("@")?.[0] || f.entity_id;
-        let fixedVer = f.recommendations?.[0]?.fixed_version || "latest";
-        if (pkg) {
-          overrides[pkg] = fixedVer.startsWith("^") || fixedVer.startsWith(">=") ? fixedVer : `^${fixedVer}`;
+        let fixedVer = f.recommendations?.[0]?.fixed_version;
+        if (!fixedVer && f.evidence) {
+          for (const ev of f.evidence) {
+            if (ev?.raw_data?.fixed_version) { fixedVer = ev.raw_data.fixed_version; break; }
+            if (ev?.raw_data?.fixed) { fixedVer = ev.raw_data.fixed; break; }
+          }
+        }
+        if (pkg && fixedVer && fixedVer !== "latest" && !fixedVer.includes("patched_version")) {
+          overrides[pkg] = (fixedVer.startsWith("^") || fixedVer.startsWith(">=")) ? fixedVer : `^${fixedVer}`;
         }
       });
       const patchedPkg = {
