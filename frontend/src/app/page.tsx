@@ -8,6 +8,7 @@ import { LoginPage } from "@/components/auth/LoginPage";
 import { OverviewDashboard } from "@/components/dashboard/OverviewDashboard";
 import { CodeReviewerPanel } from "@/components/reviewer/CodeReviewerPanel";
 import { SandboxPanel } from "@/components/sandbox/SandboxPanel";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import {
   ShieldAlert,
   Loader2,
@@ -85,9 +86,11 @@ function getDetectorTagClass(tag: string): string {
   }
 }
 
-function compareSemVer(v1: string, v2: string): number {
-  const clean1 = (v1 || "").replace(/^[v^~>=<\s]+/, "");
-  const clean2 = (v2 || "").replace(/^[v^~>=<\s]+/, "");
+function compareSemVer(v1: any, v2: any): number {
+  const str1 = typeof v1 === "string" ? v1 : String(v1 || "");
+  const str2 = typeof v2 === "string" ? v2 : String(v2 || "");
+  const clean1 = str1.replace(/^[v^~>=<\s]+/, "");
+  const clean2 = str2.replace(/^[v^~>=<\s]+/, "");
   const parts1 = clean1.split(".").map(p => parseInt(p, 10) || 0);
   const parts2 = clean2.split(".").map(p => parseInt(p, 10) || 0);
   for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
@@ -195,7 +198,8 @@ function buildLockfileSnippet(finding: any): string {
     }
   }
 
-  if (!fixedVer || fixedVer === "latest" || fixedVer.includes("patched_version")) {
+  const fixedStr = typeof fixedVer === "string" ? fixedVer : String(fixedVer || "");
+  if (!fixedStr || fixedStr === "latest" || fixedStr.includes("patched_version")) {
     if (!isPypi) {
       return `// package.json mitigation for ${pkgName}\n// No upstream fixed release available yet (Disputed / Unpatched advisory)\n// Monitor vendor disclosures or evaluate alternative packages`;
     } else {
@@ -206,14 +210,14 @@ function buildLockfileSnippet(finding: any): string {
   if (!isPypi) {
     const majorMatch = curVer?.match(/^v?(\d+)/);
     const overrideKey = majorMatch ? `${pkgName}@^${majorMatch[1]}.0.0` : pkgName;
-    const npmVer = (fixedVer.startsWith(">=") || fixedVer.startsWith("^"))
-      ? fixedVer
-      : `^${fixedVer}`;
+    const npmVer = (fixedStr.startsWith(">=") || fixedStr.startsWith("^"))
+      ? fixedStr
+      : `^${fixedStr}`;
     return `// package.json override\n"overrides": {\n  "${overrideKey}": "${npmVer}"\n}`;
   } else {
-    const pipVer = (fixedVer.startsWith(">=") || fixedVer.startsWith("=="))
-      ? fixedVer
-      : `>=${fixedVer}`;
+    const pipVer = (fixedStr.startsWith(">=") || fixedStr.startsWith("=="))
+      ? fixedStr
+      : `>=${fixedStr}`;
     return `# requirements.txt pin\n${pkgName}${pipVer}  # pinned by SupplyGraph`;
   }
 }
@@ -300,9 +304,27 @@ export default function Dashboard() {
     try {
       const savedHistory = localStorage.getItem("supplygraph_scan_history");
       if (savedHistory) {
-        setScanHistory(JSON.parse(savedHistory));
+        const parsed = JSON.parse(savedHistory);
+        if (Array.isArray(parsed)) {
+          const sanitized: ScanHistoryRecord[] = parsed
+            .filter((item): item is ScanHistoryRecord => Boolean(item && typeof item === "object"))
+            .map((item) => ({
+              id: String(item.id || `scan-${Date.now()}`),
+              timestamp: String(item.timestamp || "Recently"),
+              target: String(item.target || "Project"),
+              total_components: Number(item.total_components) || 0,
+              total_findings: Number(item.total_findings) || 0,
+              blast_radius_score: Number(item.blast_radius_score) || 0,
+              data: item.data || undefined,
+            }));
+          setScanHistory(sanitized);
+        } else {
+          localStorage.removeItem("supplygraph_scan_history");
+        }
       }
-    } catch (_) {}
+    } catch (_) {
+      try { localStorage.removeItem("supplygraph_scan_history"); } catch (_) {}
+    }
   }, []);
 
   // Record scan in history when data updates (keep top 10)
@@ -318,17 +340,20 @@ export default function Dashboard() {
         id: scanId,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
         target,
-        total_components: data.scan.total_components || data.components?.length || 0,
-        total_findings: data.scan.total_findings || data.findings?.length || 0,
-        blast_radius_score: data.scan.blast_radius_score || 0,
+        total_components: Number(data.scan.total_components) || Number(data.components?.length) || 0,
+        total_findings: Number(data.scan.total_findings) || Number(data.findings?.length) || 0,
+        blast_radius_score: Number(data.scan.blast_radius_score) || 0,
         data,
       };
 
       setScanHistory((prev) => {
-        if (prev.length > 0 && prev[0].id === scanId) return prev;
-        const filtered = prev.filter((item) => item.id !== scanId);
+        const currentList = Array.isArray(prev) ? prev : [];
+        if (currentList.length > 0 && currentList[0]?.id === scanId) return currentList;
+        const filtered = currentList.filter((item) => item?.id !== scanId);
         const updated = [record, ...filtered].slice(0, 10);
-        localStorage.setItem("supplygraph_scan_history", JSON.stringify(updated));
+        try {
+          localStorage.setItem("supplygraph_scan_history", JSON.stringify(updated));
+        } catch (_) {}
         return updated;
       });
     } catch (_) {}
@@ -339,23 +364,32 @@ export default function Dashboard() {
     if (!data) return;
     setComparingLoading(true);
     try {
-      const res = await compareScans(record.data, data);
-      setComparisonResult(res);
+      if (record?.data) {
+        const res = await compareScans(record.data, data);
+        setComparisonResult(res);
+      } else {
+        throw new Error("Missing snapshot data");
+      }
     } catch (e) {
       console.warn("Backend comparison fallback:", e);
       const currentComps = new Set((data.components || []).map((c: any) => c.name));
-      const oldComps = new Set((record.data.components || []).map((c: any) => c.name));
+      const oldComps = new Set((record?.data?.components || []).map((c: any) => c.name));
       const added = (data.components || [])
         .filter((c: any) => !oldComps.has(c.name))
         .map((c: any) => ({ change_type: "added", package_name: c.name, ecosystem: c.ecosystem, version_after: c.version }));
-      const removed = (record.data.components || [])
+      const removed = (record?.data?.components || [])
         .filter((c: any) => !currentComps.has(c.name))
         .map((c: any) => ({ change_type: "removed", package_name: c.name, ecosystem: c.ecosystem, version_before: c.version }));
+      
+      const curBlast = Number(data.scan?.blast_radius_score) || 0;
+      const oldBlast = Number(record?.blast_radius_score ?? record?.data?.scan?.blast_radius_score) || 0;
+      const blastShift = curBlast - oldBlast;
+
       setComparisonResult({
-        blast_radius_delta: (data.scan?.blast_radius_score || 0) - (record.data.scan?.blast_radius_score || 0),
+        blast_radius_delta: blastShift,
         dependency_changes: [...added, ...removed],
         finding_changes: [],
-        summary: `Delta comparison between ${record.target} and current active scan.`,
+        summary: `Delta comparison between ${record.target} and current active scan. Blast shift: ${blastShift >= 0 ? "+" : ""}${blastShift.toFixed(1)}.`,
       });
     } finally {
       setComparingLoading(false);
@@ -363,14 +397,18 @@ export default function Dashboard() {
   }, [data]);
 
   const handleLoadHistoryScan = useCallback((record: ScanHistoryRecord) => {
-    setData(record.data);
+    if (record?.data) {
+      setData(record.data);
+    }
     setSelectedHistoryScan(null);
     setComparisonResult(null);
     setShowHistoryModal(false);
   }, []);
 
   const handleClearHistory = useCallback(() => {
-    localStorage.removeItem("supplygraph_scan_history");
+    try {
+      localStorage.removeItem("supplygraph_scan_history");
+    } catch (_) {}
     setScanHistory([]);
     setSelectedHistoryScan(null);
     setComparisonResult(null);
@@ -378,33 +416,45 @@ export default function Dashboard() {
 
   // Restore or set default user session
   useEffect(() => {
-    const saved = localStorage.getItem("supplygraph_user");
-    if (saved) {
-      try {
-        setCurrentUser(JSON.parse(saved));
-        setCurrentView("overview");
-      } catch (_) {}
-    } else {
-      // Default to judge fast pass active session
-      const defaultUser: AuthUser = {
-        name: "YUKTHI 2026 Judge",
-        email: "evaluator@yukthi2026.mbu.ac.in",
-        role: "Evaluator Mode",
-      };
-      setCurrentUser(defaultUser);
-      localStorage.setItem("supplygraph_user", JSON.stringify(defaultUser));
-      setCurrentView("overview");
+    try {
+      const saved = localStorage.getItem("supplygraph_user");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object" && parsed.email) {
+          setCurrentUser(parsed);
+          setCurrentView("overview");
+          return;
+        }
+      }
+    } catch (_) {
+      try { localStorage.removeItem("supplygraph_user"); } catch (_) {}
     }
+
+    // Default to judge fast pass active session
+    const defaultUser: AuthUser = {
+      name: "YUKTHI 2026 Judge",
+      email: "evaluator@yukthi2026.mbu.ac.in",
+      role: "Evaluator Mode",
+    };
+    setCurrentUser(defaultUser);
+    try {
+      localStorage.setItem("supplygraph_user", JSON.stringify(defaultUser));
+    } catch (_) {}
+    setCurrentView("overview");
   }, []);
 
   const handleLogin = (user: AuthUser) => {
     setCurrentUser(user);
-    localStorage.setItem("supplygraph_user", JSON.stringify(user));
+    try {
+      localStorage.setItem("supplygraph_user", JSON.stringify(user));
+    } catch (_) {}
     setCurrentView("overview");
   };
 
   const handleSignOut = () => {
-    localStorage.removeItem("supplygraph_user");
+    try {
+      localStorage.removeItem("supplygraph_user");
+    } catch (_) {}
     setCurrentUser(null);
     setCurrentView("login");
   };
@@ -740,11 +790,12 @@ export default function Dashboard() {
           }
         }
 
-        if (pkg && fixedVer && fixedVer !== "latest" && !fixedVer.includes("patched_version")) {
+        const fixStr = typeof fixedVer === "string" ? fixedVer : String(fixedVer || "");
+        if (pkg && fixStr && fixStr !== "latest" && !fixStr.includes("patched_version")) {
           const majorMatch = installedVer.match(/^v?(\d+)/);
           const overrideKey = majorMatch ? `${pkg}@^${majorMatch[1]}.0.0` : pkg;
-          const cleanFix = fixedVer.replace(/^[v^~>=<\s]+/, "");
-          const targetVer = (fixedVer.startsWith("^") || fixedVer.startsWith(">=")) ? fixedVer : `^${cleanFix}`;
+          const cleanFix = fixStr.replace(/^[v^~>=<\s]+/, "");
+          const targetVer = (fixStr.startsWith("^") || fixStr.startsWith(">=")) ? fixStr : `^${cleanFix}`;
 
           if (overrides[overrideKey]) {
             const existing = overrides[overrideKey];
@@ -895,7 +946,8 @@ export default function Dashboard() {
   const attestation = data?.detector_breakdown?.polygon_attestation;
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#070b13] text-zinc-100 overflow-hidden font-sans select-none">
+    <ErrorBoundary fallbackTitle="SupplyGraph Session Recovered">
+      <div className="flex flex-col h-screen w-screen bg-[#070b13] text-zinc-100 overflow-hidden font-sans select-none">
       {/* TOP NAVIGATION BAR */}
       <header className="h-14 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl flex items-center justify-between px-6 sticky top-0 z-40 shrink-0">
         <div className="flex items-center space-x-6">
@@ -1261,14 +1313,14 @@ export default function Dashboard() {
                           <span
                             className={cn(
                               "font-semibold",
-                              (data?.scan?.blast_radius_score || 0) > 70
+                              (Number(data?.scan?.blast_radius_score) || 0) > 70
                                 ? "text-red-400"
-                                : (data?.scan?.blast_radius_score || 0) > 0
+                                : (Number(data?.scan?.blast_radius_score) || 0) > 0
                                 ? "text-amber-400"
                                 : "text-emerald-400"
                             )}
                           >
-                            {data?.scan?.blast_radius_score?.toFixed(1) || 0}/100
+                            {(Number(data?.scan?.blast_radius_score) || 0).toFixed(1)}/100
                           </span>
 
                           {/* Mathematical Formula Tooltip */}
@@ -1608,7 +1660,7 @@ export default function Dashboard() {
                             • Total Attack Paths: <span className="text-zinc-200">{data?.scan?.total_attack_paths || 0}</span>
                           </div>
                           <div className="text-zinc-400 text-[11px]">
-                            • Blast Radius Score: <span className="text-red-400 font-bold">{data?.scan?.blast_radius_score?.toFixed(1) || 0}/100</span>
+                            • Blast Radius Score: <span className="text-red-400 font-bold">{(Number(data?.scan?.blast_radius_score) || 0).toFixed(1)}/100</span>
                           </div>
                           <div className="text-zinc-400 text-[11px]">
                             • Transitive Vulnerabilities: <span className="text-amber-400 font-bold">{data?.vulnerabilities?.length || 0}</span>
@@ -1797,7 +1849,7 @@ export default function Dashboard() {
             <div className="flex items-center space-x-4 text-right">
               <div>
                 <span className="text-[10px] text-zinc-500 block">Blast Radius</span>
-                <span className="text-amber-400 font-bold">{data?.scan?.blast_radius_score?.toFixed(1) || 0}/100</span>
+                <span className="text-amber-400 font-bold">{(Number(data?.scan?.blast_radius_score) || 0).toFixed(1)}/100</span>
               </div>
               <div>
                 <span className="text-[10px] text-zinc-500 block">Components</span>
@@ -1839,16 +1891,16 @@ export default function Dashboard() {
 
               {/* Delta Telemetry Comparison Cards */}
               {(() => {
-                const currentBlast = data?.scan?.blast_radius_score || 0;
-                const oldBlast = selectedHistoryScan.blast_radius_score;
+                const currentBlast = Number(data?.scan?.blast_radius_score) || 0;
+                const oldBlast = Number(selectedHistoryScan?.blast_radius_score) || 0;
                 const blastDelta = currentBlast - oldBlast;
 
-                const currentComps = data?.scan?.total_components || data?.components?.length || 0;
-                const oldComps = selectedHistoryScan.total_components;
+                const currentComps = Number(data?.scan?.total_components) || Number(data?.components?.length) || 0;
+                const oldComps = Number(selectedHistoryScan?.total_components) || 0;
                 const compDelta = currentComps - oldComps;
 
-                const currentFinds = data?.scan?.total_findings || data?.findings?.length || 0;
-                const oldFinds = selectedHistoryScan.total_findings;
+                const currentFinds = Number(data?.scan?.total_findings) || Number(data?.findings?.length) || 0;
+                const oldFinds = Number(selectedHistoryScan?.total_findings) || 0;
                 const findsDelta = currentFinds - oldFinds;
 
                 return (
@@ -1868,7 +1920,7 @@ export default function Dashboard() {
                             blastDelta < 0 ? "text-emerald-400" : blastDelta > 0 ? "text-red-400" : "text-zinc-300"
                           )}
                         >
-                          {blastDelta > 0 ? `+${blastDelta.toFixed(1)}` : blastDelta.toFixed(1)}
+                          {blastDelta > 0 ? `+${(Number(blastDelta) || 0).toFixed(1)}` : (Number(blastDelta) || 0).toFixed(1)}
                         </span>
                       </div>
                       <div className="text-[9px] text-zinc-500 mt-1">
@@ -1992,7 +2044,7 @@ export default function Dashboard() {
                           <span className="text-[10px] text-zinc-500">{rec.timestamp}</span>
                         </div>
                         <div className="flex items-center space-x-3 text-[10px] text-zinc-400">
-                          <span>Blast: <b className="text-amber-400">{rec.blast_radius_score.toFixed(1)}/100</b></span>
+                          <span>Blast: <b className="text-amber-400">{(Number(rec?.blast_radius_score) || 0).toFixed(1)}/100</b></span>
                           <span>Comps: <b className="text-zinc-300">{rec.total_components}</b></span>
                           <span>Findings: <b className="text-red-400">{rec.total_findings}</b></span>
                         </div>
@@ -2026,5 +2078,6 @@ export default function Dashboard() {
         </div>
       </Modal>
     </div>
+  </ErrorBoundary>
   );
 }

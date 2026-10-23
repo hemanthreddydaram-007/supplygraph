@@ -33,50 +33,54 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
   const [ecoFilter, setEcoFilter] = useState<string>("all");
   const [sevFilter, setSevFilter] = useState<string>("all");
 
+  const safeNodes = useMemo(() => (Array.isArray(graph?.nodes) ? graph.nodes : []), [graph?.nodes]);
+  const safeEdges = useMemo(() => (Array.isArray(graph?.edges) ? graph.edges : []), [graph?.edges]);
+  const scanId = graph?.scan_id || "default";
+
   // Determine if we should default to attack-path-only view
-  const totalNodes = graph.nodes.length;
+  const totalNodes = safeNodes.length;
   const defaultFilter: GraphFilter = totalNodes > 35 ? "attack" : "all";
 
   // Set default filter based on graph size on mount
   useEffect(() => {
     setFilter(defaultFilter);
-  }, [graph.scan_id, defaultFilter]);
+  }, [scanId, defaultFilter]);
 
   // Identify attack-path and threat nodes with bi-directional reachability
   const threatNodeIds = useMemo(() => {
     const directThreats = new Set<string>();
 
     // 1. Identify all Vulnerability / finding nodes and any node marked as compromised
-    graph.nodes.forEach(n => {
-      const type = n.data?.node_type;
+    safeNodes.forEach(n => {
+      const type = n?.data?.node_type;
       if (
         type === "Vulnerability" ||
         type === "Finding" ||
-        n.data?.is_suspicious ||
-        n.data?.is_origin_candidate ||
-        n.data?.is_affected ||
-        (n.data?.vulnerability_count && n.data?.vulnerability_count > 0) ||
-        (n.data?.finding_count && n.data?.finding_count > 0)
+        n?.data?.is_suspicious ||
+        n?.data?.is_origin_candidate ||
+        n?.data?.is_affected ||
+        (n?.data?.vulnerability_count && n.data.vulnerability_count > 0) ||
+        (n?.data?.finding_count && n.data.finding_count > 0)
       ) {
         directThreats.add(n.id);
       }
     });
 
     // Also any edge explicitly marked as attack path
-    graph.edges.forEach(e => {
-      if (e.data?.is_attack_path) {
+    safeEdges.forEach(e => {
+      if (e?.data?.is_attack_path) {
         directThreats.add(e.source);
         directThreats.add(e.target);
       }
     });
 
     if (directThreats.size === 0) {
-      return new Set(graph.nodes.map(n => n.id));
+      return new Set(safeNodes.map(n => n.id));
     }
 
     // 2. Build bi-directional adjacency map
     const neighbors = new Map<string, Set<string>>();
-    graph.edges.forEach(e => {
+    safeEdges.forEach(e => {
       if (!neighbors.has(e.source)) neighbors.set(e.source, new Set());
       if (!neighbors.has(e.target)) neighbors.set(e.target, new Set());
       neighbors.get(e.source)!.add(e.target);
@@ -105,67 +109,67 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
     }
 
     // Always keep root Repository node
-    graph.nodes.forEach(n => {
+    safeNodes.forEach(n => {
       if (
-        n.data?.node_type === "Repository" ||
-        n.type === "repositoryNode" ||
-        n.id.startsWith("repo-")
+        n?.data?.node_type === "Repository" ||
+        n?.type === "repositoryNode" ||
+        n?.id?.startsWith("repo-")
       ) {
         kept.add(n.id);
       }
     });
 
     return kept;
-  }, [graph]);
+  }, [safeNodes, safeEdges]);
 
   // Collect unique ecosystems and severities from graph nodes
   const ecosystems = useMemo(() => {
     const ecoSet = new Set<string>();
-    graph.nodes.forEach(n => {
-      const eco = n.data?.ecosystem as string | undefined;
+    safeNodes.forEach(n => {
+      const eco = n?.data?.ecosystem as string | undefined;
       if (eco && eco !== "unknown") ecoSet.add(eco);
     });
     return Array.from(ecoSet).sort();
-  }, [graph.nodes]);
+  }, [safeNodes]);
 
   const severities = useMemo(() => {
     const sevSet = new Set<string>();
-    graph.nodes.forEach(n => {
-      const sev = n.data?.severity as string | undefined;
+    safeNodes.forEach(n => {
+      const sev = n?.data?.severity as string | undefined;
       if (sev) sevSet.add(sev);
     });
     // Return in severity order
     return ["CRITICAL","HIGH","MEDIUM","LOW","INFO"].filter(s => sevSet.has(s));
-  }, [graph.nodes]);
+  }, [safeNodes]);
 
   // Hard-cap nodes in "All Nodes" mode: top 180 prioritized nodes if > 200 nodes
-  const isCapped = filter === "all" && graph.nodes.length > 200;
+  const isCapped = filter === "all" && safeNodes.length > 200;
 
   const prioritizedAllNodes = useMemo(() => {
-    if (!isCapped) return graph.nodes;
+    if (!isCapped) return safeNodes;
 
     // Prioritize:
     // 1. Threat / affected nodes
     // 2. Services, APIs, Repositories, Deployments
     // 3. Direct dependencies
     // 4. Remaining nodes
-    const threats: typeof graph.nodes = [];
-    const assets: typeof graph.nodes = [];
-    const directDeps: typeof graph.nodes = [];
-    const others: typeof graph.nodes = [];
+    const threats: typeof safeNodes = [];
+    const assets: typeof safeNodes = [];
+    const directDeps: typeof safeNodes = [];
+    const others: typeof safeNodes = [];
 
-    graph.nodes.forEach(n => {
+    safeNodes.forEach(n => {
       if (threatNodeIds.has(n.id)) {
         threats.push(n);
       } else if (
-        n.data?.node_type === "Repository" ||
-        n.data?.node_type === "Service" ||
-        n.data?.node_type === "API" ||
-        n.data?.node_type === "Deployment" ||
-        n.data?.node_type === "Pipeline"
+        n?.data?.node_type === "Repository" ||
+        n?.data?.node_type === "Service" ||
+        n?.data?.node_type === "API" ||
+        n?.data?.node_type === "Deployment" ||
+        n?.data?.node_type === "Pipeline"
       ) {
         assets.push(n);
-      } else if (n.data?.metadata?.is_direct) {
+      } else if (n?.data?.metadata?.is_direct) {
         directDeps.push(n);
       } else {
         others.push(n);
@@ -174,13 +178,13 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
 
     const combined = [...threats, ...assets, ...directDeps, ...others];
     return combined.slice(0, 180);
-  }, [graph, isCapped, threatNodeIds]);
+  }, [safeNodes, isCapped, threatNodeIds]);
 
   // Compute layout positions with multi-column grid wrapping (max 8 per column)
   const visibleNodes: Node[] = useMemo(() => {
-    let rawNodes: typeof graph.nodes = filter === "all"
+    let rawNodes: typeof safeNodes = filter === "all"
       ? prioritizedAllNodes
-      : graph.nodes.filter(n => threatNodeIds.has(n.id));
+      : safeNodes.filter(n => threatNodeIds.has(n.id));
 
     // Apply ecosystem filter
     if (ecoFilter !== "all") {
@@ -233,7 +237,7 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
     });
 
     return rawNodes.map(n => {
-      const pos = adjustedPositions.get(n.id) || { x: n.position.x, y: n.position.y };
+      const pos = adjustedPositions.get(n.id) || { x: n.position?.x ?? 0, y: n.position?.y ?? 0 };
       return {
         id: n.id,
         position: pos,
@@ -241,13 +245,13 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
         type: "default",
       };
     });
-  }, [graph.nodes, filter, prioritizedAllNodes, threatNodeIds, ecoFilter, sevFilter]);
+  }, [safeNodes, filter, prioritizedAllNodes, threatNodeIds, ecoFilter, sevFilter]);
 
   const visibleEdges: Edge[] = useMemo(() => {
     const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
     let animatedCount = 0;
 
-    return graph.edges
+    return safeEdges
       .filter(e => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
       .map(e => {
         const isAttack =
@@ -264,7 +268,7 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
             }
           } else {
             // "all" view - disable if > 100 edges, otherwise cap at 40
-            if (graph.edges.length <= 100 && animatedCount < 40) {
+            if (safeEdges.length <= 100 && animatedCount < 40) {
               animate = true;
               animatedCount++;
             }
@@ -297,12 +301,12 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
           },
         };
       });
-  }, [graph.edges, visibleNodes, threatNodeIds, filter]);
+  }, [safeEdges, visibleNodes, threatNodeIds, filter]);
 
   // Focus on a specific node when focusNodeId changes — smooth zoom to center
   useEffect(() => {
     if (!focusNodeId) return;
-    const node = graph.nodes.find(n =>
+    const node = safeNodes.find(n =>
       n.id === focusNodeId ||
       n.id.includes(focusNodeId) ||
       focusNodeId.includes(n.id)
@@ -314,12 +318,12 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
       }
       // Use setCenter for precise, smooth zoom to the node
       setTimeout(() => {
-        const x = node.position.x + 80; // offset to center of node card
-        const y = node.position.y + 20;
+        const x = (node.position?.x ?? 0) + 80; // offset to center of node card
+        const y = (node.position?.y ?? 0) + 20;
         setCenter(x, y, { zoom: 1.4, duration: 800 });
       }, 150);
     }
-  }, [focusNodeId, setCenter, graph.nodes, threatNodeIds]);
+  }, [focusNodeId, setCenter, safeNodes, threatNodeIds]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -329,7 +333,7 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
   );
 
   const attackCount = threatNodeIds.size;
-  const allCount = graph.nodes.length;
+  const allCount = safeNodes.length;
 
   return (
     <div className="w-full h-full bg-[#09090b] relative">
