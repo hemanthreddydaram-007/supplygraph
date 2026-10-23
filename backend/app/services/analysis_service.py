@@ -203,14 +203,23 @@ class AnalysisService:
         all_vulnerabilities = []
         osv_count = 0
         seen_vuln_keys: Set[str] = set()
+        seen_aliases_by_purl: Dict[str, Set[str]] = {}
 
         for purl_str, vulns in vulnerability_dict.items():
-            for vuln in vulns:
-                vuln_key = f"{purl_str}:{vuln.osv_id}"
-                if vuln_key in seen_vuln_keys:
-                    continue
-                seen_vuln_keys.add(vuln_key)
+            if purl_str not in seen_aliases_by_purl:
+                seen_aliases_by_purl[purl_str] = set()
+            purl_aliases = seen_aliases_by_purl[purl_str]
 
+            for vuln in vulns:
+                # Deduplicate by canonical OSV ID and known CVE/GHSA/PYSEC aliases
+                all_ids = {vuln.osv_id}
+                if vuln.aliases:
+                    all_ids.update(vuln.aliases)
+
+                if any(v_id in purl_aliases for v_id in all_ids):
+                    continue
+
+                purl_aliases.update(all_ids)
                 all_vulnerabilities.append(vuln)
                 osv_count += 1
 
@@ -529,12 +538,25 @@ class AnalysisService:
                 f"Blast Radius: {blast_radius_score:.1f}/100."
             )
 
+        # Ensure detector breakdown accurately reflects all detected issues
+        cicd_reviews = [
+            cr for cr in code_reviews
+            if "CI/CD" in cr.title or "Action" in cr.title or cr.file_path.endswith(('.yml', '.yaml'))
+        ]
+        total_cicd = cicd_count + len(cicd_reviews)
+
+        ast_reviews = [
+            cr for cr in code_reviews
+            if cr not in cicd_reviews
+        ]
+        total_ast = ast_count + len(ast_reviews)
+
         # Build detector telemetry breakdown
         detector_breakdown = {
             "osv_count": osv_count,
             "typosquat_count": typosquat_count,
-            "ast_count": ast_count,
-            "cicd_count": cicd_count,
+            "ast_count": total_ast,
+            "cicd_count": total_cicd,
             "confusion_count": confusion_count,
             "sbom_sha256": "0x" + sbom_sha256,
             "merkle_root": "0x" + merkle_root,
@@ -708,13 +730,23 @@ class AnalysisService:
         all_vulnerabilities = []
         osv_count = 0
         seen_vuln_keys: Set[str] = set()
+        seen_aliases_by_purl: Dict[str, Set[str]] = {}
 
         for purl_str, vulns in vulnerability_dict.items():
+            if purl_str not in seen_aliases_by_purl:
+                seen_aliases_by_purl[purl_str] = set()
+            purl_aliases = seen_aliases_by_purl[purl_str]
+
             for vuln in vulns:
-                vuln_key = f"{purl_str}:{vuln.osv_id}"
-                if vuln_key in seen_vuln_keys:
+                # Deduplicate by canonical OSV ID and known CVE/GHSA/PYSEC aliases
+                all_ids = {vuln.osv_id}
+                if vuln.aliases:
+                    all_ids.update(vuln.aliases)
+
+                if any(v_id in purl_aliases for v_id in all_ids):
                     continue
-                seen_vuln_keys.add(vuln_key)
+
+                purl_aliases.update(all_ids)
                 all_vulnerabilities.append(vuln)
                 osv_count += 1
 
@@ -950,11 +982,24 @@ class AnalysisService:
             except Exception as e:
                 logger.warning(f"Folder code review failed: {e}")
 
+        # Ensure detector breakdown accurately reflects all detected issues
+        cicd_reviews = [
+            cr for cr in code_reviews
+            if "CI/CD" in cr.title or "Action" in cr.title or cr.file_path.endswith(('.yml', '.yaml'))
+        ]
+        total_cicd = cicd_count + len(cicd_reviews)
+
+        ast_reviews = [
+            cr for cr in code_reviews
+            if cr not in cicd_reviews
+        ]
+        total_ast = ast_count + len(ast_reviews)
+
         detector_breakdown = {
             "osv_count": osv_count,
             "typosquat_count": typosquat_count,
-            "ast_count": ast_count,
-            "cicd_count": cicd_count,
+            "ast_count": total_ast,
+            "cicd_count": total_cicd,
             "confusion_count": confusion_count,
             "sbom_sha256": "0x" + sbom_sha256,
             "merkle_root": "0x" + merkle_root,

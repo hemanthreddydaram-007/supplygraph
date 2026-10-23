@@ -98,6 +98,7 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
   };
 
   const getCategoryBadge = (category: string) => {
+    if (category?.includes("Hardening")) return "bg-sky-950/60 text-sky-300 border-sky-800/40";
     if (category?.includes("Security")) return "bg-rose-950/60 text-rose-300 border-rose-800/40";
     if (category?.includes("Bug")) return "bg-amber-950/60 text-amber-300 border-amber-800/40";
     return "bg-indigo-950/60 text-indigo-300 border-indigo-800/40";

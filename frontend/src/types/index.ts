@@ -102,7 +102,7 @@ export interface CodeReviewItem {
   file_path: string;
   line_number: number;
   severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-  category: "Security Vulnerability" | "Bug / Logic Error" | "Code Quality / Best Practice";
+  category: "Security Vulnerability" | "Bug / Logic Error" | "Code Quality / Best Practice" | "CI/CD Security Hardening";
   title: string;
   error_explanation: string;
   buggy_code: string;

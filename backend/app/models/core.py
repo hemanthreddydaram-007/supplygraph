@@ -618,7 +618,7 @@ class CodeReviewItem(BaseModel):
     file_path: str
     line_number: int
     severity: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"] = "MEDIUM"
-    category: Literal["Security Vulnerability", "Bug / Logic Error", "Code Quality / Best Practice"] = "Security Vulnerability"
+    category: Literal["Security Vulnerability", "Bug / Logic Error", "Code Quality / Best Practice", "CI/CD Security Hardening"] = "Security Vulnerability"
     title: str
     error_explanation: str
     buggy_code: str

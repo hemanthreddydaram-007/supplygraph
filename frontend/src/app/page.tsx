@@ -1201,9 +1201,13 @@ export default function Dashboard() {
                           <span className="text-zinc-600">•</span>
                           <span className="text-rose-300">Typosquat: {data.detector_breakdown.typosquat_count || 0}</span>
                           <span className="text-zinc-600">•</span>
-                          <span className="text-cyan-300">AST: {data.detector_breakdown.ast_count || 0}</span>
+                          <span className="text-cyan-300">
+                            AST: {data.detector_breakdown.ast_count || (data?.code_reviews?.filter(r => !r.file_path.endsWith('.yml') && !r.file_path.endsWith('.yaml') && !r.title.includes('CI/CD')).length) || 0}
+                          </span>
                           <span className="text-zinc-600">•</span>
-                          <span className="text-yellow-300">CI/CD: {data.detector_breakdown.cicd_count || 0}</span>
+                          <span className="text-yellow-300">
+                            CI/CD: {data.detector_breakdown.cicd_count || (data?.code_reviews?.filter(r => r.file_path.endsWith('.yml') || r.file_path.endsWith('.yaml') || r.title.includes('CI/CD')).length) || 0}
+                          </span>
                         </div>
                       )}
 

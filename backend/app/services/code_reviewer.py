@@ -702,15 +702,21 @@ class CodeReviewerService:
                         context_count=2
                     )
 
+                    is_official = any(action_name.lower().startswith(p) for p in ("actions/", "github/"))
                     reviews.append(
                         CodeReviewItem(
                             id=str(uuid.uuid4()),
                             file_path=file_path,
                             line_number=idx,
-                            severity="HIGH",
-                            category="Security Vulnerability",
+                            severity="MEDIUM" if is_official else "HIGH",
+                            category="CI/CD Security Hardening",
                             title=f"Unpinned CI/CD Action `{action_name}`",
-                            error_explanation=f"Using a mutable branch or tag (`@{version_tag}`) allows upstream supply-chain compromises to modify workflow execution. Pin to a full immutable commit SHA.",
+                            error_explanation=(
+                                f"Official GitHub Action `{action_name}` uses mutable tag `@{version_tag}`. "
+                                f"Pin to full immutable commit SHA to protect against tag mutation and comply with OpenSSF Scorecard."
+                                if is_official
+                                else f"Using a mutable branch or tag (`@{version_tag}`) allows upstream supply-chain compromises to modify workflow execution. Pin to a full immutable commit SHA."
+                            ),
                             buggy_code=line,
                             corrected_code=corrected_code_str,
                             unified_diff=unified_diff_str
