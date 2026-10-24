@@ -40,64 +40,70 @@ export function findMatchingNode(
   const rawId = (target.id || "").trim();
   const pkgKey = (target.packageKey || "").trim();
 
-  const candidates: string[] = [];
+  // Tier 1: Specific Advisory / Vulnerability ID (Highest Priority for Finding Cards)
+  const specificVulnCandidates: string[] = [];
 
-  if (rawId) candidates.push(rawId);
-  if (pkgKey) candidates.push(pkgKey);
+  if (rawId && /^(GHSA|CVE|PYSEC|SNYK|RUSTSEC|GO|OSV)-/i.test(rawId)) {
+    specificVulnCandidates.push(rawId);
+  }
 
-  // Extract from finding fields
   if (finding) {
-    if (finding.origin_candidate) candidates.push(finding.origin_candidate);
-    if (finding.entity_id) candidates.push(String(finding.entity_id));
+    const titleMatches = (finding.title || "").matchAll(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+|PYSEC-\d{4}-\d+|SNYK-[A-Z0-9-]+)/gi);
+    for (const m of titleMatches) {
+      specificVulnCandidates.push(m[1]);
+    }
 
-    // Extract CVE/GHSA IDs from title or description
-    const titleMatch = (finding.title || "").match(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+|PYSEC-\d{4}-\d+|SNYK-[A-Z0-9-]+)/i);
-    if (titleMatch) candidates.push(titleMatch[1]);
+    const descMatches = (finding.description || "").matchAll(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+|PYSEC-\d{4}-\d+|SNYK-[A-Z0-9-]+)/gi);
+    for (const m of descMatches) {
+      specificVulnCandidates.push(m[1]);
+    }
 
-    const descMatch = (finding.description || "").match(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+|PYSEC-\d{4}-\d+|SNYK-[A-Z0-9-]+)/i);
-    if (descMatch) candidates.push(descMatch[1]);
-
-    // Check evidence
     if (Array.isArray(finding.evidence)) {
       finding.evidence.forEach((ev: any) => {
-        if (ev?.raw_data?.vuln_id) candidates.push(ev.raw_data.vuln_id);
-        if (ev?.raw_data?.package) candidates.push(ev.raw_data.package);
-        if (ev?.raw_data?.purl) candidates.push(ev.raw_data.purl);
+        if (ev?.raw_data?.vuln_id) specificVulnCandidates.push(ev.raw_data.vuln_id);
+        if (ev?.raw_data?.id) specificVulnCandidates.push(ev.raw_data.id);
+        if (Array.isArray(ev?.raw_data?.aliases)) {
+          specificVulnCandidates.push(...ev.raw_data.aliases);
+        }
       });
     }
 
-    // Check propagation steps
     if (Array.isArray(finding.propagation_path)) {
       finding.propagation_path.forEach((step: any) => {
-        if (step?.node_id) candidates.push(step.node_id);
+        if (step?.node_id && /^(GHSA|CVE|PYSEC|SNYK)-/i.test(step.node_id)) {
+          specificVulnCandidates.push(step.node_id);
+        }
       });
-    }
-
-    // Special finding types:
-    // CI/CD risk -> look for pipeline node
-    if (
-      finding.finding_type === "CICD_RISK" ||
-      finding.title?.includes("CI/CD") ||
-      (finding.description && finding.description.includes("GitHub Actions"))
-    ) {
-      candidates.push("pipeline", "Pipeline");
-    }
-
-    // AST / Repo-level finding -> look for repository node
-    if (
-      finding.entity_type === "Repository" ||
-      finding.title?.includes("AST") ||
-      finding.finding_type === "SUSPICIOUS"
-    ) {
-      candidates.push("repository", "Repository", "demo-app", "app");
     }
   }
 
-  // Variant generator for package names / versions
+  const uniqueVulnIds = Array.from(new Set(specificVulnCandidates.map(s => s.trim()).filter(Boolean)));
+
+  // If a specific vulnerability ID exists as a node in the graph, return it first!
+  for (const vId of uniqueVulnIds) {
+    const vLower = vId.toLowerCase();
+    const match = nodes.find(n => {
+      if (n.id.toLowerCase() === vLower) return true;
+      if (n.data?.label && String(n.data.label).toLowerCase() === vLower) return true;
+      if (n.data?.entity_id && String(n.data.entity_id).toLowerCase() === vLower) return true;
+      const aliases = (n.data as any)?.metadata?.aliases;
+      if (Array.isArray(aliases) && aliases.some(a => String(a).toLowerCase() === vLower)) return true;
+      return false;
+    });
+    if (match) return match;
+  }
+
+  // Tier 2: Package / Entity / Dependency Identifiers
+  const packageCandidates: string[] = [];
+
+  if (pkgKey) packageCandidates.push(pkgKey);
+  if (rawId) packageCandidates.push(rawId);
+  if (finding?.origin_candidate) packageCandidates.push(finding.origin_candidate);
+  if (finding?.entity_id) packageCandidates.push(String(finding.entity_id));
+
   const generateVariants = (input: string) => {
     if (!input) return [];
     const res: string[] = [input];
-    // Strip pkg:xxx/
     const noPurl = input.replace(/^pkg:[^/]+\//, "").replace(/^@/, "");
     res.push(noPurl);
     if (noPurl.includes("@")) {
@@ -118,13 +124,8 @@ export function findMatchingNode(
   };
 
   const allVariants: string[] = [];
-  candidates.forEach(c => {
-    allVariants.push(...generateVariants(c));
-  });
-
+  packageCandidates.forEach(c => allVariants.push(...generateVariants(c)));
   const uniqueCandidates = Array.from(new Set(allVariants.map(s => s.trim()).filter(Boolean)));
-
-  // Helper for alpha-numeric normalization
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
   // Priority 1: Exact node.id match
@@ -143,7 +144,7 @@ export function findMatchingNode(
     if (match) return match;
   }
 
-  // Priority 3: Alpha-numeric normalized match (ignoring hyphens, @, pkg:)
+  // Priority 3: Alpha-numeric normalized match
   for (const c of uniqueCandidates) {
     const cleanC = norm(c);
     if (cleanC.length < 3) continue;
@@ -156,7 +157,7 @@ export function findMatchingNode(
     if (match) return match;
   }
 
-  // Priority 4: Substring match (e.g. "mixin-deep" in "mixin-deep-1.3.1")
+  // Priority 4: Substring match
   for (const c of uniqueCandidates) {
     const cleanC = norm(c);
     if (cleanC.length < 4) continue;
@@ -169,7 +170,7 @@ export function findMatchingNode(
     if (match) return match;
   }
 
-  // Priority 5: By node_type fallback for CI/CD or Repository
+  // Priority 5: Fallbacks for CI/CD or Repository
   if (
     finding?.finding_type === "CICD_RISK" ||
     finding?.title?.includes("CI/CD") ||
@@ -501,37 +502,44 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
       timestamp: Date.now(),
     };
 
-    const node = findMatchingNode(payload, safeNodes);
-    if (!node) return;
+    const targetNode = findMatchingNode(payload, safeNodes);
+    if (!targetNode) return;
 
-    setActiveFocusedId(node.id);
+    setActiveFocusedId(targetNode.id);
 
     // Auto-adjust view mode if node is filtered out:
     // If it's a Vulnerability node and filter is "package", switch to "detailed" (exploded CVEs)
-    if (node.data?.node_type === "Vulnerability" && filter === "package") {
+    if (targetNode.data?.node_type === "Vulnerability" && filter === "package") {
       setFilter("detailed");
-    } else if (!threatNodeIds.has(node.id) && filter === "detailed") {
+    } else if (!threatNodeIds.has(targetNode.id) && filter === "detailed") {
       setFilter("all");
     }
 
     // Reset ecosystem or severity filter if they hide this node
-    if (ecoFilter !== "all" && node.data?.ecosystem && node.data.ecosystem !== ecoFilter) {
+    if (ecoFilter !== "all" && targetNode.data?.ecosystem && targetNode.data.ecosystem !== ecoFilter) {
       setEcoFilter("all");
     }
-    if (sevFilter !== "all" && node.data?.severity && node.data.severity !== sevFilter) {
+    if (sevFilter !== "all" && targetNode.data?.severity && targetNode.data.severity !== sevFilter) {
       setSevFilter("all");
     }
 
-    // Use setCenter with slight delay to ensure React Flow has layout & correct on-screen position
-    const timer = setTimeout(() => {
-      const onScreen = visibleNodesRef.current.find(vn => vn.id === node.id) || node;
+    // 2-stage focus runner: triggers on immediate frame and after layout settles
+    const runFocus = () => {
+      const onScreen = visibleNodesRef.current.find(vn => vn.id === targetNode.id) || targetNode;
       const x = (onScreen.position?.x ?? 0) + 105;
       const y = (onScreen.position?.y ?? 0) + 35;
       setCenter(x, y, { zoom: 1.45, duration: 650 });
-    }, 180);
+    };
 
-    return () => clearTimeout(timer);
-  }, [focusTarget, focusNodeId, safeNodes, threatNodeIds, setCenter, filter, ecoFilter, sevFilter]);
+    const t1 = setTimeout(runFocus, 100);
+    const t2 = setTimeout(runFocus, 260);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTarget, focusNodeId, safeNodes, threatNodeIds, setCenter]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -657,7 +665,7 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
         onNodeClick={handleNodeClick}
         minZoom={0.15}
         maxZoom={2}
-        onlyRenderVisibleElements={true}
+        onlyRenderVisibleElements={false}
         elevateNodesOnSelect={false}
         elevateEdgesOnSelect={false}
       >

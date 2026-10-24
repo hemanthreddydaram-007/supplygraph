@@ -731,7 +731,11 @@ export default function Dashboard() {
   }, [data, formatSingleFindingText]);
 
   const handleFindingClick = useCallback((finding: any) => {
-    const targetId = finding?.origin_candidate || finding?.entity_id || finding?.title || "";
+    // Extract specific advisory/vulnerability ID if present (GHSA, CVE, PYSEC, SNYK)
+    const titleMatch = (finding?.title || "").match(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+|PYSEC-\d{4}-\d+|SNYK-[A-Z0-9-]+)/i);
+    const specificId = titleMatch ? titleMatch[1] : null;
+    const targetId = specificId || finding?.origin_candidate || finding?.entity_id || finding?.title || "";
+
     setFocusTarget({
       id: targetId,
       finding: finding,
