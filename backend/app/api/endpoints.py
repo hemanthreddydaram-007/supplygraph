@@ -254,6 +254,15 @@ async def analyze_demo(request: DemoRequest):
         code_reviews = get_demo_code_reviews(request.scenario_id)
         data["code_reviews"] = [cr.model_dump() for cr in code_reviews]
 
+        # Ensure CycloneDX SBOM model is always populated for demo scenarios
+        if not data.get("sbom") and data.get("components"):
+            data["sbom"] = {
+                "bom_format": "CycloneDX",
+                "spec_version": "1.5",
+                "components": data["components"],
+                "dependencies": data.get("dependencies", [])
+            }
+
         return AnalysisResponse(**data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load scenario: {str(e)}")
@@ -472,4 +481,5 @@ def github_rate_limit():
 
 @router.get("/health")
 def health():
-    return {"status": "ok", "version": "3.0.0"}
+    from app.core.config import get_settings
+    return {"status": "ok", "version": get_settings().app_version}

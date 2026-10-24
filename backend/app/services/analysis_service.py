@@ -613,7 +613,7 @@ class AnalysisService:
             name=project_name
         )
 
-        files_map = {f.path: f.content for f in request.files}
+        files_map = {f.path.replace("\\", "/"): f.content for f in request.files}
 
         # 1. Parse lockfiles and manifests
         supported_lockfiles = [

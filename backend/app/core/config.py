@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     # APPLICATION
     # ============================================================
     app_name: str = "SupplyGraph"
-    app_version: str = "1.0.0"
+    app_version: str = "3.0.0"
     api_version: str = "v1"
     debug: bool = False
     log_level: str = "INFO"
