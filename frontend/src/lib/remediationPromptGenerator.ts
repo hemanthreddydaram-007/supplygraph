@@ -14,6 +14,12 @@
  */
 
 export type VersionConfidenceCategory =
+  | "VERIFIED_FIXED_VERSION"
+  | "VERIFIED_MINIMUM_FIXED_VERSION"
+  | "COMPATIBILITY_REVIEW_REQUIRED"
+  | "NO_VERIFIED_FIX"
+  | "MANUAL_INVESTIGATION_REQUIRED"
+  // Backward-compatibility aliases
   | "VERIFIED_SAME_MAJOR"
   | "VERIFIED_MAJOR_UPGRADE"
   | "MINIMUM_KNOWN_FIXED"
@@ -49,6 +55,7 @@ export interface AdvisoryDetail {
   severity: string;
   description?: string;
   fixedVersion?: string;
+  affectedRange?: string;
 }
 
 export interface ComponentRemediationPackage {
@@ -63,6 +70,7 @@ export interface ComponentRemediationPackage {
   advisories: AdvisoryDetail[];
   resolution: VersionResolution;
   isDev?: boolean;
+  dependencyPaths?: string[];
 }
 
 export interface PromptGeneratorOptions {
@@ -70,6 +78,21 @@ export interface PromptGeneratorOptions {
   targetBranch?: string;
   includeAstRefactoring?: boolean;
   includeCicdHardening?: boolean;
+}
+
+export interface DetectedWorkspaceInfo {
+  manifests: string[];
+  isWorkspace: boolean;
+  packageManager: "npm" | "pnpm" | "yarn" | "bun";
+}
+
+export interface PackageManagerDetectionResult {
+  nodePm: "npm" | "pnpm" | "yarn" | "bun";
+  pythonPm: "pip" | "poetry" | "pipenv" | "uv";
+  hasGo: boolean;
+  hasCargo: boolean;
+  workspaces: DetectedWorkspaceInfo;
+  manifestPaths: string[];
 }
 
 // Authoritative SHA registry for official and verified GitHub Actions
@@ -140,6 +163,12 @@ export const VERIFIED_ACTION_SHAS: Record<string, Record<string, string>> = {
     "default": "b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2",
     "comment": "v3.10.0",
   },
+  "codecov/codecov-action": {
+    "v5": "015ff539bb73772273d524247214d05e1242179e",  // v5.0.7
+    "v4": "e28ff129e5465c2c0dcc6f003fc735cb6ae0c673",  // v4.5.0
+    "default": "015ff539bb73772273d524247214d05e1242179e",
+    "comment": "v5.0.7",
+  },
 };
 
 /**
@@ -179,10 +208,12 @@ export function compareSemVer(v1: any, v2: any): number {
 }
 
 /**
- * Resolves the optimal safe version from candidate fixes, distinguishing:
- * - VERIFIED_SAME_MAJOR: Non-breaking security patch in same major.
- * - VERIFIED_MAJOR_UPGRADE: Breaking major upgrade (migration required).
- * - INVESTIGATION_REQUIRED: No verified upstream release.
+ * Resolves the optimal safe version from candidate fixes, returning explicit states:
+ * - VERIFIED_FIXED_VERSION: Confirmed non-breaking patch release in same major version.
+ * - VERIFIED_MINIMUM_FIXED_VERSION: Minimum confirmed fix (when unversioned or lowest safe floor).
+ * - COMPATIBILITY_REVIEW_REQUIRED: Major-version upgrade crossing major boundary (migration assessment).
+ * - NO_VERIFIED_FIX: Unpatched, disputed, or zero-day advisory.
+ * - MANUAL_INVESTIGATION_REQUIRED: Non-standard version or malformed candidate tags.
  */
 export function resolveVersionWithConfidence(
   installedVer: string | null | undefined,
@@ -198,7 +229,7 @@ export function resolveVersionWithConfidence(
     return {
       rawFixed: "",
       cleanVersion: "",
-      category: "INVESTIGATION_REQUIRED",
+      category: "NO_VERIFIED_FIX",
       isMajorUpgrade: false,
       majorDiff: 0,
       explanation: "No upstream patched release found in security databases (disputed or unpatched advisory). Manual vendor investigation required.",
@@ -215,7 +246,7 @@ export function resolveVersionWithConfidence(
       return {
         rawFixed: valid[0].raw,
         cleanVersion: valid[0].raw,
-        category: "MINIMUM_KNOWN_FIXED",
+        category: "VERIFIED_MINIMUM_FIXED_VERSION",
         isMajorUpgrade: false,
         majorDiff: 0,
         explanation: `Minimum known fixed release is ${valid[0].raw}. Current installed version is unversioned or non-standard.`,
@@ -226,7 +257,7 @@ export function resolveVersionWithConfidence(
     return {
       rawFixed: cleanCandidates[0],
       cleanVersion: cleanCandidates[0],
-      category: "INVESTIGATION_REQUIRED",
+      category: "MANUAL_INVESTIGATION_REQUIRED",
       isMajorUpgrade: false,
       majorDiff: 0,
       explanation: "Non-standard version format. Verify package release notes before upgrading.",
@@ -241,7 +272,7 @@ export function resolveVersionWithConfidence(
     return {
       rawFixed: cleanCandidates[0],
       cleanVersion: cleanCandidates[0],
-      category: "INVESTIGATION_REQUIRED",
+      category: "MANUAL_INVESTIGATION_REQUIRED",
       isMajorUpgrade: false,
       majorDiff: 0,
       explanation: "Advisory lists non-SemVer release tags. Manual verification needed.",
@@ -260,7 +291,7 @@ export function resolveVersionWithConfidence(
     return {
       rawFixed: best,
       cleanVersion: best,
-      category: "VERIFIED_SAME_MAJOR",
+      category: "VERIFIED_FIXED_VERSION",
       isMajorUpgrade: false,
       majorDiff: 0,
       explanation: `Verified patch release within major version ${instParsed.major} (resolves all known advisories with minimized breaking change risk).`,
@@ -281,7 +312,7 @@ export function resolveVersionWithConfidence(
     return {
       rawFixed: best,
       cleanVersion: best,
-      category: "VERIFIED_MAJOR_UPGRADE",
+      category: "COMPATIBILITY_REVIEW_REQUIRED",
       isMajorUpgrade: true,
       majorDiff: diff,
       explanation: `⚠️ Major version upgrade required (${instParsed.major}.x -> ${lowestHigherMajor}.x). Potential breaking API changes require migration assessment.`,
@@ -294,7 +325,7 @@ export function resolveVersionWithConfidence(
   return {
     rawFixed: "",
     cleanVersion: "",
-    category: "INVESTIGATION_REQUIRED",
+    category: "NO_VERIFIED_FIX",
     isMajorUpgrade: false,
     majorDiff: 0,
     explanation: "Available advisory fixes apply only to older release branches. Upstream has not published a fix for this branch.",
@@ -368,14 +399,9 @@ export function getFindingPackage(f: any): { pkgName: string; version: string; e
 }
 
 /**
- * Inspects scan data to detect package managers and repository layout.
+ * Inspects scan data to detect package managers, lockfiles, and workspace layouts.
  */
-export function detectPackageManagers(scanData: any): {
-  nodePm: "npm" | "pnpm" | "yarn" | "bun";
-  pythonPm: "pip" | "poetry" | "pipenv" | "uv";
-  hasGo: boolean;
-  hasCargo: boolean;
-} {
+export function detectPackageManagers(scanData: any): PackageManagerDetectionResult {
   const lockTypes: string[] = scanData?.scan?.lockfile_types || [];
   const files: { path: string }[] = scanData?.files || [];
   const filePaths = new Set([...lockTypes, ...files.map(f => f.path)]);
@@ -393,7 +419,30 @@ export function detectPackageManagers(scanData: any): {
   const hasGo = Array.from(filePaths).some(p => p.includes("go.mod") || p.includes("go.sum"));
   const hasCargo = Array.from(filePaths).some(p => p.includes("Cargo.toml") || p.includes("Cargo.lock"));
 
-  return { nodePm, pythonPm, hasGo, hasCargo };
+  // Detect workspace configurations and multiple manifests
+  const manifestPaths = Array.from(filePaths).filter(p =>
+    p.endsWith("package.json") ||
+    p.endsWith("requirements.txt") ||
+    p.endsWith("pyproject.toml") ||
+    p.endsWith("go.mod") ||
+    p.endsWith("Cargo.toml")
+  );
+
+  const nodeManifests = manifestPaths.filter(p => p.endsWith("package.json"));
+  const isWorkspace = nodeManifests.length > 1;
+
+  return {
+    nodePm,
+    pythonPm,
+    hasGo,
+    hasCargo,
+    manifestPaths,
+    workspaces: {
+      manifests: nodeManifests,
+      isWorkspace,
+      packageManager: nodePm,
+    },
+  };
 }
 
 /**
@@ -538,10 +587,11 @@ export function aggregateComponentPackages(scanData: any): ComponentRemediationP
           findings: [],
           highestSeverity: "LOW",
           advisories: [],
+          dependencyPaths: [],
           resolution: {
             rawFixed: "",
             cleanVersion: "",
-            category: "INVESTIGATION_REQUIRED",
+            category: "NO_VERIFIED_FIX",
             isMajorUpgrade: false,
             majorDiff: 0,
             explanation: "",
@@ -551,6 +601,11 @@ export function aggregateComponentPackages(scanData: any): ComponentRemediationP
 
       packageMap[key].findings.push(f);
 
+      // Track dependency path if present in evidence or origin
+      if (f.origin_candidate && !packageMap[key].dependencyPaths?.includes(f.origin_candidate)) {
+        packageMap[key].dependencyPaths?.push(f.origin_candidate);
+      }
+
       const currentSev = f.severity?.toUpperCase() || "LOW";
       const sevOrder = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"];
       const groupSevIdx = sevOrder.indexOf(packageMap[key].highestSeverity);
@@ -559,16 +614,18 @@ export function aggregateComponentPackages(scanData: any): ComponentRemediationP
         packageMap[key].highestSeverity = currentSev;
       }
 
-      // Extract unique advisory IDs
+      // Extract unique advisory IDs (GHSA, CVE, GO, PYSEC)
       const cveMatch = f.title?.match(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+|GO-\d{4}-\d+|PYSEC-\d{4}-\d+)/i);
       const advId = cveMatch ? cveMatch[1] : (f.id || `FINDING-${packageMap[key].advisories.length + 1}`);
       if (!packageMap[key].advisories.some(a => a.id === advId)) {
         let advFix = "";
+        let affRange = "";
         if (f.recommendations?.[0]?.fixed_version) advFix = f.recommendations[0].fixed_version;
         else if (f.evidence) {
           for (const ev of f.evidence) {
             if (ev?.raw_data?.fixed_version) { advFix = ev.raw_data.fixed_version; break; }
             if (ev?.raw_data?.fixed) { advFix = ev.raw_data.fixed; break; }
+            if (ev?.raw_data?.affected_range) { affRange = ev.raw_data.affected_range; }
           }
         }
         packageMap[key].advisories.push({
@@ -577,6 +634,7 @@ export function aggregateComponentPackages(scanData: any): ComponentRemediationP
           severity: f.severity || "MEDIUM",
           description: f.description,
           fixedVersion: advFix,
+          affectedRange: affRange,
         });
       }
     }
@@ -608,7 +666,7 @@ export function aggregateComponentPackages(scanData: any): ComponentRemediationP
 }
 
 /**
- * Generates an evidence-grounded Master AI Fix Prompt conforming to Section 9 structure.
+ * Generates an evidence-grounded Master AI Fix Prompt conforming to the 5-phase protocol and honest reporting.
  */
 export function generateMasterAIFixPrompt(scanData: any, options: PromptGeneratorOptions = {}): string {
   if (!scanData) return "";
@@ -618,7 +676,23 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
   const blastRadius = scanData?.scan?.blast_radius_score || 0;
   const packagesList = aggregateComponentPackages(scanData);
 
-  const { nodePm, pythonPm, hasGo, hasCargo } = detectPackageManagers(scanData);
+  const { nodePm, pythonPm, hasGo, hasCargo, workspaces, manifestPaths } = detectPackageManagers(scanData);
+
+  // Compute precise distinct inventory counts
+  const totalRawFindings = findings.length;
+  const uniqueAdvisories = new Set<string>();
+  packagesList.forEach(pkg => {
+    pkg.advisories.forEach(adv => uniqueAdvisories.add(adv.id));
+  });
+  const totalUniqueAdvisories = uniqueAdvisories.size;
+  const totalAffectedComponents = packagesList.length;
+
+  const uniquePaths = new Set<string>();
+  packagesList.forEach(pkg => {
+    if (pkg.declaredIn) uniquePaths.add(pkg.declaredIn);
+    pkg.dependencyPaths?.forEach(p => uniquePaths.add(p));
+  });
+  const totalAffectedPaths = Math.max(uniquePaths.size, manifestPaths.length, 1);
 
   const npmPackages = packagesList.filter((p) => p.ecosystem === "npm");
   const pypiPackages = packagesList.filter((p) => p.ecosystem === "pypi");
@@ -630,35 +704,62 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
   let p = "";
 
   // 1. Role and Objective
-  p += `# AI SECURITY REMEDIATION TASK: Complete Codebase Vulnerability Remediation\n\n`;
+  p += `# AI SECURITY REMEDIATION TASK: Complete Codebase Security Hardening\n\n`;
   p += `You are an expert Principal Application Security Engineer, Software Supply-Chain Specialist, and Senior Full-Stack Architect.\n`;
   p += `SupplyGraph has conducted an evidence-bounded supply-chain security audit on this project and identified security vulnerabilities, outdated dependencies, and CI/CD supply-chain risks.\n`;
   p += `Your objective is to remediate confirmed security vulnerabilities using minimal, targeted, evidence-grounded modifications while preserving existing application functionality and minimizing regressions.\n\n`;
 
-  // 2. Repository Context & Evidence Metadata
-  p += `## 1. REPOSITORY CONTEXT & AUDIT METADATA\n`;
+  // 2. Strict Execution Rules Without False Guarantees
+  p += `### STRICT EXECUTION RULES FOR AI ASSISTANTS (Antigravity / Cursor / Claude / ChatGPT / Copilot):\n`;
+  p += `1. **Preserve Application Functionality**: Maintain existing features, public API contracts, database schemas, business logic, routing, and authentication controls.\n`;
+  p += `2. **Honest Engineering Boundaries**:\n`;
+  p += `   - Do NOT promise "zero regressions", "100% backward compatibility", "100% vulnerability elimination", or "guaranteed one-shot execution". These are desired objectives, not guaranteed facts.\n`;
+  p += `   - If a major upgrade is necessary, perform compatibility analysis, review upstream migration notes, and execute additional verification tests.\n`;
+  p += `   - If test suites are missing or cannot run in the execution environment, clearly report the resulting uncertainty in the final report.\n`;
+  p += `   - If the task exceeds the available execution budget, apply changes in controlled batches and reconcile every original finding before declaring completion.\n`;
+  p += `3. **No Fabricated Evidence**: Never invent package versions, advisory IDs, commit SHAs, or upstream fix claims.\n`;
+  p += `4. **Targeted Precision**: Modify ONLY the specified files. Avoid unrelated refactoring or formatting churn.\n\n`;
+
+  // 3. Repository Context & Evidence Metadata
+  p += `## 1. REPOSITORY CONTEXT & AUDIT INVENTORY METADATA\n`;
   p += `- **Target Project / Repository**: \`${repo}\`\n`;
   if (options.targetBranch) p += `- **Target Branch**: \`${options.targetBranch}\`\n`;
-  p += `- **Total Raw Findings Detected**: ${findings.length}\n`;
-  p += `- **Unique Vulnerable Components**: ${packagesList.length}\n`;
+  p += `- **Total Raw Security Findings Reported**: ${totalRawFindings}\n`;
+  p += `- **Unique Security Advisories (CVE / GHSA / OSV)**: ${totalUniqueAdvisories}\n`;
+  p += `- **Unique Affected Packages / Components**: ${totalAffectedComponents}\n`;
+  p += `- **Affected Dependency Paths / Manifest Locations**: ${totalAffectedPaths}\n`;
   p += `- **CI/CD Pipeline Security Findings**: ${codeReviews.length + cicdFindings.length}\n`;
   p += `- **Supply Chain Blast Radius Score**: ${blastRadius}/100\n`;
   p += `- **Authoritative Intelligence Sources**: OSV.dev (Open Source Vulnerabilities), GitHub Advisory Database (GHSA), NVD/CVE, static AST analysis, OpenSSF workflow audit.\n\n`;
 
-  // 3. Staged 5-Phase Remediation Protocol
+  p += `> ⚠️ **INVENTORY COUNTING RULE**: Raw finding counts, unique advisories, affected packages, and dependency paths are distinct metrics and must NOT be treated as interchangeable. An audit reporting ${totalRawFindings} raw findings may represent ${totalUniqueAdvisories} unique advisories across ${totalAffectedComponents} packages. Every raw finding must be tracked and reconciled in Phase E.\n\n`;
+
+  if (workspaces.isWorkspace) {
+    p += `### Monorepo / Multi-Manifest Workspace Detected:\n`;
+    p += `- **Workspace Package Manager**: \`${workspaces.packageManager}\`\n`;
+    p += `- **Manifest Files Found**:\n`;
+    workspaces.manifests.forEach(m => {
+      p += `  - \`${m}\`\n`;
+    });
+    p += `\n`;
+  }
+
+  // 4. Staged 5-Phase Remediation Protocol
   p += `## 2. STAGED REMEDIATION PROTOCOL (STRICT EXECUTION SEQUENCE)\n`;
   p += `You MUST follow this 5-phase engineering protocol to ensure systematic verification and prevent broken builds:\n\n`;
 
   p += `### PHASE A — ESTABLISH BASELINE\n`;
   p += `1. **Git State Inspection**: Check \`git status\` and preserve any uncommitted user work.\n`;
-  p += `2. **Environment & Tool Discovery**: Detect active package manager (\`${nodePm}\`, \`${pythonPm}\`, \`go\`, \`cargo\`), Node.js/Python runtimes, and workspace configuration.\n`;
-  p += `3. **Baseline Test Execution**: Run existing test suites (\`npm test\`, \`pytest\`, \`go test\`) and record initial passing/failing status before editing any file.\n\n`;
+  p += `2. **Repository & Tool Discovery**: Detect active package manager (\`${nodePm}\`, \`${pythonPm}\`, \`go\`, \`cargo\`), Node.js/Python runtimes, lockfiles, and workspace configuration.\n`;
+  p += `3. **Audit Inventory Reading**: Read the complete audit inventory below. Distinguish raw findings, unique advisories, affected packages, and affected dependency paths.\n`;
+  p += `4. **Baseline Test Execution**: Run existing test suites (\`npm test\`, \`pytest\`, \`go test\`) and record initial passing/failing status before editing any file.\n\n`;
 
   p += `### PHASE B — PLAN REMEDIATION\n`;
   p += `1. **Inventory Mapping**: Review Section 3 below. Map every finding to its exact manifest (\`package.json\`, \`requirements.txt\`, \`go.mod\`) or workflow file.\n`;
   p += `2. **Scope Distinction**: Distinguish direct dependencies from transitive sub-dependencies. Do NOT add transitive packages into direct manifest dependencies unless justified.\n`;
-  p += `3. **Breaking Change Assessment**: Review all packages flagged with \`[MAJOR UPGRADE REQUIRED]\` and check migration notes before applying.\n`;
-  p += `4. **Batch Execution Plan**: If modifying more than 15 packages, apply changes in staged batches.\n\n`;
+  p += `3. **Breaking Change Assessment**: Review all packages flagged with \`COMPATIBILITY_REVIEW_REQUIRED\` and evaluate migration requirements before applying.\n`;
+  p += `4. **Grouping & Batching**: Group compatible changes. If modifying more than 15 packages, apply changes in staged batches.\n`;
+  p += `5. **Manual Investigation Planning**: Identify findings requiring vendor review or manual investigation (unpatched advisories or missing fixed versions).\n\n`;
 
   p += `### PHASE C — IMPLEMENT CHANGES\n`;
   p += `1. **Surgical Modifications**: Apply the smallest suitable version bump or code patch that eliminates the vulnerability.\n`;
@@ -668,17 +769,18 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
 
   p += `### PHASE D — VERIFY\n`;
   p += `1. **Manifest & Lockfile Integrity**: Validate that manifests are syntactically valid and lockfiles resolve cleanly.\n`;
-  p += `2. **Run Full Test Suite**: Execute project test suites and verify that zero functional regressions were introduced compared to Phase A baseline.\n`;
+  p += `2. **Run Full Test Suite**: Execute project test suites and verify that no functional regressions or broken behavior were introduced compared to Phase A baseline.\n`;
   p += `3. **Production Build & Lint**: Run build commands (\`npm run build\`, etc.) to confirm packaging and compilation succeed.\n`;
-  p += `4. **Post-Remediation Rescan**: Re-run vulnerability scanning or review dependency tree to verify advisories are closed.\n`;
-  p += `5. **Diff Audit**: Review \`git diff\` to ensure no unintended formatting churn or extraneous files were touched.\n\n`;
+  p += `4. **API Contract & Workflow Tests**: Test affected endpoints and workflows.\n`;
+  p += `5. **Post-Remediation Rescan**: Re-run vulnerability scanning or review dependency tree to verify advisories are closed.\n`;
+  p += `6. **Diff Audit**: Review \`git diff\` to ensure no unintended formatting churn or extraneous files were touched.\n\n`;
 
   p += `### PHASE E — REPORT\n`;
-  p += `Produce a structured final reconciliation report adhering to the template in Section 7.\n\n`;
+  p += `Produce a structured final reconciliation report adhering to the template in Section 6.\n\n`;
 
   p += `============================================================\n\n`;
 
-  // 4. Finding-by-Finding Remediation Inventory
+  // 5. Finding-by-Finding Remediation Inventory
   p += `## 3. EVIDENCE-BASED REMEDIATION INSTRUCTIONS\n\n`;
 
   let stepNum = 1;
@@ -687,7 +789,12 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
   if (npmPackages.length > 0) {
     p += `### 3.${stepNum} JavaScript / Node.js Dependencies (\`package.json\`)\n`;
     p += `- **Detected Package Manager**: \`${nodePm}\`\n`;
-    p += `- **Target File(s)**: Locate \`package.json\` in project root or workspace directories (e.g., \`frontend/package.json\`).\n\n`;
+    if (workspaces.isWorkspace) {
+      p += `- **Workspace Manifests**: ${workspaces.manifests.map(m => `\`${m}\``).join(", ")}\n`;
+    } else {
+      p += `- **Target File(s)**: Locate \`package.json\` in project root or workspace directories (e.g., \`frontend/package.json\`).\n`;
+    }
+    p += `\n`;
 
     const directPackages = npmPackages.filter(pkg => pkg.scope === "DIRECT" || pkg.scope === "UNKNOWN");
     const transitivePackages = npmPackages.filter(pkg => pkg.scope === "TRANSITIVE" || pkg.scope === "DIRECT_AND_TRANSITIVE");
@@ -706,6 +813,7 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
 
     if (transitivePackages.length > 0 || npmPackages.length > 0) {
       p += `#### B. Transitive Sub-Dependencies & Overrides:\n`;
+      p += `> **Rule**: Do NOT add transitive dependencies into root \`dependencies\`. Use native overrides/resolutions to constrain nested packages:\n\n`;
       if (nodePm === "pnpm") {
         p += `For **pnpm**, add to \`pnpm.overrides\` in root \`package.json\`:\n`;
         p += `\`\`\`json\n{\n  "pnpm": {\n    "overrides": {\n`;
@@ -735,14 +843,16 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
 
     p += `#### C. Component Details & Vulnerability Evidence:\n`;
     npmPackages.forEach((pkg) => {
-      const upgradeTag = pkg.resolution.isMajorUpgrade ? " ⚠️ [MAJOR UPGRADE REQUIRED]" : "";
-      p += `- **\`${pkg.pkgName}@${pkg.installedVersion || "installed"}\`** [${pkg.highestSeverity}] (${pkg.findings.length} advisory finding(s))${upgradeTag}\n`;
-      p += `  - **Category**: ${pkg.resolution.category}\n`;
+      const upgradeTag = pkg.resolution.category === "COMPATIBILITY_REVIEW_REQUIRED"
+        ? " ⚠️ [COMPATIBILITY REVIEW REQUIRED - MAJOR UPGRADE]"
+        : "";
+      p += `- **\`${pkg.pkgName}@${pkg.installedVersion || "installed"}\`** [${pkg.highestSeverity}] (${pkg.findings.length} raw finding(s), ${pkg.advisories.length} unique advisory(s))${upgradeTag}\n`;
+      p += `  - **Recommendation State**: \`${pkg.resolution.category}\`\n`;
       p += `  - **Scope**: ${pkg.scope} dependency${pkg.declaredIn ? ` (declared in \`${pkg.declaredIn}\`)` : ""}\n`;
-      p += `  - **Recommended Safe Version**: \`${pkg.resolution.cleanVersion || "Manual Investigation"}\`\n`;
+      p += `  - **Target Version**: \`${pkg.resolution.cleanVersion || "Manual Investigation Required"}\`\n`;
       p += `  - **Remediation Note**: ${pkg.resolution.explanation}\n`;
       p += `  - **Advisories Addressed**: ${pkg.advisories.map(a => a.id).slice(0, 8).join(", ")}${pkg.advisories.length > 8 ? ` +${pkg.advisories.length - 8} more` : ""}\n`;
-      if (pkg.resolution.isMajorUpgrade) {
+      if (pkg.resolution.category === "COMPATIBILITY_REVIEW_REQUIRED") {
         p += `  - **Compatibility Assessment**: Major version bump (${pkg.installedVersion} -> ${pkg.resolution.cleanVersion}). Audit package changelog for breaking changes before committing.\n`;
       }
     });
@@ -763,14 +873,14 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
     p += `- **Detected Package Tool**: \`${pythonPm}\`\n`;
     p += `- **Target File(s)**: \`requirements.txt\`, \`pyproject.toml\`, or backend manifests.\n\n`;
 
-    const verifiedPypi = pypiPackages.filter(p => p.resolution.category !== "INVESTIGATION_REQUIRED");
-    const unverifiedPypi = pypiPackages.filter(p => p.resolution.category === "INVESTIGATION_REQUIRED");
+    const verifiedPypi = pypiPackages.filter(p => p.resolution.category !== "NO_VERIFIED_FIX" && p.resolution.category !== "MANUAL_INVESTIGATION_REQUIRED");
+    const unverifiedPypi = pypiPackages.filter(p => p.resolution.category === "NO_VERIFIED_FIX" || p.resolution.category === "MANUAL_INVESTIGATION_REQUIRED");
 
     if (verifiedPypi.length > 0) {
       p += `#### A. PEP 440 Pinning Constraints:\n`;
       p += `\`\`\`text\n`;
       verifiedPypi.forEach((pkg) => {
-        p += `${pkg.pkgName}${pkg.resolution.pep440Constraint}  # Pinned by SupplyGraph (${pkg.findings.length} advisory finding(s))\n`;
+        p += `${pkg.pkgName}${pkg.resolution.pep440Constraint}  # Pinned by SupplyGraph (${pkg.findings.length} raw finding(s), ${pkg.advisories.length} unique advisory(s))\n`;
       });
       p += `\`\`\`\n\n`;
     }
@@ -786,20 +896,26 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
 
     p += `#### C. Component Details & Vulnerability Evidence:\n`;
     pypiPackages.forEach((pkg) => {
-      const upgradeTag = pkg.resolution.isMajorUpgrade ? " ⚠️ [MAJOR UPGRADE REQUIRED]" : "";
-      p += `- **\`${pkg.pkgName}@${pkg.installedVersion || "installed"}\`** [${pkg.highestSeverity}] (${pkg.findings.length} advisory finding(s))${upgradeTag}\n`;
-      p += `  - **Category**: ${pkg.resolution.category}\n`;
+      const upgradeTag = (pkg.resolution.category === "COMPATIBILITY_REVIEW_REQUIRED" || pkg.resolution.isMajorUpgrade)
+        ? " ⚠️ [COMPATIBILITY REVIEW REQUIRED - MAJOR UPGRADE]"
+        : "";
+      p += `- **\`${pkg.pkgName}@${pkg.installedVersion || "installed"}\`** [${pkg.highestSeverity}] (${pkg.findings.length} raw finding(s), ${pkg.advisories.length} unique advisory(s))${upgradeTag}\n`;
+      p += `  - **Recommendation State**: \`${pkg.resolution.category}\`\n`;
       p += `  - **Scope**: ${pkg.scope} dependency${pkg.declaredIn ? ` (declared in \`${pkg.declaredIn}\`)` : ""}\n`;
-      p += `  - **Recommended Target**: \`${pkg.resolution.pep440Constraint || "Manual Investigation"}\`\n`;
+      p += `  - **Target Version**: \`${pkg.resolution.pep440Constraint || "Manual Investigation Required"}\`\n`;
       p += `  - **Remediation Note**: ${pkg.resolution.explanation}\n`;
       p += `  - **Advisories Addressed**: ${pkg.advisories.map(a => a.id).slice(0, 8).join(", ")}${pkg.advisories.length > 8 ? ` +${pkg.advisories.length - 8} more` : ""}\n`;
+      if (pkg.resolution.category === "COMPATIBILITY_REVIEW_REQUIRED" || pkg.resolution.isMajorUpgrade) {
+        p += `  - **Compatibility Assessment**: Major version bump (${pkg.installedVersion} -> ${pkg.resolution.cleanVersion}). Audit package changelog for breaking changes before committing.\n`;
+      }
     });
 
     p += `\n> **Lockfile / Environment Synchronization Command**:\n`;
+    p += `> **Note**: Never assume that \`pip install\` automatically regenerates a lockfile. For Poetry, Pipenv, or uv, run the dedicated lock command:\n`;
     p += `\`\`\`bash\n`;
-    if (pythonPm === "poetry") p += `poetry update\n`;
-    else if (pythonPm === "pipenv") p += `pipenv update\n`;
-    else if (pythonPm === "uv") p += `uv sync\n`;
+    if (pythonPm === "poetry") p += `poetry lock --no-update && poetry install\n`;
+    else if (pythonPm === "pipenv") p += `pipenv lock && pipenv install\n`;
+    else if (pythonPm === "uv") p += `uv lock && uv sync\n`;
     else p += `pip install -r requirements.txt --upgrade\n`;
     p += `\`\`\`\n\n`;
     stepNum++;
@@ -853,7 +969,14 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
       if (snippet) p += `\`\`\`yaml\n${snippet}\n\`\`\`\n\n`;
     });
   } else {
-    p += `All CI/CD workflows comply with OpenSSF immutable SHA-pinning and least-privilege standards.\n\n`;
+    // Section 6 requirement: state scope of performed checks rather than blanket claims
+    p += `**Scope of performed CI/CD checks**:\n`;
+    p += `1. Immutable commit SHA pinning for third-party actions (\`uses:\` directives).\n`;
+    p += `2. Least-privilege permissions analysis (checks for blanket \`write-all\` permissions).\n`;
+    p += `3. Script injection vulnerability detection in \`run:\` steps (untrusted \`github.event\` context variables).\n`;
+    p += `4. Insecure download-and-execute patterns (\`curl | bash\`).\n\n`;
+    p += `- **Result**: 0 actionable risks detected across audited workflow files.\n`;
+    p += `- **Note**: This audit evaluates static workflow configurations. Self-hosted runner isolation, repository secret handling, and upstream action implementation integrity require separate operational assessment.\n\n`;
   }
   stepNum++;
 
@@ -871,7 +994,7 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
     stepNum++;
   }
 
-  // 5. Verification Checklist & Regression Prevention
+  // 6. Verification Checklist & Regression Prevention
   p += `## 4. VERIFICATION CHECKLIST & REGRESSION PREVENTION\n`;
   p += `Complete all verification gates before reporting completion:\n`;
   p += `1. **Syntax Validation**: Manifest files (\`package.json\`, \`requirements.txt\`, \`go.mod\`) must parse cleanly without syntax errors.\n`;
@@ -881,28 +1004,38 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
   p += `5. **CI/CD Action SHAs**: Verify that no unpinned mutable tags (\`@v...\` or \`@main\`) remain in \`.github/workflows/\`.\n`;
   p += `6. **Git Diff Hygiene**: Inspect \`git diff\` to confirm changes are strictly limited to the security issues identified above.\n\n`;
 
-  // 6. Acceptance Criteria
+  // 7. Acceptance Criteria
   p += `## 5. ACCEPTANCE CRITERIA\n`;
   p += `- All verified CVE/GHSA advisories identified in this audit are remediated or explicitly cataloged.\n`;
   p += `- Manifests and lockfiles remain synchronized and reproducible.\n`;
   p += `- Existing public API contracts, routing, and business logic remain functional.\n`;
   p += `- Any unverified advisory or major version migration requirement is explicitly noted in the final report.\n\n`;
 
-  // 7. Required Final Report Template
-  p += `## 6. REQUIRED FINAL REMEDIATION REPORT TEMPLATE\n`;
+  // 8. Required Final Report Template (Phase E)
+  p += `## 6. REQUIRED FINAL REMEDIATION REPORT TEMPLATE (PHASE E)\n`;
   p += `Provide your final response adhering to this format:\n\n`;
   p += `\`\`\`markdown\n`;
   p += `### SUPPLYGRAPH SECURITY REMEDIATION REPORT\n\n`;
-  p += `- **Baseline Test Status**: [Passed / Failed / No Tests Found]\n`;
-  p += `- **Total Raw Findings in Audit**: ${findings.length}\n`;
-  p += `- **Findings Successfully Remediated**: [Count]\n`;
-  p += `- **Findings Requiring Manual Investigation**: [Count]\n`;
+  p += `- **Original Raw Finding Count**: ${totalRawFindings}\n`;
+  p += `- **Final Raw Finding Count**: [Count after fix]\n`;
+  p += `- **Findings Verified as Fixed**: [Count / List]\n`;
+  p += `- **Findings Mitigated with Residual Risk**: [Count / List]\n`;
+  p += `- **Findings Requiring Manual Review**: [Count / List]\n`;
+  p += `- **Findings Not Applicable / False Positives (with evidence)**: [Count / List]\n`;
   p += `- **Major Version Upgrades Applied**: [List packages and migration steps taken]\n\n`;
   p += `#### Modified Files:\n`;
   p += `- [List all files changed, e.g. package.json, requirements.txt, .github/workflows/...]\n\n`;
-  p += `#### Verification Commands Executed:\n`;
-  p += `- [List exact commands executed and their output summary]\n\n`;
-  p += `#### Unresolved Risks & Limitations:\n`;
+  p += `#### Package Versions Changed:\n`;
+  p += `- [List: package @ old_version -> new_version]\n\n`;
+  p += `#### Lockfiles Updated:\n`;
+  p += `- [List: package-lock.json, poetry.lock, etc.]\n\n`;
+  p += `#### Commands Actually Executed:\n`;
+  p += `- [List exact commands executed in terminal and their status; NEVER claim a command succeeded unless executed]\n\n`;
+  p += `#### Tests & Builds Completed:\n`;
+  p += `- [List test suites and build commands executed, with passing/failing status]\n\n`;
+  p += `#### Post-Remediation Rescan Results:\n`;
+  p += `- [Re-scan comparison: original findings vs remaining findings]\n\n`;
+  p += `#### Remaining Limitations & Residual Risks:\n`;
   p += `- [Detail any unpatched advisories, missing test coverage, or environment constraints]\n`;
   p += `\`\`\`\n\n`;
 
@@ -951,10 +1084,10 @@ export function generateSingleAIFixPrompt(
   p += `- **Installed Version**: \`${curVer || "unversioned / unknown"}\`\n`;
   p += `- **Ecosystem**: \`${ecosystem}\`\n`;
   p += `- **Highest Severity**: [${finding.severity || "MEDIUM"}]\n`;
-  p += `- **Recommended Safe Version**: \`${resolution.cleanVersion || "Manual Investigation"}\`\n`;
-  p += `- **Confidence Category**: ${resolution.category}\n`;
+  p += `- **Recommended Target Version**: \`${resolution.cleanVersion || "Manual Investigation Required"}\`\n`;
+  p += `- **Recommendation State**: \`${resolution.category}\`\n`;
   p += `- **Remediation Note**: ${resolution.explanation}\n`;
-  p += `- **Total Related Findings**: ${findingsList.length}\n\n`;
+  p += `- **Total Raw Findings for Component**: ${findingsList.length}\n\n`;
 
   p += `### ADVISORIES ADDRESSED:\n`;
   findingsList.slice(0, 10).forEach((f: any) => {
@@ -996,7 +1129,7 @@ export function generateSingleAIFixPrompt(
     p += `1. Update the dependency manifest with safe minimum version.\n`;
   }
 
-  p += `5. Run project tests to confirm application functions cleanly.\n`;
+  p += `5. Run project tests to confirm application functions cleanly without regressions.\n`;
   p += `6. Present the updated file diff and verification test results.\n`;
 
   return p.trim();

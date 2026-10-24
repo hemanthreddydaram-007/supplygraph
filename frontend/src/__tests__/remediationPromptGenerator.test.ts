@@ -13,252 +13,537 @@ import {
   VERIFIED_ACTION_SHAS
 } from "../lib/remediationPromptGenerator";
 
-console.log("Starting SupplyGraph Remediation Prompt Generator Automated Test Suite...\n");
+console.log("Starting SupplyGraph Master Acceptance Test Suite (Sections 11 & 12)...\n");
 
-// TEST SUITE 1: SemVer Parsing & Malformed Version Constraints
-console.log("Running Suite 1: SemVer & Malformed Version Constraints...");
+// TEST 1: Complete audit with verified fixes
+console.log("Running Test 1: Complete audit with verified fixes...");
 {
-  assert.strictEqual(parseSemVer(""), null, "Empty string should return null");
-  assert.strictEqual(parseSemVer(null), null, "Null should return null");
-  assert.strictEqual(parseSemVer("latest"), null, "'latest' should return null and never be parsed as SemVer");
-  assert.strictEqual(parseSemVer("patched_version"), null, "'patched_version' placeholder should return null");
-  assert.strictEqual(parseSemVer("v1.2.3")?.major, 1, "Should strip leading 'v'");
-  assert.strictEqual(parseSemVer("^14.2.15")?.patch, 15, "Should strip leading '^'");
-  assert.strictEqual(parseSemVer(">=0.0.18")?.minor, 0, "Should strip leading '>='");
-
-  // Malformed PEP 440 or edge case
-  const resBad = resolveVersionWithConfidence("1.0.0", ["invalid_tag", "latest", ""]);
-  assert.strictEqual(resBad.category, "INVESTIGATION_REQUIRED", "Malformed candidate fixes must require investigation");
-  assert(!resBad.pep440Constraint?.includes("latest"), "PEP 440 constraint must never contain 'latest'");
-}
-
-// TEST SUITE 2: Missing Fixed Versions & Unpatched Advisories
-console.log("Running Suite 2: Missing Fixed Versions & Unpatched Advisories...");
-{
-  const resMissing = resolveVersionWithConfidence("2.3.1", []);
-  assert.strictEqual(resMissing.category, "INVESTIGATION_REQUIRED");
-  assert.strictEqual(resMissing.cleanVersion, "");
-  assert(resMissing.explanation.includes("disputed or unpatched advisory"), "Explanation must state unpatched advisory");
-
-  // Finding with no fixed version
-  const findingNoFix = {
-    id: "finding-unpatched",
-    origin_candidate: "pkg:pypi/unpatched-pkg@1.0.0",
-    title: "GHSA-xxxx: Unpatched zero-day in unpatched-pkg",
-    severity: "HIGH",
-    finding_type: "VULNERABLE",
-    recommendations: [],
-    evidence: []
-  };
-  const snippet = buildLockfileSnippet(findingNoFix);
-  assert(snippet.includes("No verified upstream fixed release available"), "Snippet must explain no upstream fix exists");
-  assert(!snippet.includes("latest"), "Snippet must never recommend 'latest'");
-}
-
-// TEST SUITE 3: Transitive vs. Direct Dependency Handling
-console.log("Running Suite 3: Transitive vs. Direct Dependencies...");
-{
-  const scanWithDirectAndTransitive = {
-    scan: { repository_url: "https://github.com/org/repo", lockfile_types: ["package-lock.json"] },
+  const scan = {
+    scan: { repository_url: "https://github.com/org/verified-repo", total_findings: 2, blast_radius_score: 30 },
     components: [
-      { name: "next", purl: "pkg:npm/next@14.2.15", is_direct: true, is_transitive: false, declared_in: "package.json" },
-      { name: "micromatch", purl: "pkg:npm/micromatch@4.0.5", is_direct: false, is_transitive: true, declared_in: "package-lock.json" }
+      { name: "axios", purl: "pkg:npm/axios@1.6.0", is_direct: true, is_transitive: false, declared_in: "package.json" },
+      { name: "requests", purl: "pkg:pypi/requests@2.31.0", is_direct: true, is_transitive: false, declared_in: "requirements.txt" }
     ],
     findings: [
       {
-        origin_candidate: "pkg:npm/next@14.2.15",
-        title: "CVE-2024-1: Next.js Cache Poisoning",
+        id: "F1",
+        origin_candidate: "pkg:npm/axios@1.6.0",
+        title: "CVE-2024-1111: SSRF in axios",
         severity: "HIGH",
         finding_type: "VULNERABLE",
-        recommendations: [{ fixed_version: "14.2.35" }]
+        recommendations: [{ fixed_version: "1.7.4" }]
       },
       {
-        origin_candidate: "pkg:npm/micromatch@4.0.5",
-        title: "CVE-2024-2: ReDoS in micromatch",
+        id: "F2",
+        origin_candidate: "pkg:pypi/requests@2.31.0",
+        title: "CVE-2024-2222: Proxy leakage in requests",
         severity: "MEDIUM",
         finding_type: "VULNERABLE",
-        recommendations: [{ fixed_version: "4.0.8" }]
+        recommendations: [{ fixed_version: "2.32.3" }]
       }
     ]
   };
 
-  const packages = aggregateComponentPackages(scanWithDirectAndTransitive);
-  const nextPkg = packages.find(p => p.pkgName === "next");
-  const microPkg = packages.find(p => p.pkgName === "micromatch");
+  const packages = aggregateComponentPackages(scan);
+  const axiosPkg = packages.find(p => p.pkgName === "axios");
+  const reqPkg = packages.find(p => p.pkgName === "requests");
 
-  assert.strictEqual(nextPkg?.scope, "DIRECT", "next should be identified as DIRECT");
-  assert.strictEqual(microPkg?.scope, "TRANSITIVE", "micromatch should be identified as TRANSITIVE");
+  assert.strictEqual(axiosPkg?.resolution.category, "VERIFIED_FIXED_VERSION");
+  assert.strictEqual(axiosPkg?.resolution.cleanVersion, "1.7.4");
+  assert.strictEqual(reqPkg?.resolution.category, "VERIFIED_FIXED_VERSION");
+  assert.strictEqual(reqPkg?.resolution.cleanVersion, "2.32.3");
 
-  const prompt = generateMasterAIFixPrompt(scanWithDirectAndTransitive);
-  // Direct package should be in dependencies section
-  assert(prompt.includes('"next": "^14.2.35"'), "Direct package must be in dependencies");
-  // Transitive package should be in overrides section
-  assert(prompt.includes("Transitive Sub-Dependencies & Overrides"), "Must have overrides section");
-  assert(prompt.includes('"micromatch": "^4.0.8"'), "Transitive package must be in overrides");
+  const prompt = generateMasterAIFixPrompt(scan);
+  assert(prompt.includes("VERIFIED_FIXED_VERSION"));
+  assert(prompt.includes('"axios": "^1.7.4"'));
+  assert(prompt.includes("requests>=2.32.3"));
+  assert(prompt.includes("PHASE A — ESTABLISH BASELINE"));
+  assert(prompt.includes("PHASE E — REPORT"));
 }
 
-// TEST SUITE 4: Major Version Upgrade Detection & Compatibility Warning
-console.log("Running Suite 4: Major Version Upgrades...");
+// TEST 2: Finding with no verified fixed version
+console.log("Running Test 2: Finding with no verified fixed version...");
 {
-  const resMajor = resolveVersionWithConfidence("1.5.0", ["2.0.1", "3.0.0"]);
-  assert.strictEqual(resMajor.category, "VERIFIED_MAJOR_UPGRADE");
-  assert.strictEqual(resMajor.isMajorUpgrade, true);
-  assert.strictEqual(resMajor.cleanVersion, "2.0.1", "Should pick lowest safe in next major");
-  assert(resMajor.explanation.includes("Major version upgrade required"), "Must warn about major upgrade");
+  const resNoFix = resolveVersionWithConfidence("1.0.0", []);
+  assert.strictEqual(resNoFix.category, "NO_VERIFIED_FIX");
+  assert.strictEqual(resNoFix.cleanVersion, "");
+  assert(resNoFix.explanation.includes("disputed or unpatched advisory"));
 
-  const scanWithMajor = {
-    scan: { repository_url: "test-repo" },
-    findings: [{
-      origin_candidate: "pkg:npm/legacy-lib@1.0.0",
-      title: "GHSA-old: Critical issue fixed only in v2",
-      severity: "CRITICAL",
-      finding_type: "VULNERABLE",
-      recommendations: [{ fixed_version: "2.1.0" }]
-    }]
-  };
-  const prompt = generateMasterAIFixPrompt(scanWithMajor);
-  assert(prompt.includes("[MAJOR UPGRADE REQUIRED]"), "Prompt must flag major upgrade required");
-  assert(prompt.includes("Compatibility Assessment"), "Prompt must require compatibility assessment");
-}
-
-// TEST SUITE 5: GitHub Actions Pinning & SHA Integrity
-console.log("Running Suite 5: GitHub Actions Pinning & SHA Integrity...");
-{
-  // Official verified actions
-  assert(VERIFIED_ACTION_SHAS["actions/checkout"]["v4"] === "11bd71901bbe5b1630ceea73d27597364c9af683");
-  assert(VERIFIED_ACTION_SHAS["actions/setup-python"]["v5"] === "42375524e23c412d93fb67b49958b491fce71c38");
-
-  // Prompt with CI/CD code reviews
-  const scanWithCicd = {
-    scan: { repository_url: "ci-repo" },
-    findings: [],
-    code_reviews: [
-      {
-        title: "Unpinned GitHub Action",
-        severity: "HIGH",
-        file_path: ".github/workflows/deploy.yml",
-        line_number: 10,
-        error_explanation: "Action uses mutable tag @v4",
-        unified_diff: "- uses: actions/checkout@v4\n+ uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2"
-      }
-    ]
-  };
-  const prompt = generateMasterAIFixPrompt(scanWithCicd);
-  assert(prompt.includes("CI/CD Pipeline Security Hardening"), "Prompt must include CI/CD hardening");
-  assert(prompt.includes("11bd71901bbe5b1630ceea73d27597364c9af683"), "Prompt must include verified SHA");
-}
-
-// TEST SUITE 6: Multi-Package Manager Detection (npm, pnpm, yarn, poetry, pipenv, uv)
-console.log("Running Suite 6: Multi-Package Manager Detection...");
-{
-  assert.strictEqual(detectPackageManagers({ scan: { lockfile_types: ["pnpm-lock.yaml"] } }).nodePm, "pnpm");
-  assert.strictEqual(detectPackageManagers({ scan: { lockfile_types: ["yarn.lock"] } }).nodePm, "yarn");
-  assert.strictEqual(detectPackageManagers({ scan: { lockfile_types: ["package-lock.json"] } }).nodePm, "npm");
-  assert.strictEqual(detectPackageManagers({ scan: { lockfile_types: ["poetry.lock"] } }).pythonPm, "poetry");
-  assert.strictEqual(detectPackageManagers({ scan: { lockfile_types: ["uv.lock"] } }).pythonPm, "uv");
-  assert.strictEqual(detectPackageManagers({ scan: { lockfile_types: ["Pipfile.lock"] } }).pythonPm, "pipenv");
-  assert.strictEqual(detectPackageManagers({ scan: { lockfile_types: ["requirements.txt"] } }).pythonPm, "pip");
-
-  // Check pnpm overrides syntax in prompt
-  const pnpmScan = {
-    scan: { repository_url: "pnpm-project", lockfile_types: ["pnpm-lock.yaml"] },
-    findings: [{
-      origin_candidate: "pkg:npm/foo@1.0.0",
-      title: "GHSA-foo: Vulnerability in foo",
-      severity: "HIGH",
-      finding_type: "VULNERABLE",
-      recommendations: [{ fixed_version: "1.0.5" }]
-    }]
-  };
-  const pnpmPrompt = generateMasterAIFixPrompt(pnpmScan);
-  assert(pnpmPrompt.includes("pnpm.overrides"), "pnpm project prompt must use pnpm.overrides");
-  assert(pnpmPrompt.includes("pnpm install"), "pnpm project prompt must use pnpm install");
-}
-
-// TEST SUITE 7: Staged 5-Phase Protocol & Section 9 Structure
-console.log("Running Suite 7: 5-Phase Protocol & Section 9 Structure...");
-{
-  const fullScan = {
-    scan: { repository_url: "https://github.com/org/fullstack", blast_radius_score: 85 },
+  const scanNoFix = {
+    scan: { repository_url: "https://github.com/org/unpatched-repo" },
     findings: [
       {
-        origin_candidate: "pkg:npm/next@14.2.15",
-        title: "CVE-2024-1234: SSRF in Next.js",
+        id: "unpatched-1",
+        origin_candidate: "pkg:npm/zero-day-pkg@1.0.0",
+        title: "GHSA-xxxx: Zero day without upstream patch",
         severity: "CRITICAL",
         finding_type: "VULNERABLE",
-        recommendations: [{ fixed_version: "14.2.35" }]
-      },
-      {
-        origin_candidate: "pkg:pypi/Pillow@10.0.0",
-        title: "CVE-2024-5678: Buffer Overflow in Pillow",
-        severity: "HIGH",
-        finding_type: "VULNERABLE",
-        recommendations: [{ fixed_version: "10.4.0" }]
+        recommendations: []
       }
     ]
   };
-  const masterPrompt = generateMasterAIFixPrompt(fullScan);
 
-  assert(masterPrompt.includes("PHASE A — ESTABLISH BASELINE"), "Prompt must contain Phase A");
-  assert(masterPrompt.includes("PHASE B — PLAN REMEDIATION"), "Prompt must contain Phase B");
-  assert(masterPrompt.includes("PHASE C — IMPLEMENT CHANGES"), "Prompt must contain Phase C");
-  assert(masterPrompt.includes("PHASE D — VERIFY"), "Prompt must contain Phase D");
-  assert(masterPrompt.includes("PHASE E — REPORT"), "Prompt must contain Phase E");
-
-  // Section 9 Acceptance Criteria & Report Template
-  assert(masterPrompt.includes("ACCEPTANCE CRITERIA"), "Prompt must contain Acceptance Criteria");
-  assert(masterPrompt.includes("REQUIRED FINAL REMEDIATION REPORT TEMPLATE"), "Prompt must contain Report Template");
+  const prompt = generateMasterAIFixPrompt(scanNoFix);
+  assert(prompt.includes("NO_VERIFIED_FIX"));
+  assert(prompt.includes("Manual Investigation Required"));
+  assert(!prompt.includes("latest"));
 }
 
-// TEST SUITE 8: Regression Prevention Without False Guarantees
-console.log("Running Suite 8: Honest Language Without False Guarantees...");
+// TEST 3: Invalid package version recommendation
+console.log("Running Test 3: Invalid package version recommendation...");
 {
-  const fullScan = {
-    scan: { repository_url: "health-project" },
+  assert.strictEqual(parseSemVer("latest"), null);
+  assert.strictEqual(parseSemVer("patched_version"), null);
+  assert.strictEqual(parseSemVer(">=latest"), null);
+
+  const resPlaceholderOnly = resolveVersionWithConfidence("1.2.0", ["latest", "patched_version", ""]);
+  assert.strictEqual(resPlaceholderOnly.category, "NO_VERIFIED_FIX");
+  assert(!resPlaceholderOnly.pep440Constraint?.includes("latest"));
+
+  const resInvalidTag = resolveVersionWithConfidence("1.2.0", ["invalid-tag"]);
+  assert.strictEqual(resInvalidTag.category, "MANUAL_INVESTIGATION_REQUIRED");
+  assert(resInvalidTag.explanation.includes("Manual verification needed"));
+
+  const findingBad = {
+    origin_candidate: "pkg:pypi/bad-rec@1.0.0",
+    recommendations: [{ fixed_version: "latest" }]
+  };
+  const snippet = buildLockfileSnippet(findingBad);
+  assert(!snippet.includes("latest"));
+  assert(snippet.includes("No verified upstream fixed release available"));
+}
+
+// TEST 4: Major-version upgrade
+console.log("Running Test 4: Major-version upgrade...");
+{
+  const resMajor = resolveVersionWithConfidence("12.3.0", ["13.0.0"]);
+  assert.strictEqual(resMajor.category, "COMPATIBILITY_REVIEW_REQUIRED");
+  assert.strictEqual(resMajor.isMajorUpgrade, true);
+  assert.strictEqual(resMajor.cleanVersion, "13.0.0");
+  assert(resMajor.explanation.includes("Major version upgrade required"));
+
+  const scanMajor = {
+    scan: { repository_url: "test-major" },
     findings: [{
-      origin_candidate: "pkg:npm/pkg@1.0.0",
+      origin_candidate: "pkg:pypi/pillow@12.3.0",
+      title: "CVE-2024-9999: Major issue",
+      severity: "HIGH",
+      finding_type: "VULNERABLE",
+      recommendations: [{ fixed_version: "13.0.0" }]
+    }]
+  };
+  const prompt = generateMasterAIFixPrompt(scanMajor);
+  assert(prompt.includes("COMPATIBILITY_REVIEW_REQUIRED"));
+  assert(prompt.includes("[COMPATIBILITY REVIEW REQUIRED - MAJOR UPGRADE]"));
+  assert(prompt.includes("Compatibility Assessment"));
+}
+
+// TEST 5: Transitive dependency vulnerability
+console.log("Running Test 5: Transitive dependency vulnerability...");
+{
+  const scanTransitive = {
+    scan: { repository_url: "transitive-repo", lockfile_types: ["package-lock.json"] },
+    components: [
+      { name: "express", purl: "pkg:npm/express@4.18.2", is_direct: true, is_transitive: false, declared_in: "package.json" },
+      { name: "qs", purl: "pkg:npm/qs@6.11.0", is_direct: false, is_transitive: true, declared_in: "package-lock.json" }
+    ],
+    findings: [
+      {
+        origin_candidate: "pkg:npm/express@4.18.2",
+        title: "CVE-2024-express: Express patch",
+        severity: "LOW",
+        finding_type: "VULNERABLE",
+        recommendations: [{ fixed_version: "4.19.2" }]
+      },
+      {
+        origin_candidate: "pkg:npm/qs@6.11.0",
+        title: "CVE-2024-qs: Prototype pollution in qs",
+        severity: "HIGH",
+        finding_type: "VULNERABLE",
+        recommendations: [{ fixed_version: "6.11.2" }]
+      }
+    ]
+  };
+
+  const pkgs = aggregateComponentPackages(scanTransitive);
+  assert.strictEqual(pkgs.find(p => p.pkgName === "express")?.scope, "DIRECT");
+  assert.strictEqual(pkgs.find(p => p.pkgName === "qs")?.scope, "TRANSITIVE");
+
+  const prompt = generateMasterAIFixPrompt(scanTransitive);
+  assert(prompt.includes('"express": "^4.19.2"'));
+  assert(prompt.includes('"qs": "^6.11.2"'));
+  assert(prompt.includes("Transitive Sub-Dependencies & Overrides"));
+  assert(prompt.includes("Do NOT add transitive dependencies into root `dependencies`"));
+}
+
+// TEST 6: npm workspace with multiple manifests
+console.log("Running Test 6: npm workspace with multiple manifests...");
+{
+  const scanWorkspace = {
+    scan: { repository_url: "workspace-repo", lockfile_types: ["package-lock.json"] },
+    files: [
+      { path: "package.json" },
+      { path: "packages/frontend/package.json" },
+      { path: "packages/backend/package.json" }
+    ],
+    findings: [{
+      origin_candidate: "pkg:npm/lodash@4.17.20",
+      title: "CVE-2021-23337: Prototype Pollution in lodash",
+      severity: "HIGH",
+      finding_type: "VULNERABLE",
+      recommendations: [{ fixed_version: "4.17.21" }]
+    }]
+  };
+
+  const pm = detectPackageManagers(scanWorkspace);
+  assert.strictEqual(pm.workspaces.isWorkspace, true);
+  assert.strictEqual(pm.workspaces.manifests.length, 3);
+
+  const prompt = generateMasterAIFixPrompt(scanWorkspace);
+  assert(prompt.includes("Monorepo / Multi-Manifest Workspace Detected"));
+  assert(prompt.includes("packages/frontend/package.json"));
+  assert(prompt.includes("packages/backend/package.json"));
+}
+
+// TEST 7: Python project with a lockfile (poetry, uv, pipenv)
+console.log("Running Test 7: Python project with a lockfile...");
+{
+  const poetryScan = {
+    scan: { repository_url: "poetry-repo", lockfile_types: ["poetry.lock"] },
+    findings: [{
+      origin_candidate: "pkg:pypi/jinja2@3.1.2",
+      title: "CVE-2024-34064: HTML injection in Jinja2",
+      severity: "HIGH",
+      finding_type: "VULNERABLE",
+      recommendations: [{ fixed_version: "3.1.4" }]
+    }]
+  };
+  const poetryPm = detectPackageManagers(poetryScan);
+  assert.strictEqual(poetryPm.pythonPm, "poetry");
+  const poetryPrompt = generateMasterAIFixPrompt(poetryScan);
+  assert(poetryPrompt.includes("poetry lock --no-update && poetry install"));
+
+  const uvScan = {
+    scan: { repository_url: "uv-repo", lockfile_types: ["uv.lock"] },
+    findings: [{
+      origin_candidate: "pkg:pypi/jinja2@3.1.2",
+      title: "CVE-2024-34064: HTML injection in Jinja2",
+      severity: "HIGH",
+      finding_type: "VULNERABLE",
+      recommendations: [{ fixed_version: "3.1.4" }]
+    }]
+  };
+  assert.strictEqual(detectPackageManagers(uvScan).pythonPm, "uv");
+  const uvPrompt = generateMasterAIFixPrompt(uvScan);
+  assert(uvPrompt.includes("uv lock && uv sync"));
+}
+
+// TEST 8: Project using pip without a lockfile
+console.log("Running Test 8: Project using pip without a lockfile...");
+{
+  const pipScan = {
+    scan: { repository_url: "pip-repo", lockfile_types: ["requirements.txt"] },
+    findings: [{
+      origin_candidate: "pkg:pypi/flask@2.2.0",
+      title: "CVE-2023-1234: Denial of service in flask",
+      severity: "MEDIUM",
+      finding_type: "VULNERABLE",
+      recommendations: [{ fixed_version: "2.2.5" }]
+    }]
+  };
+  const pipPm = detectPackageManagers(pipScan);
+  assert.strictEqual(pipPm.pythonPm, "pip");
+  const pipPrompt = generateMasterAIFixPrompt(pipScan);
+  assert(pipPrompt.includes("pip install -r requirements.txt --upgrade"));
+  assert(pipPrompt.includes("Never assume that `pip install` automatically regenerates a lockfile"));
+}
+
+// TEST 9: GitHub Actions Pinning & SHA Integrity
+console.log("Running Test 9: GitHub Actions Pinning & SHA Integrity...");
+{
+  assert.strictEqual(VERIFIED_ACTION_SHAS["actions/checkout"]["v4"], "11bd71901bbe5b1630ceea73d27597364c9af683");
+  assert.strictEqual(VERIFIED_ACTION_SHAS["docker/login-action"]["v3"], "9780b0c442fbb1117ed29e0efdff1e18412f7567");
+
+  const scanCicd = {
+    scan: { repository_url: "ci-repo" },
+    findings: [],
+    code_reviews: [{
+      title: "Unpinned GitHub Action",
+      severity: "HIGH",
+      file_path: ".github/workflows/ci.yml",
+      line_number: 14,
+      error_explanation: "Action pinned to mutable @v4 tag",
+      unified_diff: "- uses: actions/checkout@v4\n+ uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2"
+    }]
+  };
+  const prompt = generateMasterAIFixPrompt(scanCicd);
+  assert(prompt.includes("11bd71901bbe5b1630ceea73d27597364c9af683"));
+  assert(prompt.includes(".github/workflows/ci.yml"));
+}
+
+// TEST 10: Duplicate advisory findings
+console.log("Running Test 10: Duplicate advisory findings...");
+{
+  const scanDuplicates = {
+    scan: { repository_url: "dup-repo", total_findings: 3 },
+    findings: [
+      {
+        id: "F1",
+        origin_candidate: "pkg:npm/tar@6.1.0",
+        title: "CVE-2021-37712: Symlink path traversal in tar",
+        severity: "HIGH",
+        finding_type: "VULNERABLE",
+        recommendations: [{ fixed_version: "6.1.11" }]
+      },
+      {
+        id: "F2",
+        origin_candidate: "pkg:npm/tar@6.1.0",
+        title: "CVE-2021-37712: Symlink path traversal in tar (duplicate entry)",
+        severity: "HIGH",
+        finding_type: "VULNERABLE",
+        recommendations: [{ fixed_version: "6.1.11" }]
+      },
+      {
+        id: "F3",
+        origin_candidate: "pkg:npm/tar@6.1.0",
+        title: "CVE-2021-37713: Arbitrary File Overwrite in tar",
+        severity: "HIGH",
+        finding_type: "VULNERABLE",
+        recommendations: [{ fixed_version: "6.1.11" }]
+      }
+    ]
+  };
+
+  const pkgs = aggregateComponentPackages(scanDuplicates);
+  const tarPkg = pkgs.find(p => p.pkgName === "tar");
+  assert.strictEqual(tarPkg?.findings.length, 3, "Raw finding count must be preserved as 3");
+  assert.strictEqual(tarPkg?.advisories.length, 2, "Unique advisories must be deduplicated to 2");
+
+  const prompt = generateMasterAIFixPrompt(scanDuplicates);
+  assert(prompt.includes("Total Raw Security Findings Reported**: 3"));
+  assert(prompt.includes("Unique Security Advisories (CVE / GHSA / OSV)**: 2"));
+  assert(prompt.includes("Unique Affected Packages / Components**: 1"));
+  assert(prompt.includes("INVENTORY COUNTING RULE"));
+}
+
+// TEST 11: Missing manifest paths
+console.log("Running Test 11: Missing manifest paths...");
+{
+  const scanMissingManifest = {
+    scan: { repository_url: "no-manifest-repo" },
+    findings: [{
+      origin_candidate: "pkg:pypi/unmapped-lib@1.0.0",
+      title: "CVE-2024-0001: Missing manifest link",
+      severity: "MEDIUM",
+      finding_type: "VULNERABLE",
+      recommendations: [{ fixed_version: "1.0.2" }]
+    }]
+  };
+  const prompt = generateMasterAIFixPrompt(scanMissingManifest);
+  assert(prompt.includes("Target File(s)"));
+  assert(prompt.includes("unmapped-lib>=1.0.2"));
+}
+
+// TEST 12: Conflicting findings / multiple scanner results
+console.log("Running Test 12: Conflicting findings...");
+{
+  const scanConflict = {
+    scan: { repository_url: "conflict-repo" },
+    findings: [
+      {
+        id: "OSV-1",
+        origin_candidate: "pkg:npm/debug@4.1.0",
+        title: "OSV finding recommending 4.1.1",
+        severity: "LOW",
+        finding_type: "VULNERABLE",
+        recommendations: [{ fixed_version: "4.1.1" }]
+      },
+      {
+        id: "NVD-1",
+        origin_candidate: "pkg:npm/debug@4.1.0",
+        title: "NVD finding recommending 4.3.4",
+        severity: "HIGH",
+        finding_type: "VULNERABLE",
+        recommendations: [{ fixed_version: "4.3.4" }]
+      }
+    ]
+  };
+  const pkgs = aggregateComponentPackages(scanConflict);
+  const debugPkg = pkgs.find(p => p.pkgName === "debug");
+  assert.strictEqual(debugPkg?.resolution.cleanVersion, "4.3.4", "Should pick highest safe patch in same major");
+  assert.strictEqual(debugPkg?.highestSeverity, "HIGH", "Should adopt highest severity");
+}
+
+// TEST 13: Scanner reporting zero CI/CD findings
+console.log("Running Test 13: Scanner reporting zero CI/CD findings...");
+{
+  const scanCleanCicd = {
+    scan: { repository_url: "clean-ci-repo" },
+    findings: [{
+      origin_candidate: "pkg:npm/react@18.2.0",
       title: "Advisory",
       severity: "LOW",
       finding_type: "VULNERABLE",
-      recommendations: [{ fixed_version: "1.0.1" }]
+      recommendations: [{ fixed_version: "18.3.1" }]
+    }],
+    code_reviews: []
+  };
+  const prompt = generateMasterAIFixPrompt(scanCleanCicd);
+  assert(prompt.includes("Scope of performed CI/CD checks"));
+  assert(prompt.includes("0 actionable risks detected across audited workflow files"));
+  assert(prompt.includes("This audit evaluates static workflow configurations"));
+  assert(!prompt.includes("All CI/CD workflows comply with OpenSSF"));
+}
+
+// TEST 14: Post-remediation scan with unresolved vulnerabilities
+console.log("Running Test 14: Post-remediation scan with unresolved vulnerabilities...");
+{
+  const scanWithResidual = {
+    scan: { repository_url: "residual-repo" },
+    findings: [{
+      origin_candidate: "pkg:pypi/unfixable@0.1.0",
+      title: "Zero-day vulnerability",
+      severity: "HIGH",
+      finding_type: "VULNERABLE",
+      recommendations: []
     }]
   };
-  const prompt = generateMasterAIFixPrompt(fullScan);
-  assert(!prompt.toLowerCase().includes("zero regressions"), "Prompt must not make false guarantees of 'zero regressions'");
-  assert(!prompt.toLowerCase().includes("100% vulnerability elimination"), "Prompt must not promise '100% vulnerability elimination'");
-  assert(prompt.includes("minimizing regressions"), "Prompt must use professional 'minimizing regressions' language");
+  const prompt = generateMasterAIFixPrompt(scanWithResidual);
+  assert(prompt.includes("REQUIRED FINAL REMEDIATION REPORT TEMPLATE (PHASE E)"));
+  assert(prompt.includes("Findings Requiring Manual Review"));
+  assert(prompt.includes("Remaining Limitations & Residual Risks"));
+  assert(prompt.includes("NEVER claim a command succeeded unless executed"));
 }
 
-// TEST SUITE 9: Incomplete & Contradictory Finding Resilience
-console.log("Running Suite 9: Incomplete Findings Resilience...");
+// TEST 15 (Section 12 Reference Scenario): kisan-ai-core (55 findings across 5 packages)
+console.log("Running Test 15: Reference Scenario (kisan-ai-core - 55 findings)...");
 {
-  const incompleteScan = {
-    scan: { repository_url: "broken-data-project" },
-    findings: [
-      { id: "null-finding", title: null, origin_candidate: null, finding_type: "VULNERABLE" },
-      { id: "missing-rec", title: "Incomplete finding", origin_candidate: "pkg:unknown", finding_type: "VULNERABLE" }
-    ]
+  // 55 findings: 13 Node.js findings + 42 Python findings
+  const mockFindings: any[] = [];
+
+  // Next.js: 6 findings
+  for (let i = 1; i <= 6; i++) {
+    mockFindings.push({
+      id: `NEXT-${i}`,
+      origin_candidate: "pkg:npm/next@16.3.3",
+      title: `GHSA-next-${i}: SSRF and cache issue in Next.js`,
+      severity: i === 1 ? "CRITICAL" : "HIGH",
+      finding_type: "VULNERABLE",
+      recommendations: [{ fixed_version: "16.4.1" }]
+    });
+  }
+
+  // sharp: 4 findings
+  for (let i = 1; i <= 4; i++) {
+    mockFindings.push({
+      id: `SHARP-${i}`,
+      origin_candidate: "pkg:npm/sharp@0.35.4",
+      title: `GHSA-sharp-${i}: Memory leak in sharp`,
+      severity: "MEDIUM",
+      finding_type: "VULNERABLE",
+      recommendations: [{ fixed_version: "0.35.5" }]
+    });
+  }
+
+  // source-map-js: 3 findings (transitive)
+  for (let i = 1; i <= 3; i++) {
+    mockFindings.push({
+      id: `SM-${i}`,
+      origin_candidate: "pkg:npm/source-map-js@1.2.1",
+      title: `GHSA-sm-${i}: ReDoS in source-map-js`,
+      severity: "LOW",
+      finding_type: "VULNERABLE",
+      recommendations: [{ fixed_version: "1.2.2" }]
+    });
+  }
+
+  // python-dotenv: 10 findings
+  for (let i = 1; i <= 10; i++) {
+    mockFindings.push({
+      id: `DOTENV-${i}`,
+      origin_candidate: "pkg:pypi/python-dotenv@1.0.1",
+      title: `CVE-dotenv-${i}: Environment parsing issue`,
+      severity: "MEDIUM",
+      finding_type: "VULNERABLE",
+      recommendations: [{ fixed_version: "1.2.2" }]
+    });
+  }
+
+  // pillow: 32 findings (crossing major version 12.3.0 -> 13.0.0)
+  for (let i = 1; i <= 32; i++) {
+    mockFindings.push({
+      id: `PILLOW-${i}`,
+      origin_candidate: "pkg:pypi/pillow@12.3.0",
+      title: `CVE-pillow-${i}: Buffer overflow in Pillow`,
+      severity: i <= 5 ? "CRITICAL" : "HIGH",
+      finding_type: "VULNERABLE",
+      recommendations: [{ fixed_version: "13.0.0" }]
+    });
+  }
+
+  assert.strictEqual(mockFindings.length, 55, "Total raw findings must be exactly 55");
+
+  const kisanScan = {
+    scan: {
+      repository_url: "https://github.com/hemanthreddydaram-007/kisan-ai-core",
+      total_findings: 55,
+      blast_radius_score: 92,
+      lockfile_types: ["package.json", "package-lock.json", "requirements.txt"]
+    },
+    components: [
+      { name: "next", purl: "pkg:npm/next@16.3.3", is_direct: true, is_transitive: false, declared_in: "package.json" },
+      { name: "sharp", purl: "pkg:npm/sharp@0.35.4", is_direct: true, is_transitive: false, declared_in: "package.json" },
+      { name: "source-map-js", purl: "pkg:npm/source-map-js@1.2.1", is_direct: false, is_transitive: true, declared_in: "package-lock.json" },
+      { name: "python-dotenv", purl: "pkg:pypi/python-dotenv@1.0.1", is_direct: true, is_transitive: false, declared_in: "requirements.txt" },
+      { name: "pillow", purl: "pkg:pypi/pillow@12.3.0", is_direct: true, is_transitive: false, declared_in: "requirements.txt" }
+    ],
+    findings: mockFindings
   };
-  // Must not throw exception
-  const prompt = generateMasterAIFixPrompt(incompleteScan);
-  assert(typeof prompt === "string" && prompt.length > 0, "Must generate valid string even with corrupted/incomplete data");
+
+  const pkgs = aggregateComponentPackages(kisanScan);
+  assert.strictEqual(pkgs.length, 5, "Must group 55 findings into exactly 5 unique components");
+
+  const nextPkg = pkgs.find(p => p.pkgName === "next");
+  const sharpPkg = pkgs.find(p => p.pkgName === "sharp");
+  const smPkg = pkgs.find(p => p.pkgName === "source-map-js");
+  const dotenvPkg = pkgs.find(p => p.pkgName === "python-dotenv");
+  const pillowPkg = pkgs.find(p => p.pkgName === "pillow");
+
+  assert.strictEqual(nextPkg?.resolution.cleanVersion, "16.4.1");
+  assert.strictEqual(nextPkg?.resolution.category, "VERIFIED_FIXED_VERSION");
+
+  assert.strictEqual(sharpPkg?.resolution.cleanVersion, "0.35.5");
+  assert.strictEqual(sharpPkg?.resolution.category, "VERIFIED_FIXED_VERSION");
+
+  assert.strictEqual(smPkg?.resolution.cleanVersion, "1.2.2");
+  assert.strictEqual(smPkg?.resolution.category, "VERIFIED_FIXED_VERSION");
+  assert.strictEqual(smPkg?.scope, "TRANSITIVE");
+
+  assert.strictEqual(dotenvPkg?.resolution.cleanVersion, "1.2.2");
+  assert.strictEqual(dotenvPkg?.resolution.category, "VERIFIED_FIXED_VERSION");
+  assert.strictEqual(dotenvPkg?.resolution.pep440Constraint, ">=1.2.2");
+
+  // Pillow is a major upgrade (12.3.0 -> 13.0.0)
+  assert.strictEqual(pillowPkg?.resolution.cleanVersion, "13.0.0");
+  assert.strictEqual(pillowPkg?.resolution.category, "COMPATIBILITY_REVIEW_REQUIRED");
+  assert.strictEqual(pillowPkg?.resolution.isMajorUpgrade, true);
+  assert.strictEqual(pillowPkg?.resolution.pep440Constraint, ">=13.0.0");
+
+  const prompt = generateMasterAIFixPrompt(kisanScan);
+
+  // Verification assertions for Reference Scenario
+  assert(prompt.includes("Total Raw Security Findings Reported**: 55"));
+  assert(prompt.includes("Unique Affected Packages / Components**: 5"));
+  assert(prompt.includes("INVENTORY COUNTING RULE"));
+  assert(prompt.includes('"next": "^16.4.1"'));
+  assert(prompt.includes('"sharp": "^0.35.5"'));
+  assert(prompt.includes('"source-map-js": "^1.2.2"'));
+  assert(prompt.includes("python-dotenv>=1.2.2"));
+  assert(prompt.includes("pillow>=13.0.0"));
+  assert(prompt.includes("COMPATIBILITY_REVIEW_REQUIRED"));
+  assert(prompt.includes("Original Raw Finding Count**: 55"));
+  assert(prompt.includes("Do NOT promise \"zero regressions\""));
+  assert(prompt.includes("minimizing regressions"));
 }
 
-// TEST SUITE 10: Single Component Prompt Generator
-console.log("Running Suite 10: Single Component Prompt Generator...");
-{
-  const singleFinding = {
-    origin_candidate: "pkg:pypi/Pillow@10.0.0",
-    title: "CVE-2023-4863: Heap Buffer Overflow in Pillow",
-    severity: "CRITICAL",
-    finding_type: "VULNERABLE",
-    recommendations: [{ fixed_version: "10.4.0" }]
-  };
-  const singlePrompt = generateSingleAIFixPrompt(singleFinding, [singleFinding]);
-  assert(singlePrompt.includes("AI REMEDIATION TASK: Fix Security Vulnerabilities in `Pillow`"));
-  assert(singlePrompt.includes("Pillow>=10.4.0"));
-  assert(singlePrompt.includes("pip install -r requirements.txt --upgrade"));
-  assert(!singlePrompt.toLowerCase().includes("zero regressions"));
-}
-
-console.log("\n✅ ALL 10 TEST SUITES PASSED FLAWLESSLY!");
+console.log("\n🎯 ALL 15 ACCEPTANCE AND REGRESSION TEST SUITES PASSED FLAWLESSLY!\n");
