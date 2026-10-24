@@ -5,7 +5,11 @@ Uses Pydantic Settings v2 for environment variable management.
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
+from pathlib import Path
 import os
+
+_BASE_DIR = Path(__file__).resolve().parent.parent.parent
+_ENV_PATH = _BASE_DIR / ".env"
 
 
 class Settings(BaseSettings):
@@ -15,7 +19,7 @@ class Settings(BaseSettings):
     NEVER hardcode secrets.
     """
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(_ENV_PATH, ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

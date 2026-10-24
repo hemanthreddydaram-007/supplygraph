@@ -91,7 +91,16 @@ class GitHubService:
             if ref:
                 kwargs['ref'] = ref
             
-            content_file = repo.get_contents(file_path, **kwargs)
+            try:
+                content_file = repo.get_contents(file_path, **kwargs)
+            except GithubException as ge:
+                # If 404 and ref was specified, fallback to default_branch or no ref
+                if ge.status == 404 and ref and repo.default_branch and ref != repo.default_branch:
+                    content_file = repo.get_contents(file_path, ref=repo.default_branch)
+                elif ge.status == 404 and ref:
+                    content_file = repo.get_contents(file_path)
+                else:
+                    raise ge
             if isinstance(content_file, list):
                 raise ValueError(f"Path {file_path} is a directory, not a file.")
             
@@ -168,6 +177,18 @@ class GitHubService:
                 except Exception:
                     pass
 
+                # If tree with requested branch failed and ref was specified, try repo.default_branch
+                if ref and repo.default_branch and ref != repo.default_branch:
+                    try:
+                        tree = repo.get_git_tree(sha=repo.default_branch, recursive=True)
+                        if tree and tree.tree:
+                            tree_files = [item.path for item in tree.tree if item.type == "blob"]
+                            if tree_files:
+                                _LIST_CACHE[cache_key] = (now, tree_files)
+                                return tree_files
+                    except Exception:
+                        pass
+
                 # 2. Fallback: inspect root and common monorepo subdirectories
                 common_dirs = [
                     "", "frontend", "backend", "client", "server",
@@ -183,6 +204,16 @@ class GitHubService:
                             if c.type == "file" and c.path not in discovered_files:
                                 discovered_files.append(c.path)
                     except Exception:
+                        if ref:
+                            try:
+                                contents = repo.get_contents(d)
+                                if not isinstance(contents, list):
+                                    contents = [contents]
+                                for c in contents:
+                                    if c.type == "file" and c.path not in discovered_files:
+                                        discovered_files.append(c.path)
+                            except Exception:
+                                pass
                         continue
                 if discovered_files:
                     _LIST_CACHE[cache_key] = (now, discovered_files)
