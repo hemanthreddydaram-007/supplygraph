@@ -35,6 +35,7 @@ import {
   Info,
   FolderUp,
   LogOut,
+  ArrowLeft,
   ArrowRight,
   FileText,
   Clock,
@@ -323,7 +324,8 @@ interface AuthUser {
 // ============================================================
 export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [currentView, setCurrentView] = useState<"login" | "overview" | "scanner">("overview");
+  const [currentView, setCurrentView] = useState<"login" | "overview" | "scanner" | "reviewer" | "sandbox">("overview");
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
 
   const [githubUrl, setGithubUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1163,7 +1165,7 @@ export default function Dashboard() {
               onClick={() => setCurrentView("scanner")}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center space-x-1.5",
-                currentView === "scanner" && activeTab !== "reviewer" && activeTab !== "sandbox"
+                currentView === "scanner"
                   ? "bg-zinc-800 text-zinc-100 font-semibold"
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
               )}
@@ -1172,13 +1174,10 @@ export default function Dashboard() {
             </button>
 
             <button
-              onClick={() => {
-                setCurrentView("scanner");
-                setActiveTab("reviewer");
-              }}
+              onClick={() => setCurrentView("reviewer")}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center space-x-1.5",
-                currentView === "scanner" && activeTab === "reviewer"
+                currentView === "reviewer"
                   ? "bg-zinc-800 text-zinc-100 font-semibold"
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
               )}
@@ -1186,20 +1185,17 @@ export default function Dashboard() {
               <Sparkles className="w-3 h-3 text-amber-400" />
               <span>Code Reviewer</span>
               {data?.code_reviews && data.code_reviews.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500/20 text-amber-300 font-mono">
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500/20 text-amber-300 font-mono font-bold">
                   {data.code_reviews.length}
                 </span>
               )}
             </button>
 
             <button
-              onClick={() => {
-                setCurrentView("scanner");
-                setActiveTab("sandbox");
-              }}
+              onClick={() => setCurrentView("sandbox")}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center space-x-1.5",
-                currentView === "scanner" && activeTab === "sandbox"
+                currentView === "sandbox"
                   ? "bg-zinc-800 text-zinc-100 font-semibold"
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
               )}
@@ -1639,18 +1635,18 @@ export default function Dashboard() {
                 </div>
 
                 {/* RIGHT PANEL: 4 TABS (FINDINGS / EXECUTIVE AI / CODE REVIEWER / SANDBOX) */}
-                <div className="w-[490px] border-l border-zinc-800/80 bg-zinc-950/70 backdrop-blur-md flex flex-col h-full shrink-0">
-                  {/* Tab Navigation */}
-                  <div className="flex items-center justify-between px-5 pt-3.5 border-b border-zinc-800/80 shrink-0">
-                    <div className="flex items-center space-x-3 overflow-x-auto no-scrollbar">
+                <div className="w-[460px] border-l border-zinc-800/80 bg-zinc-950/70 backdrop-blur-md flex flex-col h-full shrink-0">
+                  {/* Tab Navigation & Export Header */}
+                  <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-zinc-800/80 shrink-0">
+                    <div className="flex items-center space-x-1.5">
                       {/* Findings Tab */}
                       <button
                         onClick={() => setActiveTab("findings")}
                         className={cn(
-                          "pb-2.5 text-xs font-medium border-b-2 transition-all flex items-center space-x-1.5 shrink-0",
+                          "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5",
                           activeTab === "findings"
-                            ? "border-red-500 text-zinc-100"
-                            : "border-transparent text-zinc-400 hover:text-zinc-200"
+                            ? "bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-700/60"
+                            : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60"
                         )}
                       >
                         <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
@@ -1661,73 +1657,82 @@ export default function Dashboard() {
                       <button
                         onClick={() => setActiveTab("briefing")}
                         className={cn(
-                          "pb-2.5 text-xs font-medium border-b-2 transition-all flex items-center space-x-1.5 shrink-0",
+                          "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5",
                           activeTab === "briefing"
-                            ? "border-indigo-500 text-zinc-100"
-                            : "border-transparent text-zinc-400 hover:text-zinc-200"
+                            ? "bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-700/60"
+                            : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60"
                         )}
                       >
                         <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
                         <span>Executive AI</span>
                       </button>
-
-                      {/* Code Reviewer Tab */}
-                      <button
-                        onClick={() => setActiveTab("reviewer")}
-                        className={cn(
-                          "pb-2.5 text-xs font-medium border-b-2 transition-all flex items-center space-x-1.5 shrink-0",
-                          activeTab === "reviewer"
-                            ? "border-amber-500 text-zinc-100"
-                            : "border-transparent text-zinc-400 hover:text-zinc-200"
-                        )}
-                      >
-                        <FileCode2 className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Reviewer ({data?.code_reviews?.length || 0})</span>
-                      </button>
-
-                      {/* Sandbox Detonation Tab */}
-                      <button
-                        onClick={() => setActiveTab("sandbox")}
-                        className={cn(
-                          "pb-2.5 text-xs font-medium border-b-2 transition-all flex items-center space-x-1.5 shrink-0",
-                          activeTab === "sandbox"
-                            ? "border-red-500 text-zinc-100 font-semibold"
-                            : "border-transparent text-zinc-400 hover:text-zinc-200"
-                        )}
-                      >
-                        <Zap className="w-3.5 h-3.5 text-red-400" />
-                        <span>⚡ Sandbox</span>
-                      </button>
                     </div>
 
-                    <div className="flex items-center space-x-1 mb-2">
-                      {/* 1-Click Download Patched Manifest (Fix #9) */}
+                    {/* Consolidated Export Dropdown */}
+                    <div className="relative">
                       <button
-                        onClick={handleDownloadPatchedManifest}
-                        className="px-2 py-1 text-[10px] font-mono font-semibold text-emerald-300 bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-800/60 rounded-lg flex items-center space-x-1 transition-all shadow-sm"
-                        title="1-Click Download Patched Manifest (package.patched.json / requirements.patched.txt)"
+                        type="button"
+                        onClick={() => setShowExportDropdown(!showExportDropdown)}
+                        className="px-2.5 py-1 text-xs font-mono font-semibold text-zinc-200 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/70 rounded-lg flex items-center space-x-1.5 transition-all shadow-sm"
+                        title="Download audit reports and patched manifests"
                       >
-                        <Download className="w-3 h-3 text-emerald-400" />
-                        <span>Patched Manifest</span>
+                        <Download className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Export</span>
+                        <ChevronDown className={cn("w-3 h-3 text-zinc-400 transition-transform", showExportDropdown && "rotate-180")} />
                       </button>
 
-                      {/* 1-Click Executive HTML/PDF Report (Fix #11) */}
-                      <button
-                        onClick={handleDownloadExecutiveHtml}
-                        className="px-2 py-1 text-[10px] font-mono font-semibold text-indigo-300 bg-indigo-950/50 hover:bg-indigo-900/60 border border-indigo-800/60 rounded-lg flex items-center space-x-1 transition-all shadow-sm"
-                        title="Download Executive HTML Report (Printable to PDF)"
-                      >
-                        <FileText className="w-3 h-3 text-indigo-400" />
-                        <span>PDF/HTML</span>
-                      </button>
+                      {/* Export Dropdown Popover */}
+                      {showExportDropdown && (
+                        <div
+                          className="absolute right-0 top-full mt-1.5 w-56 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl p-1.5 space-y-1 z-30"
+                          onMouseLeave={() => setShowExportDropdown(false)}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowExportDropdown(false);
+                              handleDownloadPatchedManifest();
+                            }}
+                            className="w-full text-left px-2.5 py-2 rounded-lg text-xs font-mono text-emerald-300 hover:bg-emerald-950/60 flex items-center space-x-2.5 transition-colors"
+                          >
+                            <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <div>
+                              <div className="font-semibold text-[11px] text-emerald-300">Patched Manifest</div>
+                              <div className="text-[9px] text-zinc-500">package.json / requirements.txt</div>
+                            </div>
+                          </button>
 
-                      <button
-                        onClick={handleDownloadReport}
-                        className="p-1.5 text-zinc-400 hover:text-zinc-200 rounded-lg hover:bg-zinc-800/60 transition-colors"
-                        title="Export Markdown Report (.md)"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowExportDropdown(false);
+                              handleDownloadExecutiveHtml();
+                            }}
+                            className="w-full text-left px-2.5 py-2 rounded-lg text-xs font-mono text-indigo-300 hover:bg-indigo-950/60 flex items-center space-x-2.5 transition-colors"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                            <div>
+                              <div className="font-semibold text-[11px] text-indigo-300">Executive PDF/HTML</div>
+                              <div className="text-[9px] text-zinc-500">Printable executive report</div>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowExportDropdown(false);
+                              handleDownloadReport();
+                            }}
+                            className="w-full text-left px-2.5 py-2 rounded-lg text-xs font-mono text-zinc-300 hover:bg-zinc-850 flex items-center space-x-2.5 transition-colors"
+                          >
+                            <FileCode2 className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                            <div>
+                              <div className="font-semibold text-[11px] text-zinc-200">Markdown Audit (.md)</div>
+                              <div className="text-[9px] text-zinc-500">Raw report for GitHub issues</div>
+                            </div>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1738,90 +1743,80 @@ export default function Dashboard() {
                       <div className="space-y-3">
                         {data?.findings && data.findings.length > 0 ? (
                           <>
-                            {/* Findings Top Control Bar */}
-                            <div className="space-y-2 p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800 text-xs font-mono">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-1 bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => setFindingsGrouping("package")}
-                                    className={cn(
-                                      "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center space-x-1.5",
-                                      findingsGrouping === "package"
-                                        ? "bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 shadow-sm"
-                                        : "text-zinc-400 hover:text-zinc-200"
-                                    )}
-                                  >
-                                    <Boxes className="w-3 h-3 text-sky-400" />
-                                    <span>Packages ({groupedFindings.length})</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setFindingsGrouping("flat")}
-                                    className={cn(
-                                      "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center space-x-1.5",
-                                      findingsGrouping === "flat"
-                                        ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                                        : "text-zinc-400 hover:text-zinc-200"
-                                    )}
-                                  >
-                                    <FileText className="w-3 h-3 text-zinc-400" />
-                                    <span>Flat List ({data.findings.length})</span>
-                                  </button>
-                                </div>
+                            {/* Single-Row Clean Command Toolbar */}
+                            <div className="flex items-center justify-between gap-2 p-1.5 rounded-xl bg-zinc-950/90 border border-zinc-800 text-xs font-mono">
+                              {/* View Mode Toggle */}
+                              <div className="flex items-center space-x-0.5 bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setFindingsGrouping("package")}
+                                  className={cn(
+                                    "px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all flex items-center space-x-1",
+                                    findingsGrouping === "package"
+                                      ? "bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 shadow-sm"
+                                      : "text-zinc-400 hover:text-zinc-200"
+                                  )}
+                                >
+                                  <Boxes className="w-3 h-3 text-sky-400" />
+                                  <span>Packages ({groupedFindings.length})</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFindingsGrouping("flat")}
+                                  className={cn(
+                                    "px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all flex items-center space-x-1",
+                                    findingsGrouping === "flat"
+                                      ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                                      : "text-zinc-400 hover:text-zinc-200"
+                                  )}
+                                >
+                                  <FileText className="w-3 h-3 text-zinc-400" />
+                                  <span>Flat ({data.findings.length})</span>
+                                </button>
+                              </div>
 
+                              {/* Search Input */}
+                              <div className="relative flex-1 min-w-[110px]">
+                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
+                                <input
+                                  type="text"
+                                  value={findingsSearch}
+                                  onChange={(e) => setFindingsSearch(e.target.value)}
+                                  placeholder="Filter CVE or pkg..."
+                                  className="w-full pl-6 pr-2 py-0.5 rounded-lg bg-zinc-900/90 border border-zinc-800/80 text-[10px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700"
+                                />
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex items-center space-x-1 shrink-0">
+                                {findingsGrouping === "package" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleAllPackages(Object.values(expandedPackageKeys).filter(Boolean).length < groupedFindings.length)}
+                                    className="px-1.5 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-400 hover:text-zinc-200 transition-colors"
+                                    title={Object.values(expandedPackageKeys).filter(Boolean).length < groupedFindings.length ? "Expand all packages" : "Collapse all packages"}
+                                  >
+                                    {Object.values(expandedPackageKeys).filter(Boolean).length < groupedFindings.length ? "Expand" : "Collapse"}
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => copyToClipboard(formatAllFindingsText(data.findings), "all-findings")}
-                                  className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-850 border border-zinc-700/60 text-zinc-300 hover:text-white transition-colors shadow-sm text-[11px]"
-                                  title="Copy all findings to clipboard as a complete Markdown report"
+                                  className="px-2 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-750 text-zinc-300 hover:text-white transition-colors text-[10px] flex items-center space-x-1"
+                                  title="Copy all findings report to clipboard"
                                 >
                                   {copiedIndex === "all-findings" ? (
                                     <>
-                                      <Check className="w-3 h-3 text-emerald-400" />
-                                      <span className="text-emerald-400 font-semibold">Copied!</span>
+                                      <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                      <span className="text-emerald-400 font-bold">Copied</span>
                                     </>
                                   ) : (
                                     <>
-                                      <Copy className="w-3 h-3 text-zinc-400" />
+                                      <Copy className="w-2.5 h-2.5 text-zinc-400" />
                                       <span>Copy All</span>
                                     </>
                                   )}
                                 </button>
-                              </div>
-
-                              {/* Search & Bulk Expand Controls */}
-                              <div className="flex items-center space-x-2 pt-1 border-t border-zinc-800/60">
-                                <div className="relative flex-1">
-                                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
-                                  <input
-                                    type="text"
-                                    value={findingsSearch}
-                                    onChange={(e) => setFindingsSearch(e.target.value)}
-                                    placeholder="Filter by package or CVE..."
-                                    className="w-full pl-7 pr-2 py-1 rounded-lg bg-zinc-900/90 border border-zinc-800/80 text-[11px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700"
-                                  />
-                                </div>
-                                {findingsGrouping === "package" && (
-                                  <div className="flex items-center space-x-1 shrink-0">
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleAllPackages(true)}
-                                      className="px-2 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-[10px] text-zinc-400 hover:text-zinc-200"
-                                      title="Expand all packages"
-                                    >
-                                      Expand All
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleAllPackages(false)}
-                                      className="px-2 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-[10px] text-zinc-400 hover:text-zinc-200"
-                                      title="Collapse all packages"
-                                    >
-                                      Collapse
-                                    </button>
-                                  </div>
-                                )}
                               </div>
                             </div>
 
@@ -1834,7 +1829,10 @@ export default function Dashboard() {
                                     const q = findingsSearch.toLowerCase();
                                     return (
                                       g.pkgName.toLowerCase().includes(q) ||
-                                      g.findings.some(f => f.title?.toLowerCase().includes(q) || f.description?.toLowerCase().includes(q))
+                                      g.findings.some((f: any) =>
+                                        f.title?.toLowerCase().includes(q) ||
+                                        f.description?.toLowerCase().includes(q)
+                                      )
                                     );
                                   })
                                   .map((g) => {
@@ -1874,7 +1872,6 @@ export default function Dashboard() {
                                               </div>
                                             </div>
                                           </div>
-
                                           <div className="flex items-center space-x-2 shrink-0">
                                             <button
                                               type="button"
@@ -2217,25 +2214,176 @@ export default function Dashboard() {
                       </div>
                     )}
 
-                    {/* ============ CODE REVIEWER TAB ============ */}
+                    {/* ============ CODE REVIEWER TAB (DRAWER REDIRECT) ============ */}
                     {activeTab === "reviewer" && (
-                      <CodeReviewerPanel
-                        codeReviews={currentCodeReviews}
-                        onReviewsUpdated={handleReviewsUpdated}
-                      />
+                      <div className="p-4 rounded-xl border border-amber-900/40 bg-amber-950/20 text-xs space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-amber-300">Code Reviewer & Patches</span>
+                          <span className="text-[10px] text-zinc-500 font-mono">{currentCodeReviews.length} patches</span>
+                        </div>
+                        <p className="text-zinc-400 text-xs leading-relaxed">
+                          For high-resolution side-by-side git diffs, AST inspection, and interactive AI patch application, switch to the dedicated workspace.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentView("reviewer")}
+                          className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-amber-600/20"
+                        >
+                          <span>Open Dedicated Code Reviewer</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     )}
 
-                    {/* ============ SANDBOX DETONATION TAB ============ */}
+                    {/* ============ SANDBOX DETONATION TAB (DRAWER REDIRECT) ============ */}
                     {activeTab === "sandbox" && (
-                      <SandboxPanel
-                        files={lastUploadedFiles}
-                        projectName={data?.scan?.repository_url || "Active Workspace"}
-                      />
+                      <div className="p-4 rounded-xl border border-red-900/40 bg-red-950/20 text-xs space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-red-300">Detonation Sandbox</span>
+                          <span className="text-[10px] text-zinc-500 font-mono">Isolated Container</span>
+                        </div>
+                        <p className="text-zinc-400 text-xs leading-relaxed">
+                          For isolated dynamic execution, network behavioral tracing, and real-time syscall logs, switch to the dedicated workspace.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentView("sandbox")}
+                          className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-red-600/20"
+                        >
+                          <span>Open Dedicated Detonation Sandbox</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     )}
+
+                    {/* Quick navigation footer to dedicated workspaces */}
+                    <div className="mt-4 pt-3 border-t border-zinc-800/80 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentView("reviewer")}
+                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-zinc-900/80 hover:bg-zinc-850 border border-zinc-800 text-[11px] font-mono text-zinc-300 hover:text-white flex items-center justify-between transition-colors shadow-sm"
+                        title="Open full-width Code Reviewer with git diffs and AI patches"
+                      >
+                        <span className="flex items-center space-x-1.5 truncate">
+                          <Sparkles className="w-3 h-3 text-amber-400 shrink-0" />
+                          <span className="truncate">Code Reviewer</span>
+                        </span>
+                        <ArrowRight className="w-3 h-3 text-zinc-500 shrink-0" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setCurrentView("sandbox")}
+                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-zinc-900/80 hover:bg-zinc-850 border border-zinc-800 text-[11px] font-mono text-zinc-300 hover:text-white flex items-center justify-between transition-colors shadow-sm"
+                        title="Open full-width Detonation Sandbox terminal"
+                      >
+                        <span className="flex items-center space-x-1.5 truncate">
+                          <Zap className="w-3 h-3 text-red-400 shrink-0" />
+                          <span className="truncate">Detonation Sandbox</span>
+                        </span>
+                        <ArrowRight className="w-3 h-3 text-zinc-500 shrink-0" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================
+          STAGE 4: DEDICATED FULL-WIDTH CODE REVIEWER WORKSPACE
+      ============================================================ */}
+      {currentView === "reviewer" && (
+        <div className="flex-1 flex flex-col overflow-y-auto bg-zinc-950">
+          <div className="max-w-7xl mx-auto w-full px-6 py-6 space-y-6">
+            {/* Header / Breadcrumb navigation */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-zinc-800/80">
+              <div className="flex items-center space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setCurrentView("scanner")}
+                  className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white transition-colors flex items-center space-x-1.5 text-xs font-mono shadow-sm"
+                  title="Return to Dependency Graph & Findings"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Graph & Findings</span>
+                </button>
+                <div>
+                  <h1 className="text-lg font-bold text-zinc-100 flex items-center space-x-2">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>Code Reviewer & AI Patches</span>
+                  </h1>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    High-resolution static AST analysis, vulnerable code snippets, and automated git patch generators.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 text-xs font-mono">
+                <div className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400">
+                  Target: <span className="text-zinc-200 font-semibold">{data?.scan?.repository_url?.replace("https://github.com/", "") || (activeScenario ? `Scenario ${activeScenario}` : "Active Project")}</span>
+                </div>
+                <div className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 font-semibold">
+                  {currentCodeReviews.length} Patches Ready
+                </div>
+              </div>
+            </div>
+
+            {/* Code Reviewer Panel Body */}
+            <CodeReviewerPanel
+              codeReviews={currentCodeReviews}
+              onReviewsUpdated={handleReviewsUpdated}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================
+          STAGE 5: DEDICATED FULL-WIDTH SANDBOX DETONATION WORKSPACE
+      ============================================================ */}
+      {currentView === "sandbox" && (
+        <div className="flex-1 flex flex-col overflow-y-auto bg-zinc-950">
+          <div className="max-w-7xl mx-auto w-full px-6 py-6 space-y-6">
+            {/* Header / Breadcrumb navigation */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-zinc-800/80">
+              <div className="flex items-center space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setCurrentView("scanner")}
+                  className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white transition-colors flex items-center space-x-1.5 text-xs font-mono shadow-sm"
+                  title="Return to Dependency Graph & Findings"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Graph & Findings</span>
+                </button>
+                <div>
+                  <h1 className="text-lg font-bold text-zinc-100 flex items-center space-x-2">
+                    <Zap className="w-4 h-4 text-red-400" />
+                    <span>Dynamic Detonation Sandbox</span>
+                  </h1>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Isolated runtime container: execute suspect lifecycle scripts, observe network beacons, and verify evasion payloads.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 text-xs font-mono">
+                <div className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400">
+                  Target: <span className="text-zinc-200 font-semibold">{data?.scan?.repository_url?.replace("https://github.com/", "") || (activeScenario ? `Scenario ${activeScenario}` : "Active Project")}</span>
+                </div>
+                <div className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 font-semibold">
+                  Isolated Container
+                </div>
+              </div>
+            </div>
+
+            {/* Sandbox Panel Body */}
+            <SandboxPanel
+              files={lastUploadedFiles}
+              projectName={data?.scan?.repository_url || "Active Workspace"}
+            />
           </div>
         </div>
       )}
