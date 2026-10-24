@@ -44,6 +44,7 @@ import {
   RotateCcw,
   Trash2,
   GitCompare,
+  Crosshair,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -333,6 +334,12 @@ export default function Dashboard() {
   const [copiedIndex, setCopiedIndex] = useState<number | string | null>(null);
   const [activeScenario, setActiveScenario] = useState<ScenarioId | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [focusTarget, setFocusTarget] = useState<{
+    id?: string;
+    finding?: any;
+    packageKey?: string;
+    timestamp: number;
+  } | null>(null);
   const [showSbomModal, setShowSbomModal] = useState(false);
   const [showPolygonModal, setShowPolygonModal] = useState(false);
   const [polygonAttested, setPolygonAttested] = useState(false);
@@ -539,6 +546,7 @@ export default function Dashboard() {
     setActiveScenario(null);
     setPolygonAttested(false);
     setFocusNodeId(null);
+    setFocusTarget(null);
     setShowAllFindings(false);
     setCurrentView("scanner");
     const useProd = overrideProdOnly !== undefined ? overrideProdOnly : prodOnly;
@@ -559,6 +567,7 @@ export default function Dashboard() {
     setActiveScenario(scenarioId);
     setPolygonAttested(false);
     setFocusNodeId(null);
+    setFocusTarget(null);
     setShowAllFindings(false);
     setCurrentView("scanner");
     try {
@@ -583,6 +592,7 @@ export default function Dashboard() {
     setActiveScenario(null);
     setPolygonAttested(false);
     setFocusNodeId(null);
+    setFocusTarget(null);
     setShowAllFindings(false);
     setCurrentView("scanner");
 
@@ -721,10 +731,23 @@ export default function Dashboard() {
   }, [data, formatSingleFindingText]);
 
   const handleFindingClick = useCallback((finding: any) => {
-    const nodeId = finding?.origin_candidate || finding?.entity_id || null;
-    if (nodeId) {
-      setFocusNodeId(nodeId);
-    }
+    const targetId = finding?.origin_candidate || finding?.entity_id || finding?.title || "";
+    setFocusTarget({
+      id: targetId,
+      finding: finding,
+      timestamp: Date.now(),
+    });
+    setFocusNodeId(targetId);
+  }, []);
+
+  const handlePackageFocus = useCallback((packageKey: string, sampleFinding?: any) => {
+    setFocusTarget({
+      id: packageKey,
+      packageKey: packageKey,
+      finding: sampleFinding,
+      timestamp: Date.now(),
+    });
+    setFocusNodeId(packageKey);
   }, []);
 
   const handleDownloadReport = useCallback(() => {
@@ -982,6 +1005,10 @@ export default function Dashboard() {
   const handleGetStarted = useCallback(() => setCurrentView("scanner"), []);
   const handleSelectScenario = useCallback((id: ScenarioId) => executeScenario(id), [executeScenario]);
   const handleNodeClick = useCallback((nodeId: string) => {
+    setFocusTarget({
+      id: nodeId,
+      timestamp: Date.now(),
+    });
     setFocusNodeId(nodeId);
   }, []);
   const currentGraph = useMemo(() => data?.graph || null, [data?.graph]);
@@ -1601,6 +1628,7 @@ export default function Dashboard() {
                     <GraphCanvas
                       graph={currentGraph}
                       focusNodeId={focusNodeId}
+                      focusTarget={focusTarget}
                       onNodeClick={handleNodeClick}
                     />
                   )}
@@ -1844,6 +1872,18 @@ export default function Dashboard() {
                                           </div>
 
                                           <div className="flex items-center space-x-2 shrink-0">
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handlePackageFocus(g.key, g.findings[0]);
+                                              }}
+                                              className="px-2 py-0.5 rounded bg-zinc-800/90 hover:bg-indigo-950/80 text-zinc-400 hover:text-indigo-300 border border-zinc-750 hover:border-indigo-600/60 transition-all text-[9px] font-mono flex items-center space-x-1"
+                                              title="Focus package node in attack graph"
+                                            >
+                                              <Crosshair className="w-3 h-3 text-indigo-400" />
+                                              <span>Focus</span>
+                                            </button>
                                             <span
                                               className={cn(
                                                 "px-2 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
@@ -1924,8 +1964,19 @@ export default function Dashboard() {
                                                     {f.description}
                                                   </p>
 
-                                                  <div className="text-[9px] text-zinc-600 font-mono mb-2">
-                                                    ↗ Click to focus node in graph
+                                                  <div className="mb-2">
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleFindingClick(f);
+                                                      }}
+                                                      className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-indigo-950/50 hover:bg-indigo-900/70 border border-indigo-800/50 hover:border-indigo-600/70 text-indigo-300 hover:text-white text-[10px] font-mono font-medium transition-all cursor-pointer shadow-sm group/btn"
+                                                      title="Center and highlight this node in the attack graph"
+                                                    >
+                                                      <Crosshair className="w-3.5 h-3.5 text-indigo-400 group-hover/btn:rotate-90 transition-transform duration-300" />
+                                                      <span>Click to focus node in graph</span>
+                                                    </button>
                                                   </div>
 
                                                   {/* Containment Strategy */}
@@ -2049,8 +2100,19 @@ export default function Dashboard() {
                                           {f.description}
                                         </p>
 
-                                        <div className="text-[9px] text-zinc-600 font-mono mb-2">
-                                          ↗ Click to focus node in graph
+                                        <div className="mb-2.5">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleFindingClick(f);
+                                            }}
+                                            className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-indigo-950/50 hover:bg-indigo-900/70 border border-indigo-800/50 hover:border-indigo-600/70 text-indigo-300 hover:text-white text-[10px] font-mono font-medium transition-all cursor-pointer shadow-sm group/btn"
+                                            title="Center and highlight this node in the attack graph"
+                                          >
+                                            <Crosshair className="w-3.5 h-3.5 text-indigo-400 group-hover/btn:rotate-90 transition-transform duration-300" />
+                                            <span>Click to focus node in graph</span>
+                                          </button>
                                         </div>
 
                                         {/* Containment Strategy */}

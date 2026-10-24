@@ -107,9 +107,10 @@ const getNodeConfig = (type: string, isSuspicious: boolean, isAffected: boolean)
   return config;
 };
 
-export const BaseNode = React.memo(({ data, isConnectable }: NodeProps<Node<GraphNodeData>>) => {
+export const BaseNode = React.memo(({ data, isConnectable, selected }: NodeProps<Node<GraphNodeData>>) => {
   const isSuspicious = !!data.is_suspicious;
   const isAffected = !!data.is_affected;
+  const isFocused = Boolean((data as any)?.is_focused || selected);
   
   const config = getNodeConfig(data.node_type, isSuspicious, isAffected);
   const Icon = config.icon;
@@ -118,11 +119,19 @@ export const BaseNode = React.memo(({ data, isConnectable }: NodeProps<Node<Grap
     <div
       style={{ willChange: "transform" }}
       className={cn(
-        "group relative px-3 py-2.5 rounded-lg border min-w-[190px] max-w-[260px] transition-colors duration-150 hover:border-zinc-500",
+        "group relative px-3 py-2.5 rounded-lg border min-w-[190px] max-w-[260px] transition-all duration-200 hover:border-zinc-500",
         config.bg,
-        config.border
+        config.border,
+        isFocused && "ring-4 ring-indigo-400 ring-offset-2 ring-offset-zinc-950 shadow-[0_0_35px_rgba(129,140,248,0.95)] border-indigo-400 scale-[1.04] z-50 animate-pulse"
       )}
     >
+      {/* High-visibility Focused Badge */}
+      {isFocused && (
+        <div className="absolute -top-3 -right-2 px-2 py-0.5 rounded-full text-[8px] font-mono font-bold uppercase tracking-wider bg-gradient-to-r from-indigo-500 to-cyan-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.9)] border border-white/40 flex items-center space-x-1 animate-bounce z-50">
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+          <span>FOCUSED</span>
+        </div>
+      )}
       <Handle
         type="target"
         position={Position.Left}

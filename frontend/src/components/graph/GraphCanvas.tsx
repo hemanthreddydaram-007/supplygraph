@@ -15,23 +15,194 @@ import "@xyflow/react/dist/style.css";
 import { nodeTypes } from "./CustomNodes";
 import { SecurityGraph } from "@/types";
 
-interface GraphCanvasProps {
+export interface FocusTarget {
+  id?: string;
+  finding?: any;
+  packageKey?: string;
+  timestamp: number;
+}
+
+export interface GraphCanvasProps {
   graph: SecurityGraph;
   focusNodeId?: string | null;
+  focusTarget?: FocusTarget | null;
   onNodeClick?: (nodeId: string) => void;
 }
 
 type GraphFilter = "package" | "detailed" | "all";
 
+export function findMatchingNode(
+  target: { id?: string; finding?: any; packageKey?: string },
+  nodes: Node[]
+): Node | null {
+  if (!nodes || nodes.length === 0) return null;
+  const finding = target.finding;
+  const rawId = (target.id || "").trim();
+  const pkgKey = (target.packageKey || "").trim();
+
+  const candidates: string[] = [];
+
+  if (rawId) candidates.push(rawId);
+  if (pkgKey) candidates.push(pkgKey);
+
+  // Extract from finding fields
+  if (finding) {
+    if (finding.origin_candidate) candidates.push(finding.origin_candidate);
+    if (finding.entity_id) candidates.push(String(finding.entity_id));
+
+    // Extract CVE/GHSA IDs from title or description
+    const titleMatch = (finding.title || "").match(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+|PYSEC-\d{4}-\d+|SNYK-[A-Z0-9-]+)/i);
+    if (titleMatch) candidates.push(titleMatch[1]);
+
+    const descMatch = (finding.description || "").match(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+|PYSEC-\d{4}-\d+|SNYK-[A-Z0-9-]+)/i);
+    if (descMatch) candidates.push(descMatch[1]);
+
+    // Check evidence
+    if (Array.isArray(finding.evidence)) {
+      finding.evidence.forEach((ev: any) => {
+        if (ev?.raw_data?.vuln_id) candidates.push(ev.raw_data.vuln_id);
+        if (ev?.raw_data?.package) candidates.push(ev.raw_data.package);
+        if (ev?.raw_data?.purl) candidates.push(ev.raw_data.purl);
+      });
+    }
+
+    // Check propagation steps
+    if (Array.isArray(finding.propagation_path)) {
+      finding.propagation_path.forEach((step: any) => {
+        if (step?.node_id) candidates.push(step.node_id);
+      });
+    }
+
+    // Special finding types:
+    // CI/CD risk -> look for pipeline node
+    if (
+      finding.finding_type === "CICD_RISK" ||
+      finding.title?.includes("CI/CD") ||
+      (finding.description && finding.description.includes("GitHub Actions"))
+    ) {
+      candidates.push("pipeline", "Pipeline");
+    }
+
+    // AST / Repo-level finding -> look for repository node
+    if (
+      finding.entity_type === "Repository" ||
+      finding.title?.includes("AST") ||
+      finding.finding_type === "SUSPICIOUS"
+    ) {
+      candidates.push("repository", "Repository", "demo-app", "app");
+    }
+  }
+
+  // Variant generator for package names / versions
+  const generateVariants = (input: string) => {
+    if (!input) return [];
+    const res: string[] = [input];
+    // Strip pkg:xxx/
+    const noPurl = input.replace(/^pkg:[^/]+\//, "").replace(/^@/, "");
+    res.push(noPurl);
+    if (noPurl.includes("@")) {
+      const [name, ver] = noPurl.split("@");
+      res.push(name);
+      res.push(`${name}-${ver}`);
+      res.push(`${name}@${ver}`);
+    } else if (noPurl.includes("-")) {
+      const lastHyphen = noPurl.lastIndexOf("-");
+      const name = noPurl.substring(0, lastHyphen);
+      const ver = noPurl.substring(lastHyphen + 1);
+      if (/\d/.test(ver)) {
+        res.push(name);
+        res.push(`${name}@${ver}`);
+      }
+    }
+    return res;
+  };
+
+  const allVariants: string[] = [];
+  candidates.forEach(c => {
+    allVariants.push(...generateVariants(c));
+  });
+
+  const uniqueCandidates = Array.from(new Set(allVariants.map(s => s.trim()).filter(Boolean)));
+
+  // Helper for alpha-numeric normalization
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  // Priority 1: Exact node.id match
+  for (const c of uniqueCandidates) {
+    const match = nodes.find(n => n.id === c);
+    if (match) return match;
+  }
+
+  // Priority 2: Exact node.data.purl, label, or entity_id match
+  for (const c of uniqueCandidates) {
+    const match = nodes.find(n => 
+      (n.data as any)?.purl === c ||
+      (n.data as any)?.label === c ||
+      (n.data as any)?.entity_id === c
+    );
+    if (match) return match;
+  }
+
+  // Priority 3: Alpha-numeric normalized match (ignoring hyphens, @, pkg:)
+  for (const c of uniqueCandidates) {
+    const cleanC = norm(c);
+    if (cleanC.length < 3) continue;
+    const match = nodes.find(n => {
+      const cleanId = norm(n.id);
+      const cleanLabel = norm((n.data as any)?.label || "");
+      const cleanPurl = norm((n.data as any)?.purl || "");
+      return cleanId === cleanC || cleanLabel === cleanC || cleanPurl === cleanC;
+    });
+    if (match) return match;
+  }
+
+  // Priority 4: Substring match (e.g. "mixin-deep" in "mixin-deep-1.3.1")
+  for (const c of uniqueCandidates) {
+    const cleanC = norm(c);
+    if (cleanC.length < 4) continue;
+    const match = nodes.find(n => {
+      const cleanId = norm(n.id);
+      const cleanLabel = norm((n.data as any)?.label || "");
+      return cleanId.includes(cleanC) || cleanC.includes(cleanId) ||
+             cleanLabel.includes(cleanC) || cleanC.includes(cleanLabel);
+    });
+    if (match) return match;
+  }
+
+  // Priority 5: By node_type fallback for CI/CD or Repository
+  if (
+    finding?.finding_type === "CICD_RISK" ||
+    finding?.title?.includes("CI/CD") ||
+    rawId.endsWith(".yml") ||
+    rawId.endsWith(".yaml")
+  ) {
+    const pipeNode = nodes.find(n => (n.data as any)?.node_type === "Pipeline" || n.id.toLowerCase().includes("pipeline"));
+    if (pipeNode) return pipeNode;
+  }
+
+  if (
+    finding?.entity_type === "Repository" ||
+    finding?.title?.includes("AST")
+  ) {
+    const repoNode = nodes.find(n => (n.data as any)?.node_type === "Repository" || n.type === "repositoryNode" || n.id.toLowerCase().includes("app") || n.id.toLowerCase().includes("repo"));
+    if (repoNode) return repoNode;
+  }
+
+  return null;
+}
+
 const GraphCanvasInner = React.memo(function GraphCanvasInner({
   graph,
   focusNodeId,
+  focusTarget,
   onNodeClick,
 }: GraphCanvasProps) {
   const { fitView, setCenter } = useReactFlow();
   const [filter, setFilter] = useState<GraphFilter>("package");
   const [ecoFilter, setEcoFilter] = useState<string>("all");
   const [sevFilter, setSevFilter] = useState<string>("all");
+  const [activeFocusedId, setActiveFocusedId] = useState<string | null>(null);
+  const visibleNodesRef = React.useRef<Node[]>([]);
 
   const safeNodes = useMemo(() => (Array.isArray(graph?.nodes) ? graph.nodes : []), [graph?.nodes]);
   const safeEdges = useMemo(() => (Array.isArray(graph?.edges) ? graph.edges : []), [graph?.edges]);
@@ -246,14 +417,19 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
 
     return rawNodes.map(n => {
       const pos = adjustedPositions.get(n.id) || { x: n.position?.x ?? 0, y: n.position?.y ?? 0 };
+      const isFocused = n.id === activeFocusedId;
       return {
         id: n.id,
         position: pos,
-        data: n.data as any,
+        data: {
+          ...(n.data as any),
+          is_focused: isFocused,
+        },
+        selected: isFocused,
         type: "default",
       };
     });
-  }, [safeNodes, filter, packageOnlyNodes, prioritizedAllNodes, threatNodeIds, ecoFilter, sevFilter]);
+  }, [safeNodes, filter, packageOnlyNodes, prioritizedAllNodes, threatNodeIds, ecoFilter, sevFilter, activeFocusedId]);
 
   const visibleEdges: Edge[] = useMemo(() => {
     const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
@@ -311,30 +487,55 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
       });
   }, [safeEdges, visibleNodes, threatNodeIds, filter]);
 
-  // Focus on a specific node when focusNodeId changes — smooth zoom to center
+  // Keep visibleNodesRef in sync on every render
   useEffect(() => {
-    if (!focusNodeId) return;
-    const node = safeNodes.find(n =>
-      n.id === focusNodeId ||
-      n.id.includes(focusNodeId) ||
-      focusNodeId.includes(n.id)
-    );
-    if (node) {
-      // Switch to "all" view if node is not in attack path subset
-      if (!threatNodeIds.has(node.id)) {
-        setFilter("all");
-      }
-      // Use setCenter for precise, smooth zoom to the node
-      setTimeout(() => {
-        const x = (node.position?.x ?? 0) + 80; // offset to center of node card
-        const y = (node.position?.y ?? 0) + 20;
-        setCenter(x, y, { zoom: 1.4, duration: 800 });
-      }, 150);
+    visibleNodesRef.current = visibleNodes;
+  });
+
+  // Focus on a specific node when focusTarget or focusNodeId changes — smooth zoom to center
+  useEffect(() => {
+    if (!focusTarget && !focusNodeId) return;
+
+    const payload: FocusTarget = focusTarget || {
+      id: focusNodeId || undefined,
+      timestamp: Date.now(),
+    };
+
+    const node = findMatchingNode(payload, safeNodes);
+    if (!node) return;
+
+    setActiveFocusedId(node.id);
+
+    // Auto-adjust view mode if node is filtered out:
+    // If it's a Vulnerability node and filter is "package", switch to "detailed" (exploded CVEs)
+    if (node.data?.node_type === "Vulnerability" && filter === "package") {
+      setFilter("detailed");
+    } else if (!threatNodeIds.has(node.id) && filter === "detailed") {
+      setFilter("all");
     }
-  }, [focusNodeId, setCenter, safeNodes, threatNodeIds]);
+
+    // Reset ecosystem or severity filter if they hide this node
+    if (ecoFilter !== "all" && node.data?.ecosystem && node.data.ecosystem !== ecoFilter) {
+      setEcoFilter("all");
+    }
+    if (sevFilter !== "all" && node.data?.severity && node.data.severity !== sevFilter) {
+      setSevFilter("all");
+    }
+
+    // Use setCenter with slight delay to ensure React Flow has layout & correct on-screen position
+    const timer = setTimeout(() => {
+      const onScreen = visibleNodesRef.current.find(vn => vn.id === node.id) || node;
+      const x = (onScreen.position?.x ?? 0) + 105;
+      const y = (onScreen.position?.y ?? 0) + 35;
+      setCenter(x, y, { zoom: 1.45, duration: 650 });
+    }, 180);
+
+    return () => clearTimeout(timer);
+  }, [focusTarget, focusNodeId, safeNodes, threatNodeIds, setCenter, filter, ecoFilter, sevFilter]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
+      setActiveFocusedId(node.id);
       onNodeClick?.(node.id);
     },
     [onNodeClick]
