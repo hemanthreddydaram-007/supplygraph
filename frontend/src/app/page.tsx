@@ -2203,21 +2203,21 @@ export default function Dashboard() {
                 </div>
 
                 {/* RIGHT PANEL: 4 TABS (FINDINGS / EXECUTIVE AI / CODE REVIEWER / SANDBOX) */}
-                <div className="w-[460px] border-l border-zinc-800/80 bg-zinc-950/70 backdrop-blur-md flex flex-col h-full shrink-0">
+                <div className="w-[490px] xl:w-[520px] border-l border-zinc-800/80 bg-zinc-950/70 backdrop-blur-md flex flex-col h-full shrink-0">
                   {/* Tab Navigation & Export Header */}
-                  <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-zinc-800/80 shrink-0">
-                    <div className="flex items-center space-x-1.5">
+                  <div className="flex items-center justify-between px-3 pt-3 pb-2 border-b border-zinc-800/80 shrink-0 gap-2">
+                    <div className="flex items-center space-x-1 shrink-0">
                       {/* Findings Tab */}
                       <button
                         onClick={() => setActiveTab("findings")}
                         className={cn(
-                          "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5",
+                          "px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 whitespace-nowrap shrink-0",
                           activeTab === "findings"
                             ? "bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-700/60"
                             : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60"
                         )}
                       >
-                        <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+                        <ShieldAlert className="w-3.5 h-3.5 text-red-400 shrink-0" />
                         <span>Findings ({activeFindings.length})</span>
                       </button>
 
@@ -2225,36 +2225,36 @@ export default function Dashboard() {
                       <button
                         onClick={() => setActiveTab("briefing")}
                         className={cn(
-                          "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5",
+                          "px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 whitespace-nowrap shrink-0",
                           activeTab === "briefing"
                             ? "bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-700/60"
                             : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60"
                         )}
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                         <span>Executive AI</span>
                       </button>
                     </div>
 
                     {/* Header Right Actions: Fix with AI, Copy All & Export */}
-                    <div className="flex items-center space-x-1.5">
+                    <div className="flex items-center space-x-1.5 shrink-0">
                       {data?.findings && data.findings.length > 0 && (
                         <>
                           <button
                             type="button"
                             onClick={() => copyToClipboard(generateMasterAIFixPrompt(data), "ai-master-prompt")}
-                            className="px-2.5 py-1 text-xs font-mono font-semibold text-emerald-300 hover:text-emerald-100 bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-600/60 hover:border-emerald-500 rounded-lg flex items-center space-x-1.5 transition-all shadow-sm group/ai"
+                            className="px-2.5 py-1 text-xs font-mono font-semibold whitespace-nowrap shrink-0 text-emerald-300 hover:text-emerald-100 bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-600/60 hover:border-emerald-500 rounded-lg flex items-center space-x-1.5 transition-all shadow-sm group/ai"
                             title="Copy complete Master AI Fix Prompt for ChatGPT, Claude, Cursor, Copilot"
                           >
                             {copiedIndex === "ai-master-prompt" ? (
                               <>
-                                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                <span className="text-emerald-400 font-bold">AI Prompt Copied!</span>
+                                <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                <span className="text-emerald-400 font-bold whitespace-nowrap">Copied!</span>
                               </>
                             ) : (
                               <>
-                                <Sparkles className="w-3.5 h-3.5 text-emerald-400 group-hover/ai:rotate-12 transition-transform" />
-                                <span>Fix with AI</span>
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0 group-hover/ai:rotate-12 transition-transform" />
+                                <span className="whitespace-nowrap">Fix with AI</span>
                               </>
                             )}
                           </button>
@@ -2262,18 +2262,18 @@ export default function Dashboard() {
                           <button
                             type="button"
                             onClick={() => copyToClipboard(formatAllFindingsText(data.findings), "all-findings")}
-                            className="px-2.5 py-1 text-xs font-mono font-medium text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-750 hover:border-zinc-600 rounded-lg flex items-center space-x-1.5 transition-all shadow-sm"
+                            className="px-2 py-1 text-xs font-mono font-medium whitespace-nowrap shrink-0 text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-750 hover:border-zinc-600 rounded-lg flex items-center space-x-1.5 transition-all shadow-sm"
                             title="Copy all findings report to clipboard"
                           >
                             {copiedIndex === "all-findings" ? (
                               <>
-                                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                <span className="text-emerald-400 font-bold">Copied!</span>
+                                <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                <span className="text-emerald-400 font-bold whitespace-nowrap">Copied!</span>
                               </>
                             ) : (
                               <>
-                                <Copy className="w-3.5 h-3.5 text-zinc-400" />
-                                <span>Copy All</span>
+                                <Copy className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                <span className="whitespace-nowrap">Copy All</span>
                               </>
                             )}
                           </button>
@@ -2281,16 +2281,16 @@ export default function Dashboard() {
                       )}
 
                       {/* Consolidated Export Dropdown */}
-                      <div className="relative">
+                      <div className="relative shrink-0">
                         <button
                           type="button"
                           onClick={() => setShowExportDropdown(!showExportDropdown)}
-                          className="px-2.5 py-1 text-xs font-mono font-semibold text-zinc-200 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/70 rounded-lg flex items-center space-x-1.5 transition-all shadow-sm"
+                          className="px-2 py-1 text-xs font-mono font-semibold whitespace-nowrap shrink-0 text-zinc-200 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/70 rounded-lg flex items-center space-x-1 transition-all shadow-sm"
                           title="Download audit reports and patched manifests"
                         >
-                          <Download className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>Export</span>
-                          <ChevronDown className={cn("w-3 h-3 text-zinc-400 transition-transform", showExportDropdown && "rotate-180")} />
+                          <Download className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                          <span className="whitespace-nowrap">Export</span>
+                          <ChevronDown className={cn("w-3 h-3 text-zinc-400 transition-transform shrink-0", showExportDropdown && "rotate-180")} />
                         </button>
 
                       {/* Export Dropdown Popover */}
@@ -2455,50 +2455,52 @@ export default function Dashboard() {
                                           onClick={() => togglePackageExpanded(g.key)}
                                           className="p-3 bg-zinc-900/70 hover:bg-zinc-850/80 cursor-pointer flex items-center justify-between transition-colors border-b border-zinc-800/60"
                                         >
-                                          <div className="flex items-center space-x-2.5 min-w-0">
-                                            <div className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700/60 text-zinc-300">
+                                          <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-2">
+                                            <div className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700/60 text-zinc-300 shrink-0">
                                               <Boxes className="w-3.5 h-3.5 text-sky-400" />
                                             </div>
-                                            <div className="min-w-0">
-                                              <div className="flex items-center space-x-2">
+                                            <div className="min-w-0 flex-1">
+                                              <div className="flex items-center space-x-1.5 truncate">
                                                 <span className="text-xs font-bold text-zinc-100 truncate">{g.pkgName}</span>
                                                 {g.version && (
-                                                  <span className="text-[10px] text-zinc-400 font-mono">@{g.version}</span>
+                                                  <span className="text-[10px] text-zinc-400 font-mono shrink-0">@{g.version}</span>
                                                 )}
-                                                <span className="text-[9px] px-1.5 py-0.2 rounded uppercase font-mono font-bold border bg-zinc-800 text-zinc-400 border-zinc-700">
+                                                <span className="text-[8px] px-1 py-0.2 rounded uppercase font-mono font-bold border bg-zinc-800 text-zinc-400 border-zinc-700 shrink-0">
                                                   {g.ecosystem}
                                                 </span>
                                               </div>
-                                              <div className="text-[10px] text-zinc-500 font-mono mt-0.5 flex items-center space-x-2">
-                                                <span>{g.findings.length} Finding{g.findings.length !== 1 ? "s" : ""}</span>
+                                              <div className="text-[10px] text-zinc-500 font-mono mt-0.5 flex items-center space-x-1.5 truncate">
+                                                <span className="shrink-0">{g.findings.length} Finding{g.findings.length !== 1 ? "s" : ""}</span>
                                                 {g.fixVersion && (
                                                   <>
-                                                    <span>•</span>
-                                                    <span className="text-emerald-400 font-semibold">Recommended Fix: {g.fixVersion}</span>
+                                                    <span className="text-zinc-600 shrink-0">•</span>
+                                                    <span className="text-emerald-400 font-medium truncate" title={`Recommended Fix: ${g.fixVersion}`}>
+                                                      Fix: {g.fixVersion}
+                                                    </span>
                                                   </>
                                                 )}
                                               </div>
                                             </div>
                                           </div>
-                                          <div className="flex items-center space-x-2 shrink-0">
+                                          <div className="flex items-center space-x-1.5 shrink-0">
                                             <button
                                               type="button"
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 copyToClipboard(generateSingleAIFixPrompt(g.findings[0], g.findings), `pkg-ai-${g.key}`);
                                               }}
-                                              className="px-2 py-0.5 rounded bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 hover:text-emerald-100 border border-emerald-700/60 hover:border-emerald-500 transition-all text-[9px] font-mono flex items-center space-x-1 shadow-sm"
+                                              className="px-1.5 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 hover:text-emerald-100 border border-emerald-700/60 hover:border-emerald-500 transition-all text-[9px] font-mono flex items-center space-x-1 shadow-sm whitespace-nowrap shrink-0"
                                               title="Copy AI Prompt to fix this package in Cursor, ChatGPT, or Claude"
                                             >
                                               {copiedIndex === `pkg-ai-${g.key}` ? (
                                                 <>
-                                                  <Check className="w-3 h-3 text-emerald-400" />
+                                                  <Check className="w-2.5 h-2.5 text-emerald-400" />
                                                   <span className="font-bold">Copied!</span>
                                                 </>
                                               ) : (
                                                 <>
-                                                  <Sparkles className="w-3 h-3 text-emerald-400" />
-                                                  <span>Fix with AI</span>
+                                                  <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+                                                  <span>AI Fix</span>
                                                 </>
                                               )}
                                             </button>
@@ -2508,24 +2510,24 @@ export default function Dashboard() {
                                                 e.stopPropagation();
                                                 handlePackageFocus(g.key, g.findings[0]);
                                               }}
-                                              className="px-2 py-0.5 rounded bg-zinc-800/90 hover:bg-indigo-950/80 text-zinc-400 hover:text-indigo-300 border border-zinc-750 hover:border-indigo-600/60 transition-all text-[9px] font-mono flex items-center space-x-1"
+                                              className="px-1.5 py-0.5 rounded bg-zinc-800/90 hover:bg-indigo-950/80 text-zinc-400 hover:text-indigo-300 border border-zinc-750 hover:border-indigo-600/60 transition-all text-[9px] font-mono flex items-center space-x-1 whitespace-nowrap shrink-0"
                                               title="Focus package node in attack graph"
                                             >
-                                              <Crosshair className="w-3 h-3 text-indigo-400" />
+                                              <Crosshair className="w-2.5 h-2.5 text-indigo-400" />
                                               <span>Focus</span>
                                             </button>
                                             <span
                                               className={cn(
-                                                "px-2 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
+                                                "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border shrink-0",
                                                 getSeverityClass(g.highestSeverity)
                                               )}
                                             >
                                               {g.highestSeverity}
                                             </span>
-                                            <div className="p-1 text-zinc-400 hover:text-white">
+                                            <div className="p-0.5 text-zinc-400 hover:text-white shrink-0">
                                               <ChevronDown
                                                 className={cn(
-                                                  "w-4 h-4 transition-transform duration-200",
+                                                  "w-3.5 h-3.5 transition-transform duration-200",
                                                   isExpanded && "rotate-180"
                                                 )}
                                               />
