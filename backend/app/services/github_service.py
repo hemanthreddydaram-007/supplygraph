@@ -66,7 +66,7 @@ class GitHubService:
             repo = self.github.get_repo(full_name)
             owner, name = full_name.split('/')
             return RepositoryModel(
-                url=repo_url,
+                github_url=repo_url,
                 owner=owner,
                 name=name,
                 description=repo.description or "",

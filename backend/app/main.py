@@ -28,4 +28,5 @@ app = create_application()
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "1.0.0"}
+    settings = get_settings()
+    return {"status": "ok", "version": settings.app_version}
