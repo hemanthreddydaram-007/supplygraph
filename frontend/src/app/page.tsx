@@ -732,6 +732,197 @@ export default function Dashboard() {
     return text.trim();
   }, [data, formatSingleFindingText]);
 
+  const generateSingleAIFixPrompt = useCallback((finding: any, relatedFindings?: any[]) => {
+    if (!finding) return "";
+    const snippet = buildLockfileSnippet(finding);
+    const origin = finding.origin_candidate || finding.title || "";
+    const cleanPkg = origin.replace(/^pkg:(npm|pypi|golang)\//, "").split("@")[0] || origin;
+    const findingsList = relatedFindings && relatedFindings.length > 0 ? relatedFindings : [finding];
+
+    let prompt = `# AI REMEDIATION TASK: Fix Security Vulnerabilities in \`${cleanPkg}\`\n\n`;
+    prompt += `You are an expert security engineer and software developer.\n`;
+    prompt += `SupplyGraph detected security issues in component \`${cleanPkg}\` in this project. Please fix them by applying the targeted changes below.\n\n`;
+
+    prompt += `### COMPONENT DETAILS:\n`;
+    prompt += `- Component: \`${origin}\`\n`;
+    prompt += `- Severity: [${finding.severity || "MEDIUM"}]\n`;
+    prompt += `- Vulnerabilities Addressed (${findingsList.length}):\n`;
+    findingsList.slice(0, 8).forEach((f: any) => {
+      prompt += `  * [${f.severity || "MEDIUM"}] ${f.title}: ${f.description?.slice(0, 150) || ""}\n`;
+    });
+    if (findingsList.length > 8) {
+      prompt += `  * ... and ${findingsList.length - 8} additional advisory signals\n`;
+    }
+
+    if (finding.recommendations && finding.recommendations.length > 0) {
+      prompt += `\n### REMEDIATION STRATEGY:\n`;
+      prompt += `- Title: ${finding.recommendations[0]?.title}\n`;
+      if (finding.recommendations[0]?.why) {
+        prompt += `- Justification: ${finding.recommendations[0]?.why}\n`;
+      }
+    }
+
+    if (snippet) {
+      prompt += `\n### EXACT MANIFEST / CONFIGURATION FIX:\n`;
+      prompt += `Apply this exact specification to your dependency manifest (\`requirements.txt\`, \`package.json\`, \`go.mod\`, or \`pyproject.toml\`):\n`;
+      prompt += `\`\`\`\n${snippet}\n\`\`\`\n\n`;
+    }
+
+    prompt += `### INSTRUCTIONS FOR AI:\n`;
+    prompt += `1. Locate where \`${cleanPkg}\` is declared in this project.\n`;
+    prompt += `2. Update or pin the dependency version to the safe minimum required above.\n`;
+    prompt += `3. Do NOT break other package dependencies or remove required libraries.\n`;
+    prompt += `4. Verify syntax and run tests to ensure application runs cleanly.\n\n`;
+    prompt += `Please apply this fix now and show the updated file diff.\n`;
+
+    return prompt.trim();
+  }, []);
+
+  const generateMasterAIFixPrompt = useCallback((scanData: any) => {
+    if (!scanData) return "";
+    const repo = scanData?.scan?.repository_url || "Target Repository";
+    const findings = scanData?.findings || [];
+    const codeReviews = scanData?.code_reviews || [];
+    const blastRadius = scanData?.scan?.blast_radius_score || 0;
+
+    let prompt = `# AI REMEDIATION TASK: Complete Codebase Security Hardening\n\n`;
+    prompt += `You are an expert Principal Security Engineer and Senior Full-Stack Architect.\n`;
+    prompt += `SupplyGraph has scanned this repository and identified security vulnerabilities, outdated vulnerable packages, and CI/CD supply-chain risks.\n`;
+    prompt += `Your mission is to fix ALL issues below with zero regressions.\n\n`;
+
+    prompt += `### AUDIT SUMMARY:\n`;
+    prompt += `- Repository: ${repo}\n`;
+    prompt += `- Total Security Findings: ${findings.length}\n`;
+    prompt += `- Code Review / CI/CD Issues: ${codeReviews.length}\n`;
+    prompt += `- Supply Chain Blast Radius: ${blastRadius}/100\n\n`;
+
+    prompt += `### STRICT EXECUTION RULES FOR AI ASSISTANTS (Cursor / Claude / ChatGPT / Copilot):\n`;
+    prompt += `1. **Zero Functional Regression**: Do not delete existing features, break API contracts, or change business logic.\n`;
+    prompt += `2. **Targeted Precision**: Modify ONLY the specified files. Do not perform unrelated refactoring.\n`;
+    prompt += `3. **Non-Breaking Version Pinning**: Pin dependencies to the exact minimum safe versions recommended below.\n`;
+    prompt += `4. **Immutable CI/CD Pinning**: Pin all GitHub Actions to their 40-character commit SHAs with version comments.\n`;
+    prompt += `5. **Syntactic & Test Integrity**: Ensure all modified files have valid syntax and pass project test suites.\n\n`;
+    prompt += `============================================================\n\n`;
+
+    // 1. Dependency Manifests
+    prompt += `## 🎯 STEP 1: FIX DEPENDENCY VULNERABILITIES (MANIFESTS)\n\n`;
+    prompt += `Update your project dependency manifests (\`requirements.txt\`, \`package.json\`, \`pyproject.toml\`, or \`go.mod\`) with the following safe version constraints:\n\n`;
+
+    const packageFixes: Record<string, { snippet: string; findingsCount: number; maxSev: string; cves: string[]; title: string }> = {};
+
+    findings.forEach((f: any) => {
+      const rawRef = f?.origin_candidate || f?.title || "";
+      if (f.finding_type === "VULNERABLE" || rawRef.includes("@")) {
+        const snippet = buildLockfileSnippet(f);
+        const cleanName = rawRef.replace(/^pkg:(npm|pypi|golang)\//, "").split("@")[0] || rawRef;
+        if (!packageFixes[cleanName]) {
+          packageFixes[cleanName] = {
+            snippet: snippet,
+            findingsCount: 0,
+            maxSev: f.severity || "MEDIUM",
+            cves: [],
+            title: f.recommendations?.[0]?.title || "Pin or Upgrade Dependency",
+          };
+        }
+        packageFixes[cleanName].findingsCount++;
+        const cveMatch = f.title?.match(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+|GO-\d{4}-\d+|PYSEC-\d{4}-\d+)/i);
+        if (cveMatch && !packageFixes[cleanName].cves.includes(cveMatch[1])) {
+          packageFixes[cleanName].cves.push(cveMatch[1]);
+        }
+      }
+    });
+
+    if (Object.keys(packageFixes).length > 0) {
+      Object.entries(packageFixes).forEach(([pkg, info]) => {
+        prompt += `### Component: \`${pkg}\` [${info.maxSev}] (${info.findingsCount} vulnerability findings)\n`;
+        if (info.cves.length > 0) {
+          prompt += `- Addressed Advisories: ${info.cves.slice(0, 6).join(", ")}${info.cves.length > 6 ? ` +${info.cves.length - 6} more` : ""}\n`;
+        }
+        if (info.snippet) {
+          prompt += `\`\`\`\n${info.snippet}\n\`\`\`\n\n`;
+        }
+      });
+    } else {
+      prompt += `No vulnerable package manifests detected. Core dependencies are secure.\n\n`;
+    }
+
+    prompt += `------------------------------------------------------------\n\n`;
+
+    // 2. CI/CD Workflows
+    prompt += `## 🎯 STEP 2: FIX CI/CD PIPELINE SECURITY RISKS (\`.github/workflows/\`)\n\n`;
+    prompt += `Apply the following unified diff patches to pin GitHub Actions to immutable commit SHAs and eliminate pipeline tampering risks:\n\n`;
+
+    if (codeReviews.length > 0) {
+      codeReviews.forEach((cr: any, idx: number) => {
+        prompt += `### Workflow Patch #${idx + 1}: ${cr.title} [${cr.severity}]\n`;
+        prompt += `- File: \`${cr.file_path}\` (around line ${cr.line_number})\n`;
+        prompt += `- Issue: ${cr.error_explanation}\n`;
+        if (cr.unified_diff) {
+          prompt += `\`\`\`diff\n${cr.unified_diff}\n\`\`\`\n\n`;
+        } else if (cr.corrected_code) {
+          prompt += `Replace:\n\`\`\`yaml\n${cr.buggy_code}\n\`\`\`\nWith:\n\`\`\`yaml\n${cr.corrected_code}\n\`\`\`\n\n`;
+        }
+      });
+    } else {
+      const cicdFindings = findings.filter((f: any) => f.finding_type === "CICD_RISK" || f.title?.includes("CI/CD"));
+      if (cicdFindings.length > 0) {
+        cicdFindings.forEach((cf: any, idx: number) => {
+          prompt += `### CI/CD Finding #${idx + 1}: ${cf.title} [${cf.severity}]\n`;
+          prompt += `- Description: ${cf.description || "Insecure workflow configuration"}\n`;
+          const snippet = buildLockfileSnippet(cf);
+          if (snippet) {
+            prompt += `\`\`\`yaml\n${snippet}\n\`\`\`\n\n`;
+          }
+        });
+      } else {
+        prompt += `All CI/CD workflows comply with OpenSSF security standards.\n\n`;
+      }
+    }
+
+    prompt += `------------------------------------------------------------\n\n`;
+
+    // 3. Static AST Security
+    const astFindings = findings.filter((f: any) => f.finding_type === "AST" || f.title?.includes("AST"));
+    if (astFindings.length > 0) {
+      prompt += `## 🎯 STEP 3: SOURCE CODE & AST SECURITY REFACTORING\n\n`;
+      prompt += `Static code analysis detected high-risk execution patterns in application code:\n\n`;
+      astFindings.forEach((af: any, idx: number) => {
+        prompt += `### Code Pattern #${idx + 1}: ${af.title} [${af.severity}]\n`;
+        prompt += `- Details: ${af.description}\n`;
+        prompt += `- Safe Refactoring Guidelines:\n`;
+        prompt += `  1. Replace \`eval()\` or \`exec()\` with safe parsers like \`json.loads()\` or \`ast.literal_eval()\`. \n`;
+        prompt += `  2. When using \`subprocess\`, avoid \`shell=True\` and pass arguments as an array: \`subprocess.run(['cmd', 'arg1'])\`.\n`;
+        prompt += `  3. Never hardcode credentials; retrieve them from environment variables via \`os.getenv()\` or \`process.env\`.\n\n`;
+      });
+      prompt += `------------------------------------------------------------\n\n`;
+    }
+
+    // 4. Verification Protocol
+    prompt += `## 🎯 STEP 4: VERIFICATION & TEST PROTOCOL\n\n`;
+    prompt += `After applying these modifications:\n`;
+    prompt += `1. Verify package dependency installation completes without conflicts.\n`;
+    prompt += `2. Run project tests (\`pytest\`, \`npm test\`, or \`go test\`) to verify 100% passing status.\n`;
+    prompt += `3. Confirm that no unpinned \`@v...\` tags remain in \`.github/workflows/\`.\n\n`;
+    prompt += `Please apply all required fixes now and present the updated file contents.\n`;
+
+    return prompt.trim();
+  }, []);
+
+  const handleDownloadAIPrompt = useCallback(() => {
+    if (!data) return;
+    const prompt = generateMasterAIFixPrompt(data);
+    const blob = new Blob([prompt], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const repoName = (data?.scan?.repository_url || "project").split("/").pop() || "project";
+    a.download = `SupplyGraph_AI_Fix_Prompt_${repoName}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [data, generateMasterAIFixPrompt]);
+
   const handleFindingClick = useCallback((finding: any) => {
     // Extract specific advisory/vulnerability ID if present (GHSA, CVE, PYSEC, SNYK)
     const titleMatch = (finding?.title || "").match(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+|PYSEC-\d{4}-\d+|SNYK-[A-Z0-9-]+)/i);
@@ -2045,27 +2236,48 @@ export default function Dashboard() {
                       </button>
                     </div>
 
-                    {/* Header Right Actions: Copy All & Export */}
+                    {/* Header Right Actions: Fix with AI, Copy All & Export */}
                     <div className="flex items-center space-x-1.5">
                       {data?.findings && data.findings.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(formatAllFindingsText(data.findings), "all-findings")}
-                          className="px-2.5 py-1 text-xs font-mono font-medium text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-750 hover:border-zinc-600 rounded-lg flex items-center space-x-1.5 transition-all shadow-sm"
-                          title="Copy all findings report to clipboard"
-                        >
-                          {copiedIndex === "all-findings" ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
-                              <span className="text-emerald-400 font-bold">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5 text-zinc-400" />
-                              <span>Copy All</span>
-                            </>
-                          )}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(generateMasterAIFixPrompt(data), "ai-master-prompt")}
+                            className="px-2.5 py-1 text-xs font-mono font-semibold text-emerald-300 hover:text-emerald-100 bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-600/60 hover:border-emerald-500 rounded-lg flex items-center space-x-1.5 transition-all shadow-sm group/ai"
+                            title="Copy complete Master AI Fix Prompt for ChatGPT, Claude, Cursor, Copilot"
+                          >
+                            {copiedIndex === "ai-master-prompt" ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                <span className="text-emerald-400 font-bold">AI Prompt Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-400 group-hover/ai:rotate-12 transition-transform" />
+                                <span>Fix with AI</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(formatAllFindingsText(data.findings), "all-findings")}
+                            className="px-2.5 py-1 text-xs font-mono font-medium text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-750 hover:border-zinc-600 rounded-lg flex items-center space-x-1.5 transition-all shadow-sm"
+                            title="Copy all findings report to clipboard"
+                          >
+                            {copiedIndex === "all-findings" ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                <span className="text-emerald-400 font-bold">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5 text-zinc-400" />
+                                <span>Copy All</span>
+                              </>
+                            )}
+                          </button>
+                        </>
                       )}
 
                       {/* Consolidated Export Dropdown */}
@@ -2087,6 +2299,21 @@ export default function Dashboard() {
                           className="absolute right-0 top-full mt-1.5 w-56 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl p-1.5 space-y-1 z-30"
                           onMouseLeave={() => setShowExportDropdown(false)}
                         >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowExportDropdown(false);
+                              handleDownloadAIPrompt();
+                            }}
+                            className="w-full text-left px-2.5 py-2 rounded-lg text-xs font-mono text-purple-300 hover:bg-purple-950/60 flex items-center space-x-2.5 transition-colors"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                            <div>
+                              <div className="font-semibold text-[11px] text-purple-300">Master AI Fix Prompt (.md)</div>
+                              <div className="text-[9px] text-zinc-500">For Cursor, Claude & ChatGPT</div>
+                            </div>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => {
@@ -2258,6 +2485,27 @@ export default function Dashboard() {
                                               type="button"
                                               onClick={(e) => {
                                                 e.stopPropagation();
+                                                copyToClipboard(generateSingleAIFixPrompt(g.findings[0], g.findings), `pkg-ai-${g.key}`);
+                                              }}
+                                              className="px-2 py-0.5 rounded bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 hover:text-emerald-100 border border-emerald-700/60 hover:border-emerald-500 transition-all text-[9px] font-mono flex items-center space-x-1 shadow-sm"
+                                              title="Copy AI Prompt to fix this package in Cursor, ChatGPT, or Claude"
+                                            >
+                                              {copiedIndex === `pkg-ai-${g.key}` ? (
+                                                <>
+                                                  <Check className="w-3 h-3 text-emerald-400" />
+                                                  <span className="font-bold">Copied!</span>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Sparkles className="w-3 h-3 text-emerald-400" />
+                                                  <span>Fix with AI</span>
+                                                </>
+                                              )}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
                                                 handlePackageFocus(g.key, g.findings[0]);
                                               }}
                                               className="px-2 py-0.5 rounded bg-zinc-800/90 hover:bg-indigo-950/80 text-zinc-400 hover:text-indigo-300 border border-zinc-750 hover:border-indigo-600/60 transition-all text-[9px] font-mono flex items-center space-x-1"
@@ -2302,6 +2550,27 @@ export default function Dashboard() {
                                                       {f.title}
                                                     </h4>
                                                     <div className="flex items-center space-x-1 shrink-0">
+                                                      <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          copyToClipboard(generateSingleAIFixPrompt(f), `ai-f-${g.key}-${fIdx}`);
+                                                        }}
+                                                        className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 hover:text-white transition-colors text-[9px] font-mono shadow-sm"
+                                                        title="Copy AI Prompt to fix this vulnerability with ChatGPT, Claude, or Cursor"
+                                                      >
+                                                        {copiedIndex === `ai-f-${g.key}-${fIdx}` ? (
+                                                          <>
+                                                            <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                                            <span className="text-emerald-400 font-bold">Copied!</span>
+                                                          </>
+                                                        ) : (
+                                                          <>
+                                                            <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+                                                            <span>Prompt AI</span>
+                                                          </>
+                                                        )}
+                                                      </button>
                                                       <button
                                                         type="button"
                                                         onClick={(e) => {
@@ -2438,6 +2707,27 @@ export default function Dashboard() {
                                             {f.title}
                                           </h4>
                                           <div className="flex items-center space-x-1.5 shrink-0">
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                copyToClipboard(generateSingleAIFixPrompt(f), `ai-flat-${idx}`);
+                                              }}
+                                              className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 hover:text-white transition-colors text-[9px] font-mono shadow-sm"
+                                              title="Copy AI Prompt to fix this vulnerability with ChatGPT, Claude, or Cursor"
+                                            >
+                                              {copiedIndex === `ai-flat-${idx}` ? (
+                                                <>
+                                                  <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                                  <span className="text-emerald-400 font-bold">Copied!</span>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+                                                  <span>Prompt AI</span>
+                                                </>
+                                              )}
+                                            </button>
                                             <button
                                               type="button"
                                               onClick={(e) => {

@@ -84,6 +84,33 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
     handleCopy(text.trim(), "all-reviews");
   };
 
+  const handleCopyAIPrompt = () => {
+    let prompt = `# AI REMEDIATION TASK: Apply Code Review & CI/CD Security Patches\n\n`;
+    prompt += `You are an expert software engineer and CI/CD security architect.\n`;
+    prompt += `SupplyGraph detected ${allDisplayReviews.length} security hardening and code quality issue(s) in this repository.\n`;
+    prompt += `Please apply the following verified unified diff patches directly to the target files with zero regression:\n\n`;
+
+    allDisplayReviews.forEach((item, idx) => {
+      prompt += `### Patch #${idx + 1}: ${item.title} [${item.severity}]\n`;
+      prompt += `- Target File: \`${item.file_path}\` (Line ${item.line_number})\n`;
+      prompt += `- Category: ${item.category}\n`;
+      prompt += `- Issue Explanation: ${item.error_explanation}\n\n`;
+      if (item.unified_diff) {
+        prompt += `\`\`\`diff\n${item.unified_diff}\n\`\`\`\n\n`;
+      } else {
+        prompt += `Replace:\n\`\`\`\n${item.buggy_code}\n\`\`\`\nWith:\n\`\`\`\n${item.corrected_code}\n\`\`\`\n\n`;
+      }
+    });
+
+    prompt += `### INSTRUCTIONS FOR AI:\n`;
+    prompt += `1. Locate each file in the repository.\n`;
+    prompt += `2. Apply the exact replacement or unified diff shown above.\n`;
+    prompt += `3. Preserve valid YAML/source syntax and do not break workflow triggers or build steps.\n\n`;
+    prompt += `Please apply these patches now and output the updated file contents.\n`;
+
+    handleCopy(prompt.trim(), "ai-reviews-prompt");
+  };
+
   const handleCopySingleReview = (item: CodeReviewItem) => {
     let text = `[${item.severity}] ${item.title} (${item.category})\n`;
     text += `Target: ${item.file_path} : Line ${item.line_number}\n`;
@@ -241,23 +268,43 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
 
         <div className="flex items-center space-x-2">
           {allDisplayReviews.length > 0 && (
-            <button
-              onClick={handleCopyAllReviews}
-              className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white transition-colors text-[10px] font-mono shadow-sm"
-              title="Copy all code reviews and git diffs to clipboard"
-            >
-              {copiedState === "all-reviews" ? (
-                <>
-                  <Check className="w-3 h-3 text-emerald-400" />
-                  <span className="text-emerald-400 font-semibold">Copied All ({allDisplayReviews.length}) Reviews!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3 h-3 text-zinc-400" />
-                  <span>Copy All Reviews</span>
-                </>
-              )}
-            </button>
+            <>
+              <button
+                onClick={handleCopyAIPrompt}
+                className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-700/60 hover:border-emerald-500 text-emerald-300 hover:text-white transition-colors text-[10px] font-mono shadow-sm"
+                title="Copy an AI Prompt for Cursor, Claude, or ChatGPT to apply all unified diffs"
+              >
+                {copiedState === "ai-reviews-prompt" ? (
+                  <>
+                    <Check className="w-3 h-3 text-emerald-400" />
+                    <span className="text-emerald-400 font-semibold">AI Prompt Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3 h-3 text-emerald-400 animate-pulse" />
+                    <span>Fix with AI</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={handleCopyAllReviews}
+                className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white transition-colors text-[10px] font-mono shadow-sm"
+                title="Copy all code reviews and git diffs to clipboard"
+              >
+                {copiedState === "all-reviews" ? (
+                  <>
+                    <Check className="w-3 h-3 text-emerald-400" />
+                    <span className="text-emerald-400 font-semibold">Copied All ({allDisplayReviews.length}) Reviews!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3 text-zinc-400" />
+                    <span>Copy All Reviews</span>
+                  </>
+                )}
+              </button>
+            </>
           )}
 
           <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 text-[10px] font-mono">
