@@ -41,9 +41,9 @@ class GitHubService:
 
     def _format_github_error(self, full_name: str, e: GithubException) -> str:
         msg = str(e.data.get("message", str(e)) if hasattr(e, "data") and isinstance(e.data, dict) else str(e))
-        if e.status == 403 or "rate limit" in msg.lower():
+        if e.status in (403, 429) or "rate limit" in msg.lower() or "abuse" in msg.lower():
             return (
-                f"GitHub API rate limit reached for {full_name} (HTTP 403). "
+                f"GitHub API rate limit reached for {full_name} (HTTP {e.status}). "
                 f"Tip: Set GITHUB_TOKEN on backend for 5,000 req/hr, or click '📂 Upload Folder' "
                 f"to scan this repository locally with zero rate limits."
             )
