@@ -49,6 +49,18 @@
       "is_transitive": true,
       "depth": 2,
       "description": "Deeply mix the properties of objects into the first object"
+    },
+    {
+      "bom_ref": "eslint-8.57.0",
+      "name": "eslint",
+      "version": "8.57.0",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/eslint@8.57.0",
+      "is_direct": true,
+      "is_transitive": false,
+      "is_dev": true,
+      "depth": 1,
+      "description": "JavaScript linter and pattern validator (DevDependency)"
     }
   ],
   "dependencies": [
@@ -243,13 +255,13 @@
     "scenario_id": "A",
     "started_at": "2026-09-25T10:15:02.752680Z",
     "completed_at": "2026-09-25T10:15:02.752680Z",
-    "total_components": 3,
+    "total_components": 4,
     "total_vulnerabilities": 1,
     "total_findings": 1,
     "max_confidence": 0.8,
     "blast_radius_score": 4.0,
     "total_attack_paths": 1,
-    "total_direct_dependencies": 1,
+    "total_direct_dependencies": 2,
     "total_transitive_dependencies": 1
   },
   "graph": {
@@ -306,6 +318,28 @@
           "x": 100,
           "y": 200
         }
+      },
+      {
+        "id": "eslint-8.57.0",
+        "type": "default",
+        "position": {
+          "x": -220.0,
+          "y": 120.0
+        },
+        "data": {
+          "label": "eslint@8.57.0",
+          "node_type": "Version",
+          "is_suspicious": false,
+          "is_origin_candidate": false,
+          "is_affected": false,
+          "finding_count": 0,
+          "purl": "pkg:npm/eslint@8.57.0",
+          "is_dev": true,
+          "metadata": {
+            "is_dev": true,
+            "is_direct": true
+          }
+        }
       }
     ],
     "edges": [
@@ -332,10 +366,23 @@
           "depth": 2,
           "is_attack_path": true
         }
+      },
+      {
+        "id": "demo-app-a-eslint-8.57.0",
+        "source": "demo-app-a",
+        "target": "eslint-8.57.0",
+        "type": "default",
+        "data": {
+          "edge_type": "DEPENDS_ON",
+          "is_direct": true,
+          "depth": 1,
+          "is_dev": true,
+          "label": "dev dependency"
+        }
       }
     ],
-    "node_count": 3,
-    "edge_count": 2,
+    "node_count": 4,
+    "edge_count": 3,
     "attack_path_count": 1
   },
   "api_version": "v1"

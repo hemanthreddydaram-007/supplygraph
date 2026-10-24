@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { fetchRepositoryAnalysis, fetchDemoAnalysis, fetchFolderAnalysis, compareScans } from "@/lib/api";
-import { AnalysisResponse, DetectorBreakdown, PolygonAttestation, SBOM, CodeReviewItem, ScanHistoryRecord } from "@/types";
+import { AnalysisResponse, DetectorBreakdown, PolygonAttestation, SBOM, CodeReviewItem, ScanHistoryRecord, GraphNode } from "@/types";
 import { GraphCanvas } from "@/components/graph/GraphCanvas";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { OverviewDashboard } from "@/components/dashboard/OverviewDashboard";
@@ -1017,18 +1017,215 @@ export default function Dashboard() {
     });
     setFocusNodeId(nodeId);
   }, []);
-  const currentGraph = useMemo(() => data?.graph || null, [data?.graph]);
+  // Compute BFS depths for all nodes in the raw graph from root/repository nodes
+  const nodeDepths = useMemo(() => {
+    if (!data?.graph?.nodes || data.graph.nodes.length === 0) return new Map<string, number>();
+    const nodes = data.graph.nodes;
+    const edges = data.graph.edges || [];
+
+    const adj = new Map<string, string[]>();
+    const inDegree = new Map<string, number>();
+    nodes.forEach((n) => {
+      adj.set(n.id, []);
+      inDegree.set(n.id, 0);
+    });
+
+    edges.forEach((e) => {
+      if (adj.has(e.source)) {
+        adj.get(e.source)!.push(e.target);
+      }
+      inDegree.set(e.target, (inDegree.get(e.target) || 0) + 1);
+    });
+
+    // Root nodes: Repository nodes or nodes with 0 in-degree
+    let roots = nodes
+      .filter((n) => {
+        const type = (n.data?.node_type || n.type || "").toLowerCase();
+        return type === "repository" || inDegree.get(n.id) === 0;
+      })
+      .map((n) => n.id);
+
+    if (roots.length === 0) {
+      roots = [nodes[0].id];
+    }
+
+    const depths = new Map<string, number>();
+    const queue: string[] = [];
+    roots.forEach((r) => {
+      depths.set(r, 0);
+      queue.push(r);
+    });
+
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      const currD = depths.get(curr)!;
+      const neighbors = adj.get(curr) || [];
+      for (const next of neighbors) {
+        const edge = edges.find((e) => e.source === curr && e.target === next);
+        const edgeDepth = edge?.data?.depth;
+        const candidateDepth = edgeDepth !== undefined && edgeDepth !== null ? edgeDepth : currD + 1;
+
+        if (!depths.has(next) || depths.get(next)! > candidateDepth) {
+          depths.set(next, candidateDepth);
+          queue.push(next);
+        }
+      }
+    }
+
+    // For any nodes not reached by BFS from root (e.g. orphan nodes), fallback to edge/comp depth or 1
+    nodes.forEach((n) => {
+      if (!depths.has(n.id)) {
+        const comp: any = (data.components || data.sbom?.components || []).find(
+          (c: any) => c.bom_ref === n.id || c.name === n.data?.label
+        );
+        if (comp?.depth !== undefined && comp?.depth !== null) {
+          depths.set(n.id, comp.depth);
+        } else {
+          const edge = edges.find((e) => e.target === n.id || e.source === n.id);
+          depths.set(n.id, edge?.data?.depth ?? 1);
+        }
+      }
+    });
+
+    return depths;
+  }, [data?.graph, data?.components, data?.sbom?.components]);
+
+  const maxGraphDepth = useMemo(() => {
+    if (nodeDepths.size === 0) return 10;
+    const maxD = Math.max(...Array.from(nodeDepths.values()), 1);
+    return Math.max(maxD, 1);
+  }, [nodeDepths]);
+
+  // Synchronize transitiveDepth when a new graph loads if prev exceeded maxGraphDepth
+  useEffect(() => {
+    if (data?.graph && maxGraphDepth > 0) {
+      setTransitiveDepth((prev) => {
+        if (prev > maxGraphDepth) {
+          return maxGraphDepth;
+        }
+        return prev;
+      });
+    }
+  }, [data?.graph, maxGraphDepth]);
+
+  const isNodeDev = useCallback(
+    (node: GraphNode): boolean => {
+      if (node.data?.is_dev === true) return true;
+      if (node.data?.metadata?.is_dev === true) return true;
+      const type = (node.data?.node_type || node.type || "").toLowerCase();
+      if (type === "devdependency") return true;
+
+      // Check against SBOM / component list
+      const comp = (data?.components || data?.sbom?.components || []).find(
+        (c: any) =>
+          c.bom_ref === node.id ||
+          c.name === node.data?.label ||
+          c.purl === node.data?.purl
+      );
+      if (comp && comp.is_dev) return true;
+
+      return false;
+    },
+    [data?.components, data?.sbom?.components]
+  );
+
+  const devDepsCount = useMemo(() => {
+    if (!data?.graph?.nodes) return 0;
+    return data.graph.nodes.filter((n) => isNodeDev(n)).length;
+  }, [data?.graph?.nodes, isNodeDev]);
+
+  const currentGraph = useMemo(() => {
+    if (!data?.graph?.nodes) return null;
+
+    // Filter nodes
+    const visibleNodes = data.graph.nodes.filter((node) => {
+      const type = (node.data?.node_type || node.type || "").toLowerCase();
+      // Root repository node is always visible
+      if (type === "repository") return true;
+
+      // Prod-Only filter: hide dev dependencies
+      if (prodOnly && isNodeDev(node)) {
+        return false;
+      }
+
+      // Transitive Depth filter
+      const depth = nodeDepths.get(node.id) ?? 1;
+      if (depth > transitiveDepth) {
+        return false;
+      }
+
+      return true;
+    });
+
+    const visibleNodeIds = new Set(visibleNodes.map((n) => n.id));
+
+    // Filter edges: only include edges where BOTH endpoints are visible
+    const visibleEdges = (data.graph.edges || []).filter(
+      (e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target)
+    );
+
+    return {
+      ...data.graph,
+      nodes: visibleNodes,
+      edges: visibleEdges,
+      node_count: visibleNodes.length,
+      edge_count: visibleEdges.length,
+    };
+  }, [data?.graph, nodeDepths, prodOnly, transitiveDepth, isNodeDev]);
+
+  const activeFindings = useMemo(() => {
+    if (!data?.findings) return [];
+
+    return data.findings.filter((f) => {
+      const { pkgName } = getFindingPackage(f);
+      if (!pkgName) return true;
+
+      // Check if this finding is tied to a dev dependency when prodOnly is true
+      if (prodOnly) {
+        const isDev = (data.components || data.sbom?.components || []).some(
+          (c: any) =>
+            (c.name?.toLowerCase() === pkgName.toLowerCase() ||
+             c.bom_ref?.toLowerCase().includes(pkgName.toLowerCase())) &&
+            c.is_dev
+        );
+        if (isDev) return false;
+      }
+
+      // Check if this finding's package is within transitiveDepth
+      if (data.graph?.nodes && currentGraph?.nodes) {
+        const matchingRawNodes = data.graph.nodes.filter((n) => {
+          const label = n.data?.label || "";
+          return (
+            n.id.toLowerCase().includes(pkgName.toLowerCase()) ||
+            label.toLowerCase().includes(pkgName.toLowerCase()) ||
+            (n.data?.purl && n.data.purl.toLowerCase().includes(pkgName.toLowerCase()))
+          );
+        });
+
+        // If nodes exist for this package in the graph, it's visible only if at least one node is in currentGraph
+        if (matchingRawNodes.length > 0) {
+          const isVisible = matchingRawNodes.some((rn) =>
+            currentGraph.nodes.some((vn) => vn.id === rn.id)
+          );
+          if (!isVisible) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [data?.findings, data?.graph?.nodes, currentGraph?.nodes, prodOnly, data?.components, data?.sbom?.components]);
+
   const currentCodeReviews = useMemo(() => data?.code_reviews || [], [data?.code_reviews]);
   const handleReviewsUpdated = useCallback((updated: CodeReviewItem[]) => {
     setData((prev) => (prev ? { ...prev, code_reviews: updated } : null));
   }, []);
   const displayedFindings = useMemo(() => {
-    if (!data?.findings) return [];
-    return showAllFindings ? data.findings : data.findings.slice(0, 25);
-  }, [data?.findings, showAllFindings]);
+    if (!activeFindings) return [];
+    return showAllFindings ? activeFindings : activeFindings.slice(0, 25);
+  }, [activeFindings, showAllFindings]);
 
   const groupedFindings = useMemo(() => {
-    if (!data?.findings || data.findings.length === 0) return [];
+    if (!activeFindings || activeFindings.length === 0) return [];
     const groups: Record<
       string,
       {
@@ -1042,7 +1239,7 @@ export default function Dashboard() {
       }
     > = {};
 
-    data.findings.forEach((f) => {
+    activeFindings.forEach((f) => {
       const { pkgName, version, ecosystem, key } = getFindingPackage(f);
       if (!groups[key]) {
         groups[key] = {
@@ -1086,7 +1283,7 @@ export default function Dashboard() {
     });
 
     return list;
-  }, [data?.findings]);
+  }, [activeFindings]);
 
   // Auto-expand the first package by default when grouped findings load
   useEffect(() => {
@@ -1377,38 +1574,60 @@ export default function Dashboard() {
                 type="button"
                 onClick={() => setProdOnly(!prodOnly)}
                 className={cn(
-                  "px-2.5 py-1.5 rounded-xl text-xs font-mono font-medium flex items-center space-x-1.5 border transition-all shrink-0 shadow-sm",
+                  "px-2.5 py-1.5 rounded-xl text-xs font-mono font-medium flex items-center space-x-1.5 border transition-all shrink-0 shadow-sm cursor-pointer",
                   prodOnly
-                    ? "bg-emerald-950/50 border-emerald-500/60 text-emerald-300 shadow-emerald-950/20"
+                    ? "bg-emerald-950/60 border-emerald-500/70 text-emerald-300 shadow-emerald-950/30"
                     : "bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
                 )}
-                title={prodOnly ? "Filtering: Production Only (Dev Dependencies Omitted)" : "Filtering: All Dependencies (Including Dev Dependencies)"}
+                title={
+                  prodOnly
+                    ? `Filtering: Production Only (${devDepsCount} Dev Dependenc${devDepsCount === 1 ? 'y' : 'ies'} Omitted)`
+                    : "Filtering: All Dependencies (Including Dev Dependencies)"
+                }
               >
                 <span className={cn("w-2 h-2 rounded-full", prodOnly ? "bg-emerald-400 animate-pulse" : "bg-zinc-600")} />
                 <span>{prodOnly ? "Prod Only" : "All Deps"}</span>
+                {devDepsCount > 0 && (
+                  <span
+                    className={cn(
+                      "px-1.5 py-0.2 rounded-full text-[9px] font-bold font-mono transition-colors",
+                      prodOnly ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/30" : "bg-zinc-800 text-zinc-500"
+                    )}
+                  >
+                    {prodOnly ? `-${devDepsCount}` : `${devDepsCount} dev`}
+                  </span>
+                )}
               </button>
 
               {/* Configurable Transitive Depth Stepper */}
               <div
-                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs font-mono text-zinc-300 shrink-0 shadow-sm"
-                title="Max Transitive Dependency Depth (1–20 hops)"
+                className={cn(
+                  "flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-mono transition-all shrink-0 shadow-sm",
+                  transitiveDepth < maxGraphDepth
+                    ? "bg-indigo-950/40 border-indigo-500/60 text-indigo-200"
+                    : "bg-zinc-900/80 border-zinc-800 text-zinc-300"
+                )}
+                title={`Max Transitive Dependency Depth Filter: ${transitiveDepth} of ${maxGraphDepth} hops`}
               >
                 <span className="text-zinc-500 text-[10px] uppercase">Depth:</span>
                 <span className="text-indigo-400 font-semibold">{transitiveDepth}</span>
+                <span className="text-zinc-600 text-[10px]">/{maxGraphDepth}</span>
                 <div className="flex items-center space-x-1 ml-0.5">
                   <button
                     type="button"
-                    onClick={() => setTransitiveDepth(prev => Math.max(1, prev - 1))}
+                    onClick={() => setTransitiveDepth((prev) => Math.max(1, Math.min(prev, maxGraphDepth) - 1))}
                     disabled={transitiveDepth <= 1}
-                    className="w-4 h-4 rounded flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 text-[10px] transition-colors"
+                    className="w-4 h-4 rounded flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 text-[10px] transition-colors active:scale-90"
+                    title="Decrease depth (hide deeper transitive hops)"
                   >
                     -
                   </button>
                   <button
                     type="button"
-                    onClick={() => setTransitiveDepth(prev => Math.min(20, prev + 1))}
-                    disabled={transitiveDepth >= 20}
-                    className="w-4 h-4 rounded flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 text-[10px] transition-colors"
+                    onClick={() => setTransitiveDepth((prev) => Math.min(Math.max(maxGraphDepth, 20), prev + 1))}
+                    disabled={transitiveDepth >= Math.max(maxGraphDepth, 20)}
+                    className="w-4 h-4 rounded flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 text-[10px] transition-colors active:scale-90"
+                    title="Increase depth (reveal deeper transitive hops)"
                   >
                     +
                   </button>
@@ -1536,11 +1755,13 @@ export default function Dashboard() {
                       <div className="flex items-center space-x-4 text-[11px] font-mono pt-2 border-t border-zinc-800/60">
                         <div>
                           <span className="text-zinc-500 block text-[9px] uppercase tracking-wider">Components</span>
-                          <span className="text-zinc-200 font-semibold">{data?.scan?.total_components || 0}</span>
+                          <span className="text-zinc-200 font-semibold">
+                            {currentGraph ? currentGraph.nodes.filter(n => (n.data?.node_type || '').toLowerCase() !== 'repository').length : data?.scan?.total_components || 0}
+                          </span>
                         </div>
                         <div>
                           <span className="text-zinc-500 block text-[9px] uppercase tracking-wider">Findings</span>
-                          <span className="text-red-400 font-semibold">{data?.scan?.total_findings || 0}</span>
+                          <span className="text-red-400 font-semibold">{activeFindings.length}</span>
                         </div>
                         <div className="relative">
                           <span className="text-zinc-500 block text-[9px] uppercase tracking-wider flex items-center space-x-1">
@@ -1600,6 +1821,21 @@ export default function Dashboard() {
                         </div>
                       )}
 
+                      {/* Active Filter Pill in HUD */}
+                      {(prodOnly || transitiveDepth < maxGraphDepth) && (
+                        <div className="mt-2 pt-1.5 border-t border-zinc-800/60 flex items-center justify-between text-[9px] font-mono">
+                          <span className="text-zinc-500 flex items-center space-x-1">
+                            <ListFilter className="w-3 h-3 text-amber-400" />
+                            <span>Active Filter:</span>
+                          </span>
+                          <span className="text-amber-300 font-semibold">
+                            {prodOnly && "Prod Only"}
+                            {prodOnly && transitiveDepth < maxGraphDepth && " • "}
+                            {transitiveDepth < maxGraphDepth && `Depth ≤ ${transitiveDepth}`}
+                          </span>
+                        </div>
+                      )}
+
                       {/* Scan History & Delta Comparison Button (Fix #12) */}
                       <button
                         type="button"
@@ -1650,7 +1886,7 @@ export default function Dashboard() {
                         )}
                       >
                         <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
-                        <span>Findings ({data?.findings?.length || 0})</span>
+                        <span>Findings ({activeFindings.length})</span>
                       </button>
 
                       {/* Executive AI Tab */}
@@ -1771,7 +2007,7 @@ export default function Dashboard() {
                                   )}
                                 >
                                   <FileText className="w-3 h-3 text-zinc-400" />
-                                  <span>Flat ({data.findings.length})</span>
+                                  <span>Flat ({activeFindings.length})</span>
                                 </button>
                               </div>
 
@@ -2169,9 +2405,33 @@ export default function Dashboard() {
                             )}
                           </>
                         ) : (
-                          <div className="p-8 text-center border border-dashed border-zinc-800 rounded-xl">
-                            <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
-                            <p className="text-xs text-zinc-400 font-mono">No vulnerabilities detected</p>
+                          <div className="p-8 text-center border border-dashed border-zinc-800 rounded-xl space-y-2">
+                            {data?.findings && data.findings.length > 0 ? (
+                              <>
+                                <ListFilter className="w-6 h-6 text-amber-400 mx-auto" />
+                                <p className="text-xs text-zinc-300 font-mono font-semibold">
+                                  All Findings Filtered
+                                </p>
+                                <p className="text-[11px] text-zinc-500 max-w-xs mx-auto">
+                                  {data.findings.length} findings are in dependencies currently hidden by Depth ({transitiveDepth}) or Prod Only filter.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTransitiveDepth(maxGraphDepth);
+                                    setProdOnly(false);
+                                  }}
+                                  className="mt-2 px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 text-xs font-mono transition-colors"
+                                >
+                                  Reset Filters (Show All {data.findings.length})
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
+                                <p className="text-xs text-zinc-400 font-mono">No vulnerabilities detected</p>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>

@@ -25,6 +25,18 @@
       "purl": "pkg:npm/data-parser@1.3.0",
       "is_direct": true,
       "depth": 0
+    },
+    {
+      "bom_ref": "typescript-5.4.2",
+      "name": "typescript",
+      "version": "5.4.2",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/typescript@5.4.2",
+      "is_direct": true,
+      "is_transitive": false,
+      "is_dev": true,
+      "depth": 1,
+      "description": "TypeScript compiler toolchain (DevDependency)"
     }
   ],
   "dependencies": [
@@ -127,13 +139,13 @@
     "scenario_id": "C",
     "started_at": "2026-09-25T10:15:02.752680Z",
     "completed_at": "2026-09-25T10:15:02.752680Z",
-    "total_components": 1,
+    "total_components": 2,
     "total_vulnerabilities": 0,
     "total_findings": 1,
     "max_confidence": 0.8,
     "blast_radius_score": 45.0,
     "total_attack_paths": 0,
-    "total_direct_dependencies": 1,
+    "total_direct_dependencies": 2,
     "total_transitive_dependencies": 0
   },
   "graph": {
@@ -170,6 +182,28 @@
           "ecosystem": "npm",
           "finding_count": 1
         }
+      },
+      {
+        "id": "typescript-5.4.2",
+        "type": "default",
+        "position": {
+          "x": -180.0,
+          "y": 140.0
+        },
+        "data": {
+          "label": "typescript@5.4.2",
+          "node_type": "Version",
+          "is_suspicious": false,
+          "is_origin_candidate": false,
+          "is_affected": false,
+          "finding_count": 0,
+          "purl": "pkg:npm/typescript@5.4.2",
+          "is_dev": true,
+          "metadata": {
+            "is_dev": true,
+            "is_direct": true
+          }
+        }
       }
     ],
     "edges": [
@@ -185,10 +219,23 @@
           "is_attack_path": true,
           "is_direct": true
         }
+      },
+      {
+        "id": "app-typescript-5.4.2",
+        "source": "app",
+        "target": "typescript-5.4.2",
+        "type": "default",
+        "data": {
+          "edge_type": "DEPENDS_ON",
+          "is_direct": true,
+          "depth": 1,
+          "is_dev": true,
+          "label": "dev dependency"
+        }
       }
     ],
-    "node_count": 2,
-    "edge_count": 1,
+    "node_count": 3,
+    "edge_count": 2,
     "suspicious_node_count": 1,
     "attack_path_count": 0
   },

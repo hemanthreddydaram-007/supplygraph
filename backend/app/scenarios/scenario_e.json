@@ -16,7 +16,20 @@
     "is_private": false,
     "language": "JavaScript"
   },
-  "components": [],
+  "components": [
+    {
+      "bom_ref": "actionlint-1.6.27",
+      "name": "actionlint",
+      "version": "1.6.27",
+      "ecosystem": "github-actions",
+      "purl": "pkg:github/actionlint@1.6.27",
+      "is_direct": true,
+      "is_transitive": false,
+      "is_dev": true,
+      "depth": 1,
+      "description": "Static checker for GitHub Actions workflow files (DevDependency)"
+    }
+  ],
   "dependencies": [
     {
       "from_bom_ref": "demo-app-a",
@@ -131,13 +144,13 @@
     "scenario_id": "E",
     "started_at": "2026-09-25T10:15:02.752680Z",
     "completed_at": "2026-09-25T10:15:02.752680Z",
-    "total_components": 0,
+    "total_components": 1,
     "total_vulnerabilities": 0,
     "total_findings": 1,
     "max_confidence": 0.8,
     "blast_radius_score": 65.0,
     "total_attack_paths": 0,
-    "total_direct_dependencies": 0,
+    "total_direct_dependencies": 1,
     "total_transitive_dependencies": 0
   },
   "graph": {
@@ -172,6 +185,28 @@
           "severity": "HIGH",
           "finding_count": 1
         }
+      },
+      {
+        "id": "actionlint-1.6.27",
+        "type": "default",
+        "position": {
+          "x": -180.0,
+          "y": 140.0
+        },
+        "data": {
+          "label": "actionlint@1.6.27",
+          "node_type": "Version",
+          "is_suspicious": false,
+          "is_origin_candidate": false,
+          "is_affected": false,
+          "finding_count": 0,
+          "purl": "pkg:github/actionlint@1.6.27",
+          "is_dev": true,
+          "metadata": {
+            "is_dev": true,
+            "is_direct": true
+          }
+        }
       }
     ],
     "edges": [
@@ -187,10 +222,23 @@
           "is_attack_path": true,
           "is_direct": true
         }
+      },
+      {
+        "id": "app-actionlint-1.6.27",
+        "source": "app",
+        "target": "actionlint-1.6.27",
+        "type": "default",
+        "data": {
+          "edge_type": "DEPENDS_ON",
+          "is_direct": true,
+          "depth": 1,
+          "is_dev": true,
+          "label": "dev dependency"
+        }
       }
     ],
-    "node_count": 2,
-    "edge_count": 1,
+    "node_count": 3,
+    "edge_count": 2,
     "suspicious_node_count": 1,
     "attack_path_count": 0
   },

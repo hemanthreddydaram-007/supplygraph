@@ -181,6 +181,11 @@ class AnalysisService:
         if getattr(request, 'production_only', False):
             deduped_components = [c for c in deduped_components if not getattr(c, 'is_dev', False)]
 
+        # Apply max_transitive_depth filter if specified
+        max_depth = getattr(request, 'max_transitive_depth', None)
+        if max_depth is not None and max_depth < 20:
+            deduped_components = [c for c in deduped_components if getattr(c, 'depth', 1) <= max_depth]
+
         sbom = self.sbom_engine.build_sbom(deduped_components, repo_name)
         scan_metadata.sbom_generated = True
 
@@ -710,6 +715,11 @@ class AnalysisService:
         # Apply production_only filter — strip dev-only components if requested
         if getattr(request, 'production_only', False):
             deduped_components = [c for c in deduped_components if not getattr(c, 'is_dev', False)]
+
+        # Apply max_transitive_depth filter if specified
+        max_depth = getattr(request, 'max_transitive_depth', None)
+        if max_depth is not None and max_depth < 20:
+            deduped_components = [c for c in deduped_components if getattr(c, 'depth', 1) <= max_depth]
 
         sbom = self.sbom_engine.build_sbom(deduped_components, project_name)
         scan_metadata.sbom_generated = True
