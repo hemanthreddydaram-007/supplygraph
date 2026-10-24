@@ -11,10 +11,15 @@ from pathlib import Path
 from datetime import datetime
 
 
-def resolve_best_fixed_version(installed_version: Optional[str], candidate_fixes: List[str]) -> Optional[str]:
+def resolve_best_fixed_version(
+    installed_version: Optional[str],
+    candidate_fixes: List[str],
+    prefer_highest: bool = False
+) -> Optional[str]:
     """
     Selects the least disruptive patched SemVer fix without ever downgrading major versions.
-    1. Prefer lowest patched version within the same major version >= installed_version.
+    1. Prefer patched version within the same major version >= installed_version.
+       If prefer_highest is True, selects the highest patch in same major (covering all CVEs).
     2. Otherwise, prefer lowest patched version in higher major versions.
     3. Never recommend a major downgrade.
     """
@@ -63,7 +68,7 @@ def resolve_best_fixed_version(installed_version: Optional[str], candidate_fixes
         if getattr(v, "major", None) == inst_major and v >= inst_v
     ]
     if same_major_upgrades:
-        same_major_upgrades.sort(key=lambda x: x[0])
+        same_major_upgrades.sort(key=lambda x: x[0], reverse=prefer_highest)
         return same_major_upgrades[0][1]
 
     # 2. Candidate fixes with higher major

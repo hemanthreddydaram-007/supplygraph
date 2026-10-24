@@ -95,152 +95,96 @@ function getDetectorTagClass(tag: string): string {
   }
 }
 
+function parseSemVer(v: string | null | undefined): { major: number; minor: number; patch: number; raw: string } | null {
+  if (!v || typeof v !== "string") return null;
+  const clean = v.trim().replace(/^[v^~>=<\s]+/, "");
+  const m = clean.match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?(.*)$/);
+  if (!m) return null;
+  return {
+    major: parseInt(m[1], 10),
+    minor: m[2] !== undefined ? parseInt(m[2], 10) : 0,
+    patch: m[3] !== undefined ? parseInt(m[3], 10) : 0,
+    raw: clean,
+  };
+}
+
 function compareSemVer(v1: any, v2: any): number {
   const str1 = typeof v1 === "string" ? v1 : String(v1 || "");
   const str2 = typeof v2 === "string" ? v2 : String(v2 || "");
-  const clean1 = str1.replace(/^[v^~>=<\s]+/, "");
-  const clean2 = str2.replace(/^[v^~>=<\s]+/, "");
-  const parts1 = clean1.split(".").map(p => parseInt(p, 10) || 0);
-  const parts2 = clean2.split(".").map(p => parseInt(p, 10) || 0);
-  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-    const p1 = parts1[i] || 0;
-    const p2 = parts2[i] || 0;
-    if (p1 > p2) return 1;
-    if (p1 < p2) return -1;
-  }
+  const pa = parseSemVer(str1);
+  const pb = parseSemVer(str2);
+  if (!pa && !pb) return 0;
+  if (!pa) return -1;
+  if (!pb) return 1;
+  if (pa.major !== pb.major) return pa.major - pb.major;
+  if (pa.minor !== pb.minor) return pa.minor - pb.minor;
+  if (pa.patch !== pb.patch) return pa.patch - pb.patch;
   return 0;
 }
 
-function buildLockfileSnippet(finding: any): string {
-  const findingType: string = finding?.finding_type || "";
-  const title: string = finding?.title || "";
-  const origin: string = finding?.origin_candidate || "";
-  const rawRef = origin || title.replace(/^Vulnerability in\s*/i, "") || "package";
+function resolveHighestSafeVersion(installedVer: string | null | undefined, candidateFixes: (string | null | undefined)[]): string | null {
+  if (!candidateFixes || candidateFixes.length === 0) return null;
 
-  // Decode URI component (handles %40 in purl)
-  let cleanRef = rawRef;
-  try {
-    cleanRef = decodeURIComponent(rawRef);
-  } catch (_) {}
+  const cleanCandidates = Array.from(new Set(
+    candidateFixes
+      .map((c) => (typeof c === "string" ? c.trim() : String(c || "").trim()))
+      .filter((c) => Boolean(c) && c !== "latest" && !c.includes("patched_version"))
+  ));
 
-  const isPypi = cleanRef.startsWith("pkg:pypi/") || (!cleanRef.startsWith("pkg:npm/") && (findingType === "AST" || finding?.evidence?.some((e: any) => e.source === "ast")));
-  cleanRef = cleanRef.replace(/^pkg:(npm|pypi)\//, "");
+  if (cleanCandidates.length === 0) return null;
+  if (!installedVer) return cleanCandidates[0];
 
-  // Extract package name and current version
-  let pkgName = cleanRef;
-  let curVer = "";
-  if (cleanRef.startsWith("@")) {
-    const atIdx = cleanRef.indexOf("@", 1);
-    if (atIdx !== -1) {
-      pkgName = cleanRef.substring(0, atIdx);
-      curVer = cleanRef.substring(atIdx + 1);
-    }
-  } else {
-    const atIdx = cleanRef.indexOf("@");
-    if (atIdx !== -1) {
-      pkgName = cleanRef.substring(0, atIdx);
-      curVer = cleanRef.substring(atIdx + 1);
-    }
+  const instParsed = parseSemVer(installedVer);
+  if (!instParsed) return cleanCandidates[0];
+
+  const parsedCandidates = cleanCandidates
+    .map((raw) => ({ raw, parsed: parseSemVer(raw) }))
+    .filter((item): item is { raw: string; parsed: NonNullable<ReturnType<typeof parseSemVer>> } => item.parsed !== null);
+
+  if (parsedCandidates.length === 0) return cleanCandidates[0];
+
+  // 1. Same major upgrades: same major and >= installedVer
+  const sameMajor = parsedCandidates.filter((c) =>
+    c.parsed.major === instParsed.major && compareSemVer(c.raw, installedVer) >= 0
+  );
+
+  if (sameMajor.length > 0) {
+    // Pick highest patch in same major to cover ALL CVEs in 1 shot!
+    sameMajor.sort((a, b) => compareSemVer(b.raw, a.raw));
+    return sameMajor[0].raw;
   }
 
-  // 1. Dependency Confusion -> Return .npmrc or pip.conf registry block
-  if (findingType === "DEPENDENCY_CONFUSION") {
-    for (const ev of finding?.evidence || []) {
-      if (ev?.raw_data?.remediation) {
-        return ev.raw_data.remediation;
-      }
-    }
-    const scope = pkgName.startsWith("@") ? pkgName.split("/")[0] : `@${pkgName.split("-")[0]}`;
-    if (!isPypi) {
-      return `// .npmrc registry scope configuration\n${scope}:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=\${NODE_AUTH_TOKEN}`;
-    } else {
-      return `# pip.conf registry scope configuration\n[global]\nextra-index-url = https://pypi.org/simple\nindex-url = https://private-pypi.company.internal/simple`;
-    }
+  // 2. Higher major upgrades: major > installedVer
+  const higherMajor = parsedCandidates.filter((c) => c.parsed.major > instParsed.major);
+  if (higherMajor.length > 0) {
+    higherMajor.sort((a, b) => compareSemVer(a.raw, b.raw));
+    const lowestHigherMajor = higherMajor[0].parsed.major;
+    const sameLowestHigher = higherMajor.filter((c) => c.parsed.major === lowestHigherMajor);
+    sameLowestHigher.sort((a, b) => compareSemVer(b.raw, a.raw));
+    return sameLowestHigher[0].raw;
   }
 
-  // 2. Typosquatting -> Recommend removing rogue package and installing legitimate package
-  if (findingType === "TYPOSQUATTING") {
-    let similarTo = "";
-    for (const ev of finding?.evidence || []) {
-      if (ev?.raw_data?.similar_to) {
-        similarTo = ev.raw_data.similar_to;
-        break;
-      }
-    }
-    if (!isPypi) {
-      return `// Remediation: Remove malicious typosquat\nnpm uninstall ${pkgName}${similarTo ? `\nnpm install ${similarTo}` : ""}`;
-    } else {
-      return `# Remediation: Remove malicious typosquat\npip uninstall -y ${pkgName}${similarTo ? `\npip install ${similarTo}` : ""}`;
-    }
-  }
-
-  // 3. CI/CD Risk -> Workflow permissions & commit SHA pin
-  if (findingType === "CICD_RISK") {
-    return `# .github/workflows/*.yml - Enforce least-privilege\npermissions:\n  contents: read\n  pull-requests: write\n# Pin actions to full 40-character commit SHA:\n# uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2`;
-  }
-
-  // 4. AST / Suspicious Code Patterns
-  if (findingType === "SUSPICIOUS" || findingType === "OBFUSCATION" || findingType === "DORMANT_LOGIC") {
-    return `# Source Code Remediation (AST)\n# 1. Replace eval() / exec() with json.loads() or ast.literal_eval\n# 2. Avoid subprocess(..., shell=True) - pass arguments as a list\n# 3. Store API credentials in environment variables (os.environ)`;
-  }
-
-  // 5. Known Vulnerabilities (VULNERABLE) -> SemVer Override or Pin
-  let fixedVer: string = finding?.recommendations?.[0]?.fixed_version || "";
-  if (!fixedVer && finding?.recommendations) {
-    for (const rec of finding.recommendations) {
-      if (rec?.fixed_version) {
-        fixedVer = rec.fixed_version;
-        break;
-      }
-    }
-  }
-  if (!fixedVer && finding?.evidence) {
-    for (const ev of finding.evidence) {
-      if (ev?.raw_data?.fixed_version) {
-        fixedVer = ev.raw_data.fixed_version;
-        break;
-      }
-      if (ev?.raw_data?.fixed) {
-        fixedVer = ev.raw_data.fixed;
-        break;
-      }
-    }
-  }
-
-  const fixedStr = typeof fixedVer === "string" ? fixedVer : String(fixedVer || "");
-  if (!fixedStr || fixedStr === "latest" || fixedStr.includes("patched_version")) {
-    if (!isPypi) {
-      return `// package.json mitigation for ${pkgName}\n// No upstream fixed release available yet (Disputed / Unpatched advisory)\n// Monitor vendor disclosures or evaluate alternative packages`;
-    } else {
-      return `# requirements.txt mitigation for ${pkgName}\n# No upstream fixed release available yet (Disputed / Unpatched advisory)\n# Audit vendor disclosures or consider alternative library`;
-    }
-  }
-
-  if (!isPypi) {
-    const majorMatch = curVer?.match(/^v?(\d+)/);
-    const overrideKey = majorMatch ? `${pkgName}@^${majorMatch[1]}.0.0` : pkgName;
-    const npmVer = (fixedStr.startsWith(">=") || fixedStr.startsWith("^"))
-      ? fixedStr
-      : `^${fixedStr}`;
-    return `// package.json override\n"overrides": {\n  "${overrideKey}": "${npmVer}"\n}`;
-  } else {
-    const pipVer = (fixedStr.startsWith(">=") || fixedStr.startsWith("=="))
-      ? fixedStr
-      : `>=${fixedStr}`;
-    return `# requirements.txt pin\n${pkgName}${pipVer}  # pinned by SupplyGraph`;
-  }
+  return null;
 }
 
 function getFindingPackage(f: any): { pkgName: string; version: string; ecosystem: string; key: string } {
   const origin = f?.origin_candidate || f?.title || "";
-  let clean = origin.replace(/^Vulnerability in\s*/i, "").replace(/^pkg:(npm|pypi|cargo|golang)\//, "");
+  let clean = origin.replace(/^Vulnerability in\s*/i, "").replace(/^pkg:(npm|pypi|cargo|golang)\//i, "");
   try { clean = decodeURIComponent(clean); } catch (_) {}
 
   let eco = "pypi";
-  if (origin.includes("npm") || clean.startsWith("@")) {
+  if (origin.includes("pkg:npm/") || origin.includes("npm") || clean.startsWith("@")) {
     eco = "npm";
-  } else if (f?.finding_type === "CICD_RISK") {
+  } else if (origin.includes("pkg:golang/") || origin.includes("golang") || clean.startsWith("golang.org/") || clean.startsWith("github.com/")) {
+    eco = "golang";
+  } else if (origin.includes("pkg:cargo/") || origin.includes("cargo")) {
+    eco = "cargo";
+  } else if (origin.includes("pkg:pypi/") || origin.includes("pypi")) {
+    eco = "pypi";
+  } else if (f?.finding_type === "CICD_RISK" || origin.includes(".github/workflows")) {
     eco = "ci/cd";
+  } else if (f?.finding_type === "AST") {
+    eco = "ast";
   }
 
   let pkgName = clean;
@@ -273,6 +217,107 @@ function getFindingPackage(f: any): { pkgName: string; version: string; ecosyste
     ecosystem: eco,
     key: `${pkgName}${version ? `@${version}` : ""}`,
   };
+}
+
+function buildLockfileSnippet(finding: any, forcedFixVer?: string): string {
+  const findingType: string = finding?.finding_type || "";
+  const { pkgName, version: curVer, ecosystem } = getFindingPackage(finding);
+  const isPypi = ecosystem === "pypi";
+
+  // 1. Dependency Confusion -> Return .npmrc or pip.conf registry block
+  if (findingType === "DEPENDENCY_CONFUSION") {
+    for (const ev of finding?.evidence || []) {
+      if (ev?.raw_data?.remediation) {
+        return ev.raw_data.remediation;
+      }
+    }
+    const scope = pkgName.startsWith("@") ? pkgName.split("/")[0] : `@${pkgName.split("-")[0]}`;
+    if (!isPypi) {
+      return `// .npmrc registry scope configuration\n${scope}:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=\${NODE_AUTH_TOKEN}`;
+    } else {
+      return `# pip.conf registry scope configuration\n[global]\nextra-index-url = https://pypi.org/simple\nindex-url = https://private-pypi.company.internal/simple`;
+    }
+  }
+
+  // 2. Typosquatting -> Recommend removing rogue package and installing legitimate package
+  if (findingType === "TYPOSQUATTING") {
+    let similarTo = "";
+    for (const ev of finding?.evidence || []) {
+      if (ev?.raw_data?.similar_to) {
+        similarTo = ev.raw_data.similar_to;
+        break;
+      }
+    }
+    if (ecosystem === "npm") {
+      return `// Remediation: Remove malicious typosquat\nnpm uninstall ${pkgName}${similarTo ? `\nnpm install ${similarTo}` : ""}`;
+    } else {
+      return `# Remediation: Remove malicious typosquat\npip uninstall -y ${pkgName}${similarTo ? `\npip install ${similarTo}` : ""}`;
+    }
+  }
+
+  // 3. CI/CD Risk -> Workflow permissions & commit SHA pin
+  if (findingType === "CICD_RISK") {
+    return `# .github/workflows/*.yml - Enforce least-privilege\npermissions:\n  contents: read\n  pull-requests: write\n# Pin actions to full 40-character commit SHA:\n# uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2`;
+  }
+
+  // 4. AST / Suspicious Code Patterns
+  if (findingType === "SUSPICIOUS" || findingType === "OBFUSCATION" || findingType === "DORMANT_LOGIC") {
+    return `# Source Code Remediation (AST)\n# 1. Replace eval() / exec() with json.loads() or ast.literal_eval\n# 2. Avoid subprocess(..., shell=True) - pass arguments as a list\n# 3. Store API credentials in environment variables (os.environ)`;
+  }
+
+  // 5. Known Vulnerabilities (VULNERABLE) -> SemVer Override or Pin
+  let fixedVer: string = forcedFixVer || finding?.recommendations?.[0]?.fixed_version || "";
+  if (!fixedVer && finding?.recommendations) {
+    for (const rec of finding.recommendations) {
+      if (rec?.fixed_version) {
+        fixedVer = rec.fixed_version;
+        break;
+      }
+    }
+  }
+  if (!fixedVer && finding?.evidence) {
+    for (const ev of finding.evidence) {
+      if (ev?.raw_data?.fixed_version) {
+        fixedVer = ev.raw_data.fixed_version;
+        break;
+      }
+      if (ev?.raw_data?.fixed) {
+        fixedVer = ev.raw_data.fixed;
+        break;
+      }
+    }
+  }
+
+  const fixedStr = typeof fixedVer === "string" ? fixedVer.trim() : String(fixedVer || "").trim();
+  if (!fixedStr || fixedStr === "latest" || fixedStr.includes("patched_version")) {
+    if (ecosystem === "npm") {
+      return `// package.json mitigation for ${pkgName}\n// No upstream fixed release available yet (Disputed / Unpatched advisory)\n// Monitor vendor disclosures or evaluate alternative packages`;
+    } else if (ecosystem === "golang") {
+      return `// go.mod mitigation for ${pkgName}\n// No upstream fixed release available yet\n// Evaluate alternative packages`;
+    } else if (ecosystem === "cargo") {
+      return `# Cargo.toml mitigation for ${pkgName}\n# No upstream fixed release available yet`;
+    } else {
+      return `# requirements.txt mitigation for ${pkgName}\n# No upstream fixed release available yet (Disputed / Unpatched advisory)\n# Audit vendor disclosures or consider alternative library`;
+    }
+  }
+
+  if (ecosystem === "npm") {
+    const npmVer = (fixedStr.startsWith(">=") || fixedStr.startsWith("^") || fixedStr.startsWith("~"))
+      ? fixedStr
+      : `^${fixedStr}`;
+    return `// package.json - Update direct dependencies AND overrides:\n"dependencies": {\n  "${pkgName}": "${npmVer}"\n},\n"overrides": {\n  "${pkgName}": "${npmVer}"\n}`;
+  } else if (ecosystem === "golang") {
+    const goVer = fixedStr.startsWith("v") ? fixedStr : `v${fixedStr}`;
+    return `// go.mod directive & terminal command:\n// Run in terminal: go get ${pkgName}@${goVer} && go mod tidy\nrequire (\n  ${pkgName} ${goVer}\n)`;
+  } else if (ecosystem === "cargo") {
+    return `# Cargo.toml dependencies:\n[dependencies]\n${pkgName} = "${fixedStr}"\n# Or run: cargo update -p ${pkgName} --precise ${fixedStr}`;
+  } else {
+    // Python / pypi default
+    const pipVer = (fixedStr.startsWith(">=") || fixedStr.startsWith("=="))
+      ? fixedStr
+      : `>=${fixedStr}`;
+    return `# requirements.txt pin\n${pkgName}${pipVer}  # pinned by SupplyGraph`;
+  }
 }
 
 // ============================================================
@@ -734,45 +779,79 @@ export default function Dashboard() {
 
   const generateSingleAIFixPrompt = useCallback((finding: any, relatedFindings?: any[]) => {
     if (!finding) return "";
-    const snippet = buildLockfileSnippet(finding);
-    const origin = finding.origin_candidate || finding.title || "";
-    const cleanPkg = origin.replace(/^pkg:(npm|pypi|golang)\//, "").split("@")[0] || origin;
     const findingsList = relatedFindings && relatedFindings.length > 0 ? relatedFindings : [finding];
+    const { pkgName, version: curVer, ecosystem, key } = getFindingPackage(finding);
 
-    let prompt = `# AI REMEDIATION TASK: Fix Security Vulnerabilities in \`${cleanPkg}\`\n\n`;
+    // Compute best 1-shot fix across all related findings
+    const candidateFixes: string[] = [];
+    findingsList.forEach((f: any) => {
+      if (f.recommendations) {
+        f.recommendations.forEach((r: any) => {
+          if (r?.fixed_version) candidateFixes.push(r.fixed_version);
+        });
+      }
+      if (f.evidence) {
+        f.evidence.forEach((e: any) => {
+          if (e?.raw_data?.fixed_version) candidateFixes.push(e.raw_data.fixed_version);
+          if (e?.raw_data?.fixed) candidateFixes.push(e.raw_data.fixed);
+        });
+      }
+    });
+
+    const bestFix = resolveHighestSafeVersion(curVer, candidateFixes) || (candidateFixes[0] || "");
+    const snippet = buildLockfileSnippet(finding, bestFix || undefined);
+
+    let prompt = `# AI REMEDIATION TASK: Fix Security Vulnerabilities in \`${pkgName}\`\n\n`;
     prompt += `You are an expert security engineer and software developer.\n`;
-    prompt += `SupplyGraph detected security issues in component \`${cleanPkg}\` in this project. Please fix them by applying the targeted changes below.\n\n`;
+    prompt += `SupplyGraph detected security issues in component \`${key}\` in this project.\n`;
+    prompt += `Please resolve ALL issues in a single execution with zero functional regressions.\n\n`;
 
     prompt += `### COMPONENT DETAILS:\n`;
-    prompt += `- Component: \`${origin}\`\n`;
-    prompt += `- Severity: [${finding.severity || "MEDIUM"}]\n`;
-    prompt += `- Vulnerabilities Addressed (${findingsList.length}):\n`;
-    findingsList.slice(0, 8).forEach((f: any) => {
-      prompt += `  * [${f.severity || "MEDIUM"}] ${f.title}: ${f.description?.slice(0, 150) || ""}\n`;
-    });
-    if (findingsList.length > 8) {
-      prompt += `  * ... and ${findingsList.length - 8} additional advisory signals\n`;
-    }
+    prompt += `- Component: \`${key}\` (${ecosystem.toUpperCase()})\n`;
+    prompt += `- Highest Severity: [${finding.severity || "MEDIUM"}]\n`;
+    prompt += `- Target Safe Version: \`${bestFix || "safe release"}\`\n`;
+    prompt += `- Total Vulnerabilities Addressed: ${findingsList.length}\n\n`;
 
-    if (finding.recommendations && finding.recommendations.length > 0) {
-      prompt += `\n### REMEDIATION STRATEGY:\n`;
-      prompt += `- Title: ${finding.recommendations[0]?.title}\n`;
-      if (finding.recommendations[0]?.why) {
-        prompt += `- Justification: ${finding.recommendations[0]?.why}\n`;
-      }
+    prompt += `### ADVISORIES COVERED:\n`;
+    findingsList.slice(0, 10).forEach((f: any) => {
+      prompt += `- [${f.severity || "MEDIUM"}] ${f.title}: ${f.description?.slice(0, 150) || ""}\n`;
+    });
+    if (findingsList.length > 10) {
+      prompt += `- ... and ${findingsList.length - 10} additional security advisory signals\n`;
     }
 
     if (snippet) {
-      prompt += `\n### EXACT MANIFEST / CONFIGURATION FIX:\n`;
-      prompt += `Apply this exact specification to your dependency manifest (\`requirements.txt\`, \`package.json\`, \`go.mod\`, or \`pyproject.toml\`):\n`;
+      prompt += `\n### EXACT MANIFEST / CONFIGURATION SPECIFICATION:\n`;
+      if (ecosystem === "npm") {
+        prompt += `Update \`package.json\` (in project root or frontend folder) with both direct dependency and overrides:\n`;
+      } else if (ecosystem === "pypi") {
+        prompt += `Update \`requirements.txt\` (in project root or backend folder) with safe version constraint:\n`;
+      } else if (ecosystem === "golang") {
+        prompt += `Update \`go.mod\` with safe module version:\n`;
+      } else {
+        prompt += `Apply this specification to your dependency manifest:\n`;
+      }
       prompt += `\`\`\`\n${snippet}\n\`\`\`\n\n`;
     }
 
     prompt += `### INSTRUCTIONS FOR AI:\n`;
-    prompt += `1. Locate where \`${cleanPkg}\` is declared in this project.\n`;
-    prompt += `2. Update or pin the dependency version to the safe minimum required above.\n`;
-    prompt += `3. Do NOT break other package dependencies or remove required libraries.\n`;
-    prompt += `4. Verify syntax and run tests to ensure application runs cleanly.\n\n`;
+    if (ecosystem === "npm") {
+      prompt += `1. Locate \`package.json\` where \`${pkgName}\` is declared.\n`;
+      prompt += `2. Update \`"${pkgName}"\` in \`dependencies\` (or \`devDependencies\`) to \`^${bestFix}\`.\n`;
+      prompt += `3. Add \`"${pkgName}": "^${bestFix}"\` to \`overrides\` to force all transitive sub-dependencies to upgrade.\n`;
+      prompt += `4. Run \`npm install\` (or package manager equivalent) to update \`package-lock.json\`.\n`;
+    } else if (ecosystem === "pypi") {
+      prompt += `1. Locate \`requirements.txt\` or \`pyproject.toml\` where \`${pkgName}\` is declared.\n`;
+      prompt += `2. Pin or update \`${pkgName}>=${bestFix}\`.\n`;
+      prompt += `3. Run \`pip install -r requirements.txt --upgrade\` to verify clean installation.\n`;
+    } else if (ecosystem === "golang") {
+      prompt += `1. Run \`go get ${pkgName}@${bestFix.startsWith("v") ? bestFix : `v${bestFix}`}\`.\n`;
+      prompt += `2. Run \`go mod tidy\` to sync \`go.sum\`.\n`;
+    } else {
+      prompt += `1. Locate where \`${pkgName}\` is declared in this project.\n`;
+      prompt += `2. Update or pin the dependency version to the safe minimum required above.\n`;
+    }
+    prompt += `5. Verify syntax and run tests to ensure application runs cleanly with zero regressions.\n\n`;
     prompt += `Please apply this fix now and show the updated file diff.\n`;
 
     return prompt.trim();
@@ -785,72 +864,206 @@ export default function Dashboard() {
     const codeReviews = scanData?.code_reviews || [];
     const blastRadius = scanData?.scan?.blast_radius_score || 0;
 
-    let prompt = `# AI REMEDIATION TASK: Complete Codebase Security Hardening\n\n`;
+    let prompt = `# AI REMEDIATION TASK: Complete 1-Shot Codebase Security Hardening\n\n`;
     prompt += `You are an expert Principal Security Engineer and Senior Full-Stack Architect.\n`;
-    prompt += `SupplyGraph has scanned this repository and identified security vulnerabilities, outdated vulnerable packages, and CI/CD supply-chain risks.\n`;
-    prompt += `Your mission is to fix ALL issues below with zero regressions.\n\n`;
+    prompt += `SupplyGraph has performed a full supply-chain security audit on this project and identified security vulnerabilities, outdated packages, and CI/CD supply-chain risks.\n`;
+    prompt += `Your mission is to remediate 100% of the vulnerabilities below in a SINGLE EXECUTION with ZERO REGRESSIONS.\n\n`;
 
-    prompt += `### AUDIT SUMMARY:\n`;
-    prompt += `- Repository: ${repo}\n`;
+    prompt += `### AUDIT OVERVIEW:\n`;
+    prompt += `- Target Repository / Folder: ${repo}\n`;
     prompt += `- Total Security Findings: ${findings.length}\n`;
-    prompt += `- Code Review / CI/CD Issues: ${codeReviews.length}\n`;
+    prompt += `- Code Review / CI/CD Patches: ${codeReviews.length}\n`;
     prompt += `- Supply Chain Blast Radius: ${blastRadius}/100\n\n`;
 
-    prompt += `### STRICT EXECUTION RULES FOR AI ASSISTANTS (Cursor / Claude / ChatGPT / Copilot):\n`;
-    prompt += `1. **Zero Functional Regression**: Do not delete existing features, break API contracts, or change business logic.\n`;
-    prompt += `2. **Targeted Precision**: Modify ONLY the specified files. Do not perform unrelated refactoring.\n`;
-    prompt += `3. **Non-Breaking Version Pinning**: Pin dependencies to the exact minimum safe versions recommended below.\n`;
-    prompt += `4. **Immutable CI/CD Pinning**: Pin all GitHub Actions to their 40-character commit SHAs with version comments.\n`;
-    prompt += `5. **Syntactic & Test Integrity**: Ensure all modified files have valid syntax and pass project test suites.\n\n`;
+    prompt += `### 🛡️ STRICT RULES FOR 1-SHOT AI REMEDIATION (Cursor / Claude / Copilot / ChatGPT):\n`;
+    prompt += `1. **Zero Functional Regression**: Do not delete application features, break API contracts, modify business logic, or alter route parameters.\n`;
+    prompt += `2. **Multi-Manifest Monorepo Integrity**: Follow the file-by-file sections below strictly. Apply frontend packages to frontend manifests (\`package.json\`) and backend packages to backend manifests (\`requirements.txt\`).\n`;
+    prompt += `3. **Synchronous Manifest & Lockfile Upgrade**: For Node.js, update BOTH direct \`"dependencies"\`/\`"devDependencies"\` AND \`"overrides"\` in \`package.json\`, then execute \`npm install\` to sync \`package-lock.json\`.\n`;
+    prompt += `4. **Non-Breaking Version Pinning**: All recommended versions below are mathematically selected as the highest safe patch within the existing major version, ensuring 100% backward compatibility while resolving all CVEs.\n`;
+    prompt += `5. **Immutable CI/CD Pinning**: Pin all GitHub Actions to their 40-character commit SHAs with semantic version comments.\n\n`;
     prompt += `============================================================\n\n`;
 
-    // 1. Dependency Manifests
-    prompt += `## 🎯 STEP 1: FIX DEPENDENCY VULNERABILITIES (MANIFESTS)\n\n`;
-    prompt += `Update your project dependency manifests (\`requirements.txt\`, \`package.json\`, \`pyproject.toml\`, or \`go.mod\`) with the following safe version constraints:\n\n`;
-
-    const packageFixes: Record<string, { snippet: string; findingsCount: number; maxSev: string; cves: string[]; title: string }> = {};
+    // Aggregate findings by package
+    const packageMap: Record<string, {
+      key: string;
+      pkgName: string;
+      version: string;
+      ecosystem: string;
+      findings: any[];
+      highestSeverity: string;
+      cves: string[];
+    }> = {};
 
     findings.forEach((f: any) => {
-      const rawRef = f?.origin_candidate || f?.title || "";
-      if (f.finding_type === "VULNERABLE" || rawRef.includes("@")) {
-        const snippet = buildLockfileSnippet(f);
-        const cleanName = rawRef.replace(/^pkg:(npm|pypi|golang)\//, "").split("@")[0] || rawRef;
-        if (!packageFixes[cleanName]) {
-          packageFixes[cleanName] = {
-            snippet: snippet,
-            findingsCount: 0,
-            maxSev: f.severity || "MEDIUM",
+      if (f.finding_type === "VULNERABLE" || (f.origin_candidate && f.origin_candidate.includes("@"))) {
+        const { pkgName, version, ecosystem, key } = getFindingPackage(f);
+        if (!packageMap[key]) {
+          packageMap[key] = {
+            key,
+            pkgName,
+            version,
+            ecosystem,
+            findings: [],
+            highestSeverity: "LOW",
             cves: [],
-            title: f.recommendations?.[0]?.title || "Pin or Upgrade Dependency",
           };
         }
-        packageFixes[cleanName].findingsCount++;
+        packageMap[key].findings.push(f);
+
+        const currentSev = f.severity?.toUpperCase() || "LOW";
+        const sevOrder = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"];
+        const groupSevIdx = sevOrder.indexOf(packageMap[key].highestSeverity);
+        const curSevIdx = sevOrder.indexOf(currentSev);
+        if (curSevIdx !== -1 && (groupSevIdx === -1 || curSevIdx < groupSevIdx)) {
+          packageMap[key].highestSeverity = currentSev;
+        }
+
         const cveMatch = f.title?.match(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+|GO-\d{4}-\d+|PYSEC-\d{4}-\d+)/i);
-        if (cveMatch && !packageFixes[cleanName].cves.includes(cveMatch[1])) {
-          packageFixes[cleanName].cves.push(cveMatch[1]);
+        if (cveMatch && !packageMap[key].cves.includes(cveMatch[1])) {
+          packageMap[key].cves.push(cveMatch[1]);
         }
       }
     });
 
-    if (Object.keys(packageFixes).length > 0) {
-      Object.entries(packageFixes).forEach(([pkg, info]) => {
-        prompt += `### Component: \`${pkg}\` [${info.maxSev}] (${info.findingsCount} vulnerability findings)\n`;
-        if (info.cves.length > 0) {
-          prompt += `- Addressed Advisories: ${info.cves.slice(0, 6).join(", ")}${info.cves.length > 6 ? ` +${info.cves.length - 6} more` : ""}\n`;
+    // Calculate highest safe fix version for each package
+    const packagesList = Object.values(packageMap).map((pkg) => {
+      const candidateFixes: string[] = [];
+      pkg.findings.forEach((f) => {
+        if (f.recommendations) {
+          f.recommendations.forEach((r: any) => {
+            if (r?.fixed_version) candidateFixes.push(r.fixed_version);
+          });
         }
-        if (info.snippet) {
-          prompt += `\`\`\`\n${info.snippet}\n\`\`\`\n\n`;
+        if (f.evidence) {
+          f.evidence.forEach((e: any) => {
+            if (e?.raw_data?.fixed_version) candidateFixes.push(e.raw_data.fixed_version);
+            if (e?.raw_data?.fixed) candidateFixes.push(e.raw_data.fixed);
+          });
         }
       });
-    } else {
-      prompt += `No vulnerable package manifests detected. Core dependencies are secure.\n\n`;
+
+      const bestFix = resolveHighestSafeVersion(pkg.version, candidateFixes);
+      return {
+        ...pkg,
+        fixVersion: bestFix || (candidateFixes[0] || ""),
+      };
+    });
+
+    // Partition packages by ecosystem
+    const npmPackages = packagesList.filter((p) => p.ecosystem === "npm");
+    const pypiPackages = packagesList.filter((p) => p.ecosystem === "pypi");
+    const goPackages = packagesList.filter((p) => p.ecosystem === "golang");
+    const cargoPackages = packagesList.filter((p) => p.ecosystem === "cargo");
+
+    let stepIdx = 1;
+
+    // SECTION: Node.js / npm
+    if (npmPackages.length > 0) {
+      prompt += `## 🎯 STEP ${stepIdx}: FRONTEND / NODE.JS MANIFEST HARDENING (\`package.json\`)\n\n`;
+      prompt += `Target Manifest: \`package.json\` (locate in root or \`frontend/\` directory)\n\n`;
+      prompt += `Update the vulnerable packages in \`"dependencies"\` (or \`"devDependencies"\`) AND add them to \`"overrides"\` to protect both direct imports and nested transitive dependencies:\n\n`;
+
+      const npmDepsObj: Record<string, string> = {};
+      const npmOverridesObj: Record<string, string> = {};
+      npmPackages.forEach((p) => {
+        const ver = p.fixVersion
+          ? (p.fixVersion.startsWith("^") || p.fixVersion.startsWith("~") || p.fixVersion.startsWith(">=") ? p.fixVersion : `^${p.fixVersion}`)
+          : "latest";
+        npmDepsObj[p.pkgName] = ver;
+        npmOverridesObj[p.pkgName] = ver;
+      });
+
+      prompt += `\`\`\`json\n`;
+      prompt += `{\n`;
+      prompt += `  "dependencies": ${JSON.stringify(npmDepsObj, null, 4).replace(/^/gm, "  ").trim()},\n`;
+      prompt += `  "overrides": ${JSON.stringify(npmOverridesObj, null, 4).replace(/^/gm, "  ").trim()}\n`;
+      prompt += `}\n`;
+      prompt += `\`\`\`\n\n`;
+
+      prompt += `### Details of Affected Node.js Components:\n`;
+      npmPackages.forEach((p) => {
+        prompt += `- **\`${p.pkgName}@${p.version || "unknown"}\`** [${p.highestSeverity}] (${p.findings.length} vulnerability findings resolved)\n`;
+        prompt += `  - Target Safe Version: \`^${p.fixVersion}\`\n`;
+        if (p.cves.length > 0) {
+          prompt += `  - Addressed Advisories: ${p.cves.slice(0, 6).join(", ")}${p.cves.length > 6 ? ` +${p.cves.length - 6} more` : ""}\n`;
+        }
+      });
+
+      prompt += `\n> **⚡ Required Terminal Command (Update lockfile)**:\n`;
+      prompt += `\`\`\`bash\n`;
+      prompt += `npm install\n`;
+      prompt += `# (or yarn install / pnpm install)\n`;
+      prompt += `\`\`\`\n\n`;
+      prompt += `------------------------------------------------------------\n\n`;
+      stepIdx++;
     }
 
-    prompt += `------------------------------------------------------------\n\n`;
+    // SECTION: Python / PyPI
+    if (pypiPackages.length > 0) {
+      prompt += `## 🎯 STEP ${stepIdx}: BACKEND / PYTHON MANIFEST HARDENING (\`requirements.txt\` / \`pyproject.toml\`)\n\n`;
+      prompt += `Target Manifest: \`requirements.txt\` (locate in root or \`backend/\` directory)\n\n`;
+      prompt += `Update or pin the following packages with safe minimum versions:\n\n`;
 
-    // 2. CI/CD Workflows
-    prompt += `## 🎯 STEP 2: FIX CI/CD PIPELINE SECURITY RISKS (\`.github/workflows/\`)\n\n`;
-    prompt += `Apply the following unified diff patches to pin GitHub Actions to immutable commit SHAs and eliminate pipeline tampering risks:\n\n`;
+      prompt += `\`\`\`text\n`;
+      pypiPackages.forEach((p) => {
+        const pinVer = p.fixVersion
+          ? (p.fixVersion.startsWith(">=") || p.fixVersion.startsWith("==") ? p.fixVersion : `>=${p.fixVersion}`)
+          : ">=latest";
+        prompt += `${p.pkgName}${pinVer}  # pinned by SupplyGraph (${p.findings.length} CVEs fixed)\n`;
+      });
+      prompt += `\`\`\`\n\n`;
+
+      prompt += `### Details of Affected Python Components:\n`;
+      pypiPackages.forEach((p) => {
+        prompt += `- **\`${p.pkgName}@${p.version || "unknown"}\`** [${p.highestSeverity}] (${p.findings.length} vulnerability findings resolved)\n`;
+        prompt += `  - Target Safe Version: \`>=${p.fixVersion}\`\n`;
+        if (p.cves.length > 0) {
+          prompt += `  - Addressed Advisories: ${p.cves.slice(0, 6).join(", ")}${p.cves.length > 6 ? ` +${p.cves.length - 6} more` : ""}\n`;
+        }
+      });
+
+      prompt += `\n> **⚡ Required Terminal Command (Update Python Environment)**:\n`;
+      prompt += `\`\`\`bash\n`;
+      prompt += `pip install -r requirements.txt --upgrade\n`;
+      prompt += `# (or poetry update / pipenv update)\n`;
+      prompt += `\`\`\`\n\n`;
+      prompt += `------------------------------------------------------------\n\n`;
+      stepIdx++;
+    }
+
+    // SECTION: Golang
+    if (goPackages.length > 0) {
+      prompt += `## 🎯 STEP ${stepIdx}: GOLANG MODULE HARDENING (\`go.mod\`)\n\n`;
+      prompt += `Target Manifest: \`go.mod\`\n\n`;
+      prompt += `Run the following commands to upgrade Go modules to safe releases:\n\n`;
+      prompt += `\`\`\`bash\n`;
+      goPackages.forEach((p) => {
+        const ver = p.fixVersion ? (p.fixVersion.startsWith("v") ? p.fixVersion : `v${p.fixVersion}`) : "latest";
+        prompt += `go get ${p.pkgName}@${ver}\n`;
+      });
+      prompt += `go mod tidy\n`;
+      prompt += `\`\`\`\n\n`;
+      prompt += `------------------------------------------------------------\n\n`;
+      stepIdx++;
+    }
+
+    // SECTION: Cargo
+    if (cargoPackages.length > 0) {
+      prompt += `## 🎯 STEP ${stepIdx}: RUST / CARGO MANIFEST HARDENING (\`Cargo.toml\`)\n\n`;
+      prompt += `Target Manifest: \`Cargo.toml\`\n\n`;
+      prompt += `Update the following dependencies in \`[dependencies]\`:\n\n`;
+      prompt += `\`\`\`toml\n`;
+      cargoPackages.forEach((p) => {
+        prompt += `${p.pkgName} = "${p.fixVersion}"\n`;
+      });
+      prompt += `\`\`\`\n\n`;
+      prompt += `------------------------------------------------------------\n\n`;
+      stepIdx++;
+    }
+
+    // SECTION: CI/CD Workflows
+    prompt += `## 🎯 STEP ${stepIdx}: CI/CD PIPELINE SECURITY HARDENING (\`.github/workflows/\`)\n\n`;
+    prompt += `Apply the following unified diff patches to pin GitHub Actions to immutable 40-character commit SHAs:\n\n`;
 
     if (codeReviews.length > 0) {
       codeReviews.forEach((cr: any, idx: number) => {
@@ -878,14 +1091,13 @@ export default function Dashboard() {
         prompt += `All CI/CD workflows comply with OpenSSF security standards.\n\n`;
       }
     }
-
     prompt += `------------------------------------------------------------\n\n`;
+    stepIdx++;
 
-    // 3. Static AST Security
+    // SECTION: AST
     const astFindings = findings.filter((f: any) => f.finding_type === "AST" || f.title?.includes("AST"));
     if (astFindings.length > 0) {
-      prompt += `## 🎯 STEP 3: SOURCE CODE & AST SECURITY REFACTORING\n\n`;
-      prompt += `Static code analysis detected high-risk execution patterns in application code:\n\n`;
+      prompt += `## 🎯 STEP ${stepIdx}: SOURCE CODE & AST SECURITY REFACTORING\n\n`;
       astFindings.forEach((af: any, idx: number) => {
         prompt += `### Code Pattern #${idx + 1}: ${af.title} [${af.severity}]\n`;
         prompt += `- Details: ${af.description}\n`;
@@ -895,14 +1107,16 @@ export default function Dashboard() {
         prompt += `  3. Never hardcode credentials; retrieve them from environment variables via \`os.getenv()\` or \`process.env\`.\n\n`;
       });
       prompt += `------------------------------------------------------------\n\n`;
+      stepIdx++;
     }
 
-    // 4. Verification Protocol
-    prompt += `## 🎯 STEP 4: VERIFICATION & TEST PROTOCOL\n\n`;
-    prompt += `After applying these modifications:\n`;
-    prompt += `1. Verify package dependency installation completes without conflicts.\n`;
-    prompt += `2. Run project tests (\`pytest\`, \`npm test\`, or \`go test\`) to verify 100% passing status.\n`;
-    prompt += `3. Confirm that no unpinned \`@v...\` tags remain in \`.github/workflows/\`.\n\n`;
+    // SECTION: Verification Protocol
+    prompt += `## 🎯 STEP ${stepIdx}: VERIFICATION & ZERO-REGRESSION TEST PROTOCOL\n\n`;
+    prompt += `After applying all modifications above, complete this verification checklist:\n`;
+    prompt += `1. **Verify Manifests**: Confirm that all package versions match the minimum safe versions.\n`;
+    prompt += `2. **Verify Lockfiles**: Run \`npm install\` / \`pip install -r requirements.txt --upgrade\` so lockfiles are in sync.\n`;
+    prompt += `3. **Run Test Suites**: Run \`npm test\` / \`pytest\` / \`npm run build\` to verify zero functional regressions.\n`;
+    prompt += `4. **CI/CD Check**: Confirm no unpinned \`@v...\` tags remain in \`.github/workflows/\`.\n\n`;
     prompt += `Please apply all required fixes now and present the updated file contents.\n`;
 
     return prompt.trim();
@@ -1620,15 +1834,30 @@ export default function Dashboard() {
       if (curSevIdx !== -1 && (groupSevIdx === -1 || curSevIdx < groupSevIdx)) {
         groups[key].highestSeverity = currentSev;
       }
+    });
 
-      // Best fix recommendation
-      if (!groups[key].fixVersion) {
-        const fix =
-          f.recommendations?.[0]?.fixed_version ||
-          f.evidence?.find((e: any) => e.raw_data?.fixed)?.raw_data?.fixed;
-        if (fix && fix !== "latest" && !fix.includes("patched_version")) {
-          groups[key].fixVersion = fix;
+    // Compute the optimal 1-shot safe fix version across ALL findings in each package
+    Object.values(groups).forEach((g) => {
+      const candidateFixes: string[] = [];
+      g.findings.forEach((f) => {
+        if (f.recommendations) {
+          f.recommendations.forEach((r: any) => {
+            if (r?.fixed_version) candidateFixes.push(r.fixed_version);
+          });
         }
+        if (f.evidence) {
+          f.evidence.forEach((e: any) => {
+            if (e?.raw_data?.fixed_version) candidateFixes.push(e.raw_data.fixed_version);
+            if (e?.raw_data?.fixed) candidateFixes.push(e.raw_data.fixed);
+          });
+        }
+      });
+
+      const bestFix = resolveHighestSafeVersion(g.version, candidateFixes);
+      if (bestFix) {
+        g.fixVersion = bestFix;
+      } else if (candidateFixes.length > 0) {
+        g.fixVersion = candidateFixes[0];
       }
     });
 
@@ -2540,7 +2769,7 @@ export default function Dashboard() {
                                           <div className="p-2.5 space-y-2.5 bg-black/30">
                                             {g.findings.map((f: any, fIdx: number) => {
                                               const detectorTag = getDetectorTag(f);
-                                              const lockSnippet = buildLockfileSnippet(f);
+                                              const lockSnippet = buildLockfileSnippet(f, g.fixVersion || undefined);
                                               return (
                                                 <div
                                                   key={fIdx}
@@ -2556,7 +2785,7 @@ export default function Dashboard() {
                                                         type="button"
                                                         onClick={(e) => {
                                                           e.stopPropagation();
-                                                          copyToClipboard(generateSingleAIFixPrompt(f), `ai-f-${g.key}-${fIdx}`);
+                                                          copyToClipboard(generateSingleAIFixPrompt(f, g.findings), `ai-f-${g.key}-${fIdx}`);
                                                         }}
                                                         className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 hover:text-white transition-colors text-[9px] font-mono shadow-sm"
                                                         title="Copy AI Prompt to fix this vulnerability with ChatGPT, Claude, or Cursor"
