@@ -33,13 +33,22 @@ class SBOMEngine:
 
         dependencies = []
         for comp in final_components:
-            dependencies.append(
-                SBOMDependency(
-                    from_bom_ref=project_purl,
-                    to_bom_ref=comp.bom_ref,
-                    is_direct=True
+            if comp.is_direct or not getattr(comp, "parent_bom_ref", None):
+                dependencies.append(
+                    SBOMDependency(
+                        from_bom_ref=project_purl,
+                        to_bom_ref=comp.bom_ref,
+                        is_direct=True
+                    )
                 )
-            )
+            else:
+                dependencies.append(
+                    SBOMDependency(
+                        from_bom_ref=comp.parent_bom_ref,
+                        to_bom_ref=comp.bom_ref,
+                        is_direct=False
+                    )
+                )
 
         return SBOM(
             metadata={"name": project_name, "version": project_version},

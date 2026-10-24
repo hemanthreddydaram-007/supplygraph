@@ -264,6 +264,7 @@ class SBOMComponent(BaseModel):
     depth: int = 0
     is_dev: bool = False  # True for devDependencies / dev = true
     declared_in: Optional[str] = None  # Path to manifest/lockfile where component is declared
+    parent_bom_ref: Optional[str] = None  # PURL of parent component that introduced this transitive dep
 
 
 class SBOMDependency(BaseModel):
@@ -454,6 +455,7 @@ class GraphNodeData(BaseModel):
     is_suspicious: bool = False
     is_origin_candidate: bool = False
     is_affected: bool = False
+    is_dev: bool = False
     severity: Optional[Severity] = None
     purl: Optional[str] = None
     version: Optional[str] = None

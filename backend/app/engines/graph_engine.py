@@ -20,6 +20,8 @@ class GraphEngine:
         if sbom and sbom.components:
             for comp in sbom.components:
                 comp_id = comp.bom_ref
+                comp_depth = getattr(comp, "depth", 1)
+                comp_is_dev = getattr(comp, "is_dev", False)
                 G.add_node(comp_id, type="component", data=GraphNodeData(
                     label=f"{comp.name}@{comp.version}" if comp.version else comp.name,
                     node_type=NodeType.VERSION,
@@ -27,26 +29,31 @@ class GraphEngine:
                     purl=comp.purl,
                     version=comp.version,
                     ecosystem=comp.ecosystem.value if comp.ecosystem else None,
+                    is_dev=comp_is_dev,
                     metadata={
                         "declared_in": getattr(comp, "declared_in", None),
                         "is_direct": comp.is_direct,
-                        "is_dev": getattr(comp, "is_dev", False)
+                        "is_dev": comp_is_dev,
+                        "depth": comp_depth
                     }
                 ))
                 # Add CONTAINS edge from repo to direct dependencies
                 if comp.is_direct:
                     G.add_edge(repo_id, comp_id, data=GraphEdgeData(
                         edge_type=EdgeType.CONTAINS,
-                        is_direct=True
+                        is_direct=True,
+                        depth=1
                     ))
                     
         # 3. Add DEPENDS_ON edges
         if sbom and sbom.dependencies:
             for dep in sbom.dependencies:
                 if G.has_node(dep.from_bom_ref) and G.has_node(dep.to_bom_ref):
+                    child_depth = G.nodes[dep.to_bom_ref].get("data", {}).metadata.get("depth", 2) if G.has_node(dep.to_bom_ref) and hasattr(G.nodes[dep.to_bom_ref].get("data"), "metadata") and G.nodes[dep.to_bom_ref]["data"].metadata else 2
                     G.add_edge(dep.from_bom_ref, dep.to_bom_ref, data=GraphEdgeData(
                         edge_type=EdgeType.DEPENDS_ON,
-                        is_direct=dep.is_direct
+                        is_direct=dep.is_direct,
+                        depth=child_depth
                     ))
                     
         # 4. Add vulnerability nodes and AFFECTS edges
@@ -77,11 +84,30 @@ class GraphEngine:
                 
                 for vuln_node_id in vuln_node_ids:
                     if target_node_id and G.has_node(vuln_node_id) and G.has_node(target_node_id):
+                        target_node_obj = G.nodes[target_node_id].get("data")
+                        target_depth = 1
+                        target_is_dev = False
+                        if target_node_obj:
+                            target_is_dev = getattr(target_node_obj, "is_dev", False)
+                            t_meta = getattr(target_node_obj, "metadata", {}) or {}
+                            target_depth = t_meta.get("depth", 1)
+                            if not target_is_dev:
+                                target_is_dev = t_meta.get("is_dev", False)
+
+                        vuln_node_obj = G.nodes[vuln_node_id].get("data")
+                        if vuln_node_obj:
+                            if hasattr(vuln_node_obj, "is_dev"):
+                                vuln_node_obj.is_dev = target_is_dev
+                            if hasattr(vuln_node_obj, "metadata") and vuln_node_obj.metadata is not None:
+                                vuln_node_obj.metadata["depth"] = target_depth
+                                vuln_node_obj.metadata["is_dev"] = target_is_dev
+
                         if not G.has_edge(vuln_node_id, target_node_id):
                             G.add_edge(vuln_node_id, target_node_id, data=GraphEdgeData(
                                 edge_type=EdgeType.AFFECTS,
                                 label="AFFECTS",
-                                is_attack_path=True
+                                is_attack_path=True,
+                                depth=target_depth
                             ))
             
         # 5. Add asset nodes and DEPLOYED_AS / USES edges

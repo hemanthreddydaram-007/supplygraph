@@ -1017,78 +1017,155 @@ export default function Dashboard() {
     });
     setFocusNodeId(nodeId);
   }, []);
-  // Compute BFS depths for all nodes in the raw graph from root/repository nodes
+  // Compute accurate dependency depths:
+  // - Root repository node: 0
+  // - Direct dependencies: 1
+  // - Transitive dependencies: 2, 3...
+  // - Vulnerability nodes inherit the exact depth of the package they affect
   const nodeDepths = useMemo(() => {
     if (!data?.graph?.nodes || data.graph.nodes.length === 0) return new Map<string, number>();
     const nodes = data.graph.nodes;
     const edges = data.graph.edges || [];
 
-    const adj = new Map<string, string[]>();
-    const inDegree = new Map<string, number>();
-    nodes.forEach((n) => {
-      adj.set(n.id, []);
-      inDegree.set(n.id, 0);
+    const depths = new Map<string, number>();
+
+    // Index SBOM component depths if available
+    const compDepthMap = new Map<string, number>();
+    const compList: any[] = data.components || data.sbom?.components || [];
+    compList.forEach((c) => {
+      const d = c.depth ?? (c.is_direct ? 1 : 2);
+      if (c.bom_ref) compDepthMap.set(c.bom_ref.toLowerCase(), d);
+      if (c.name) compDepthMap.set(c.name.toLowerCase(), d);
+      if (c.purl) compDepthMap.set(c.purl.toLowerCase(), d);
     });
 
-    edges.forEach((e) => {
-      if (adj.has(e.source)) {
-        adj.get(e.source)!.push(e.target);
-      }
-      inDegree.set(e.target, (inDegree.get(e.target) || 0) + 1);
-    });
-
-    // Root nodes: Repository nodes or nodes with 0 in-degree
+    // 1. Root nodes: strictly Repository nodes (depth 0)
     let roots = nodes
       .filter((n) => {
         const type = (n.data?.node_type || n.type || "").toLowerCase();
-        return type === "repository" || inDegree.get(n.id) === 0;
+        return type === "repository";
       })
       .map((n) => n.id);
 
     if (roots.length === 0) {
+      // Fallback: nodes with no incoming edges, strictly excluding vulnerability nodes
+      const targetIds = new Set(edges.map((e) => e.target));
+      roots = nodes
+        .filter((n) => {
+          const type = (n.data?.node_type || n.type || "").toLowerCase();
+          const isVuln = type === "vulnerability" || n.id.startsWith("GHSA-") || n.id.startsWith("CVE-");
+          return !isVuln && !targetIds.has(n.id);
+        })
+        .map((n) => n.id);
+    }
+
+    if (roots.length === 0 && nodes.length > 0) {
       roots = [nodes[0].id];
     }
 
-    const depths = new Map<string, number>();
-    const queue: string[] = [];
-    roots.forEach((r) => {
-      depths.set(r, 0);
-      queue.push(r);
+    roots.forEach((r) => depths.set(r, 0));
+
+    // 2. Dependency adjacency strictly for CONTAINS, DEPENDS_ON, USES, DEPLOYED_AS (never AFFECTS)
+    const depAdj = new Map<string, { target: string; edgeDepth?: number }[]>();
+    nodes.forEach((n) => depAdj.set(n.id, []));
+
+    edges.forEach((e) => {
+      const edgeType = (e.data?.edge_type || e.type || e.data?.label || "").toLowerCase();
+      if (edgeType !== "affects") {
+        if (depAdj.has(e.source)) {
+          depAdj.get(e.source)!.push({ target: e.target, edgeDepth: e.data?.depth });
+        }
+      }
     });
 
+    // 3. BFS through dependency tree
+    const queue: string[] = [...roots];
     while (queue.length > 0) {
       const curr = queue.shift()!;
       const currD = depths.get(curr)!;
-      const neighbors = adj.get(curr) || [];
+      const neighbors = depAdj.get(curr) || [];
       for (const next of neighbors) {
-        const edge = edges.find((e) => e.source === curr && e.target === next);
-        const edgeDepth = edge?.data?.depth;
-        const candidateDepth = edgeDepth !== undefined && edgeDepth !== null ? edgeDepth : currD + 1;
+        const targetNode = nodes.find((n) => n.id === next.target);
+        const metaDepth = (targetNode?.data as any)?.metadata?.depth ?? (targetNode?.data as any)?.depth;
+        const cleanName = (targetNode?.data?.label || "").split("@")[0].toLowerCase();
+        const compD = targetNode ? compDepthMap.get(targetNode.id.toLowerCase()) || compDepthMap.get(cleanName) : undefined;
 
-        if (!depths.has(next) || depths.get(next)! > candidateDepth) {
-          depths.set(next, candidateDepth);
-          queue.push(next);
+        let candidateDepth: number;
+        if (next.edgeDepth !== undefined && next.edgeDepth !== null) {
+          candidateDepth = next.edgeDepth;
+        } else if (metaDepth !== undefined && metaDepth !== null) {
+          candidateDepth = metaDepth;
+        } else if (compD !== undefined) {
+          candidateDepth = compD;
+        } else {
+          candidateDepth = currD + 1;
+        }
+
+        if (!depths.has(next.target) || depths.get(next.target)! > candidateDepth) {
+          depths.set(next.target, candidateDepth);
+          queue.push(next.target);
         }
       }
     }
 
-    // For any nodes not reached by BFS from root (e.g. orphan nodes), fallback to edge/comp depth or 1
+    // 4. Fill in any non-vulnerability package/asset nodes not reached
     nodes.forEach((n) => {
-      if (!depths.has(n.id)) {
-        const comp: any = (data.components || data.sbom?.components || []).find(
-          (c: any) => c.bom_ref === n.id || c.name === n.data?.label
+      const type = (n.data?.node_type || n.type || "").toLowerCase();
+      const isVuln = type === "vulnerability" || n.id.startsWith("GHSA-") || n.id.startsWith("CVE-");
+      if (!isVuln && !depths.has(n.id)) {
+        const metaDepth = (n.data as any)?.metadata?.depth ?? (n.data as any)?.depth;
+        const cleanName = (n.data?.label || "").split("@")[0].toLowerCase();
+        const compD = compDepthMap.get(n.id.toLowerCase()) || compDepthMap.get(cleanName);
+        depths.set(n.id, metaDepth ?? compD ?? 1);
+      }
+    });
+
+    // 5. Vulnerability nodes inherit the exact depth of the package they affect
+    nodes.forEach((n) => {
+      const type = (n.data?.node_type || n.type || "").toLowerCase();
+      const isVuln = type === "vulnerability" || n.id.startsWith("GHSA-") || n.id.startsWith("CVE-");
+      if (isVuln) {
+        // Direct metadata depth if available from backend
+        const metaDepth = (n.data as any)?.metadata?.depth ?? (n.data as any)?.depth;
+
+        // Check edges connecting this vulnerability to a package
+        const connectedEdges = edges.filter(
+          (e) => e.source === n.id || e.target === n.id
         );
-        if (comp?.depth !== undefined && comp?.depth !== null) {
-          depths.set(n.id, comp.depth);
-        } else {
-          const edge = edges.find((e) => e.target === n.id || e.source === n.id);
-          depths.set(n.id, edge?.data?.depth ?? 1);
+        let pkgDepth: number | null = null;
+        for (const ce of connectedEdges) {
+          const otherId = ce.source === n.id ? ce.target : ce.source;
+          if (depths.has(otherId)) {
+            const d = depths.get(otherId)!;
+            if (pkgDepth === null || d < pkgDepth) pkgDepth = d;
+          } else if (ce.data?.depth !== undefined && ce.data?.depth !== null) {
+            if (pkgDepth === null || ce.data.depth < pkgDepth) pkgDepth = ce.data.depth;
+          }
         }
+
+        // Fallback to finding evidence package if edges weren't linked
+        if (pkgDepth === null && data.findings) {
+          const finding = data.findings.find(
+            (f: any) =>
+              f.title?.includes(n.id) ||
+              f.description?.includes(n.id) ||
+              (f.evidence && f.evidence.some((ev: any) => ev.description?.includes(n.id) || ev.raw_data?.vuln_id === n.id))
+          );
+          if (finding) {
+            const { pkgName } = getFindingPackage(finding);
+            if (pkgName) {
+              const matched = compDepthMap.get(pkgName.toLowerCase());
+              if (matched !== undefined) pkgDepth = matched;
+            }
+          }
+        }
+
+        depths.set(n.id, pkgDepth ?? metaDepth ?? 1);
       }
     });
 
     return depths;
-  }, [data?.graph, data?.components, data?.sbom?.components]);
+  }, [data?.graph, data?.components, data?.sbom?.components, data?.findings]);
 
   const maxGraphDepth = useMemo(() => {
     if (nodeDepths.size === 0) return 10;
@@ -1096,17 +1173,14 @@ export default function Dashboard() {
     return Math.max(maxD, 1);
   }, [nodeDepths]);
 
-  // Synchronize transitiveDepth when a new graph loads if prev exceeded maxGraphDepth
+  // Synchronize transitiveDepth when a new scan or graph loads
   useEffect(() => {
-    if (data?.graph && maxGraphDepth > 0) {
-      setTransitiveDepth((prev) => {
-        if (prev > maxGraphDepth) {
-          return maxGraphDepth;
-        }
-        return prev;
-      });
+    if (data?.scan?.id && maxGraphDepth > 0) {
+      setTransitiveDepth(maxGraphDepth);
+    } else if (data?.graph && maxGraphDepth > 0) {
+      setTransitiveDepth((prev) => (prev > maxGraphDepth ? maxGraphDepth : prev));
     }
-  }, [data?.graph, maxGraphDepth]);
+  }, [data?.scan?.id, data?.graph, maxGraphDepth]);
 
   const isNodeDev = useCallback(
     (node: GraphNode): boolean => {
@@ -1115,24 +1189,90 @@ export default function Dashboard() {
       const type = (node.data?.node_type || node.type || "").toLowerCase();
       if (type === "devdependency") return true;
 
+      // Common development, test, and UI tooling packages across ecosystems
+      const devPackages = [
+        "streamlit", "watchdog", "pytest", "pytest-cov", "pytest-asyncio",
+        "black", "flake8", "mypy", "coverage", "pylint", "isort", "bandit",
+        "mock", "pre-commit", "tox", "sphinx", "mkdocs", "eslint", "jest",
+        "mocha", "typescript", "actionlint"
+      ];
+
+      const rawLabel = (node.data?.label || node.id || "").toLowerCase();
+      const pkgNameFromLabel = rawLabel.split("@")[0].replace(/^pkg:(pypi|npm|cargo|golang)\//, "");
+      if (devPackages.some((p) => pkgNameFromLabel === p || pkgNameFromLabel.endsWith("/" + p))) {
+        return true;
+      }
+
       // Check against SBOM / component list
       const comp = (data?.components || data?.sbom?.components || []).find(
         (c: any) =>
           c.bom_ref === node.id ||
-          c.name === node.data?.label ||
+          c.name?.toLowerCase() === pkgNameFromLabel ||
           c.purl === node.data?.purl
       );
       if (comp && comp.is_dev) return true;
 
+      // If this node is a vulnerability, check if it affects a dev component
+      const isVuln = type === "vulnerability" || node.id.startsWith("GHSA-") || node.id.startsWith("CVE-");
+      if (isVuln && data?.graph?.edges) {
+        // Find connected target packages via edges
+        const connectedEdges = data.graph.edges.filter(
+          (e) => e.source === node.id || e.target === node.id
+        );
+        for (const ce of connectedEdges) {
+          const targetId = ce.source === node.id ? ce.target : ce.source;
+          const targetNode = data.graph.nodes.find((n) => n.id === targetId);
+          if (targetNode && isNodeDev(targetNode)) {
+            return true;
+          }
+        }
+
+        // Also check if any finding for this vuln is tied to a dev package
+        if (data?.findings) {
+          const vulnFinding = data.findings.find(
+            (f: any) =>
+              f.title?.includes(node.id) ||
+              f.description?.includes(node.id) ||
+              (f.evidence && f.evidence.some((ev: any) => ev.description?.includes(node.id) || ev.raw_data?.vuln_id === node.id))
+          );
+          if (vulnFinding) {
+            const { pkgName } = getFindingPackage(vulnFinding);
+            if (pkgName && devPackages.some((p) => pkgName.toLowerCase() === p || pkgName.toLowerCase().startsWith(p + "@"))) {
+              return true;
+            }
+          }
+        }
+      }
+
       return false;
     },
-    [data?.components, data?.sbom?.components]
+    [data?.components, data?.sbom?.components, data?.graph?.edges, data?.graph?.nodes, data?.findings]
   );
 
   const devDepsCount = useMemo(() => {
-    if (!data?.graph?.nodes) return 0;
-    return data.graph.nodes.filter((n) => isNodeDev(n)).length;
-  }, [data?.graph?.nodes, isNodeDev]);
+    const devPackages = [
+      "streamlit", "watchdog", "pytest", "pytest-cov", "pytest-asyncio",
+      "black", "flake8", "mypy", "coverage", "pylint", "isort", "bandit",
+      "mock", "pre-commit", "tox", "sphinx", "mkdocs", "eslint", "jest",
+      "mocha", "typescript", "actionlint"
+    ];
+
+    if (!data?.graph?.nodes) {
+      const compList: any[] = data?.components || data?.sbom?.components || [];
+      return compList.filter((c) => c.is_dev || devPackages.includes(c.name?.toLowerCase())).length;
+    }
+    // Count dev component/package nodes (excluding repository and vulnerability nodes)
+    const devNodes = data.graph.nodes.filter((n) => {
+      const type = (n.data?.node_type || n.type || "").toLowerCase();
+      const isVuln = type === "vulnerability" || n.id.startsWith("GHSA-") || n.id.startsWith("CVE-");
+      if (isVuln || type === "repository") return false;
+      return isNodeDev(n);
+    });
+    const compDevCount = (data?.components || data?.sbom?.components || []).filter(
+      (c: any) => c.is_dev || devPackages.includes(c.name?.toLowerCase())
+    ).length;
+    return Math.max(devNodes.length, compDevCount);
+  }, [data?.graph?.nodes, data?.components, data?.sbom?.components, isNodeDev]);
 
   const currentGraph = useMemo(() => {
     if (!data?.graph?.nodes) return null;
@@ -1176,44 +1316,71 @@ export default function Dashboard() {
   const activeFindings = useMemo(() => {
     if (!data?.findings) return [];
 
+    const devPackages = [
+      "streamlit", "watchdog", "pytest", "pytest-cov", "pytest-asyncio",
+      "black", "flake8", "mypy", "coverage", "pylint", "isort", "bandit",
+      "mock", "pre-commit", "tox", "sphinx", "mkdocs", "eslint", "jest",
+      "mocha", "typescript", "actionlint"
+    ];
+
     return data.findings.filter((f) => {
       const { pkgName } = getFindingPackage(f);
       if (!pkgName) return true;
 
       // Check if this finding is tied to a dev dependency when prodOnly is true
       if (prodOnly) {
-        const isDev = (data.components || data.sbom?.components || []).some(
+        const cleanPkg = pkgName.toLowerCase();
+        const isKnownDev = devPackages.some(
+          (p) => cleanPkg === p || cleanPkg.startsWith(p + "@") || cleanPkg.includes("/" + p)
+        );
+        const isDevComp = (data.components || data.sbom?.components || []).some(
           (c: any) =>
-            (c.name?.toLowerCase() === pkgName.toLowerCase() ||
-             c.bom_ref?.toLowerCase().includes(pkgName.toLowerCase())) &&
+            (c.name?.toLowerCase() === cleanPkg ||
+             c.bom_ref?.toLowerCase().includes(cleanPkg)) &&
             c.is_dev
         );
-        if (isDev) return false;
+        if (isKnownDev || isDevComp) return false;
       }
 
       // Check if this finding's package is within transitiveDepth
-      if (data.graph?.nodes && currentGraph?.nodes) {
-        const matchingRawNodes = data.graph.nodes.filter((n) => {
-          const label = n.data?.label || "";
-          return (
-            n.id.toLowerCase().includes(pkgName.toLowerCase()) ||
-            label.toLowerCase().includes(pkgName.toLowerCase()) ||
-            (n.data?.purl && n.data.purl.toLowerCase().includes(pkgName.toLowerCase()))
-          );
+      if (data.graph?.nodes) {
+        // Find the node depth for this finding's package
+        let pkgDepth: number | null = null;
+        nodeDepths.forEach((depth, nodeId) => {
+          const rawId = nodeId.toLowerCase();
+          const cleanPkg = pkgName.toLowerCase();
+          if (rawId.includes(cleanPkg) || rawId.split("@")[0].endsWith(cleanPkg)) {
+            if (pkgDepth === null || depth < pkgDepth) {
+              pkgDepth = depth;
+            }
+          }
         });
 
-        // If nodes exist for this package in the graph, it's visible only if at least one node is in currentGraph
-        if (matchingRawNodes.length > 0) {
-          const isVisible = matchingRawNodes.some((rn) =>
-            currentGraph.nodes.some((vn) => vn.id === rn.id)
-          );
-          if (!isVisible) return false;
+        // If package depth found and exceeds transitiveDepth, filter it out
+        if (pkgDepth !== null && pkgDepth > transitiveDepth) {
+          return false;
+        }
+
+        // Also check if currentGraph has any node matching this package
+        if (currentGraph?.nodes) {
+          const matchingRawNodes = data.graph.nodes.filter((n) => {
+            const label = (n.data?.label || "").toLowerCase();
+            const id = n.id.toLowerCase();
+            const target = pkgName.toLowerCase();
+            return id.includes(target) || label.includes(target);
+          });
+          if (matchingRawNodes.length > 0) {
+            const isVisible = matchingRawNodes.some((rn) =>
+              currentGraph.nodes.some((vn) => vn.id === rn.id)
+            );
+            if (!isVisible) return false;
+          }
         }
       }
 
       return true;
     });
-  }, [data?.findings, data?.graph?.nodes, currentGraph?.nodes, prodOnly, data?.components, data?.sbom?.components]);
+  }, [data?.findings, data?.graph?.nodes, currentGraph?.nodes, prodOnly, transitiveDepth, nodeDepths, data?.components, data?.sbom?.components]);
 
   const currentCodeReviews = useMemo(() => data?.code_reviews || [], [data?.code_reviews]);
   const handleReviewsUpdated = useCallback((updated: CodeReviewItem[]) => {
