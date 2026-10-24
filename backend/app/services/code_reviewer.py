@@ -113,16 +113,39 @@ ACTION_SHA_REGISTRY: Dict[str, Dict[str, str]] = {
         "default": "1bd1e32a3bdc45362d1e726936510720a7c30a57",
         "comment": "v4.2.0",
     },
+    "docker/login-action": {
+        "v3": "9780b0c442fbb1117ed29e0efdff1e18412f7567",  # v3.3.0
+        "default": "9780b0c442fbb1117ed29e0efdff1e18412f7567",
+        "comment": "v3.3.0",
+    },
+    "docker/build-push-action": {
+        "v6": "471d1dc4e07e5cdedd9c21719d54b79e1b20a4ec",  # v6.15.0
+        "v5": "4a13e500e55cf31b7a5d59a38ab2040ab0f42f56",  # v5.1.0
+        "default": "471d1dc4e07e5cdedd9c21719d54b79e1b20a4ec",
+        "comment": "v6.15.0",
+    },
+    "docker/setup-buildx-action": {
+        "v3": "b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2",  # v3.10.0
+        "default": "b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2",
+        "comment": "v3.10.0",
+    },
+    "codecov/codecov-action": {
+        "v5": "015ff539bb73772273d524247214d05e1242179e",  # v5.0.7
+        "v4": "e28ff129e5465c2c0dcc6f003fc735cb6ae0c673",  # v4.5.0
+        "default": "015ff539bb73772273d524247214d05e1242179e",
+        "comment": "v5.0.7",
+    },
 }
 
 
 USES_REGEX = re.compile(r'^(\s*(?:-\s*)?)uses:\s*([a-zA-Z0-9_.-]+/[a-zA-Z0-9_./-]+)@([^\s#]+)')
 
 
-def resolve_action_pin(action_name: str, tag: str) -> tuple[str, str]:
+def resolve_action_pin(action_name: str, tag: str) -> tuple[Optional[str], str]:
     """
-    Resolves the exact 40-character commit SHA and comment for a GitHub Action.
-    Returns (sha, comment).
+    Resolves the verified 40-character commit SHA and comment for a GitHub Action.
+    Returns (sha, comment). If the action is not in the verified authoritative registry,
+    returns (None, comment) so callers NEVER fabricate a synthetic commit SHA.
     """
     clean_action = action_name.lower().strip()
     clean_tag = tag.strip()
@@ -138,10 +161,9 @@ def resolve_action_pin(action_name: str, tag: str) -> tuple[str, str]:
         default_sha = reg.get("default", "11bd71901bbe5b1630ceea73d27597364c9af683")
         return default_sha, f"# {full_comment}"
 
-    # Deterministic 40-char SHA unique to this repository and tag
-    import hashlib
-    h = hashlib.sha1(f"{clean_action}@{clean_tag}".encode("utf-8")).hexdigest()
-    return h, f"# {clean_tag}"
+    # Do NOT fabricate or invent a synthetic commit SHA for unverified actions!
+    # Direct the user/agent to retrieve the verified commit SHA from the official repository release.
+    return None, f"# {clean_tag}"
 
 
 
@@ -697,14 +719,18 @@ class CodeReviewerService:
                 if "-" in prefix:
                     hyphen_idx = prefix.index("-")
                     comment_indent = prefix[:hyphen_idx]
+                else:
+                    comment_indent = prefix
+
+                if sha:
                     new_lines = [
                         f"{comment_indent}# Pinned to full immutable commit SHA",
                         f"{prefix}uses: {action_name}@{sha} {ver_comment}".rstrip()
                     ]
                 else:
                     new_lines = [
-                        f"{prefix}# Pinned to full immutable commit SHA",
-                        f"{prefix}uses: {action_name}@{sha} {ver_comment}".rstrip()
+                        f"{comment_indent}# ACTION REQUIRED: Verify 40-character commit SHA at https://github.com/{action_name}/releases",
+                        f"{prefix}uses: {action_name}@<VERIFY_40_CHAR_COMMIT_SHA> {ver_comment}".rstrip()
                     ]
 
                 corrected_code_str = "\n".join(new_lines)
@@ -730,7 +756,8 @@ class CodeReviewerService:
                             f"Official GitHub Action `{action_name}` uses mutable tag `@{ref}`. "
                             f"Pin to full immutable commit SHA to protect against tag mutation and comply with OpenSSF Scorecard."
                             if is_official
-                            else f"Using a mutable branch or tag (`@{ref}`) allows upstream supply-chain compromises to modify workflow execution. Pin to a full immutable commit SHA."
+                            else f"Third-party action `{action_name}` uses mutable tag `@{ref}`. "
+                                 f"Retrieve the verified 40-character commit SHA from official repository https://github.com/{action_name}/releases to prevent supply-chain compromises. Do not use an unverified or fabricated commit SHA."
                         ),
                         buggy_code=line,
                         corrected_code=corrected_code_str,

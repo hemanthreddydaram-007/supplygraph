@@ -149,3 +149,18 @@ jobs:
         results = self.reviewer.review_snippet(code, language="yaml", file_path=".github/workflows/ci.yml")
         assert len(results) == 0
 
+    def test_unverified_third_party_action_requires_manual_sha_resolution(self):
+        code = """name: CI
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: some-random-org/arbitrary-action@v1.2.3
+"""
+        results = self.reviewer.review_snippet(code, language="yaml", file_path=".github/workflows/ci.yml")
+        assert len(results) == 1
+        item = results[0]
+        # Must never fabricate a synthetic 40-character hex SHA!
+        assert "VERIFY_40_CHAR_COMMIT_SHA" in item.corrected_code
+        assert "https://github.com/some-random-org/arbitrary-action/releases" in item.error_explanation
+
