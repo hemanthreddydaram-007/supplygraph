@@ -1,82 +1,88 @@
 WEBVTT
 
-00:00:00.000 --> 00:00:11.897
-[PROBLEM STATEMENT] Welcome to SupplyGraph. In modern software engineering, software supply-chain attacks like Log4j, SolarWinds, and malicious npm lifecycle hooks have surged by over 600%.
+00:00:00.000 --> 00:00:09.063
+[THE CHALLENGE] Hello everyone, and respected judges! Today, modern applications are built using hundreds of open-source packages across npm, Python, Go, and GitHub workflows.
 
-00:00:11.897 --> 00:00:23.795
-[PROBLEM STATEMENT] Traditional security tools like GitHub Dependabot, Snyk, or npm audit only perform flat, direct manifest lookups.
+00:00:09.063 --> 00:00:18.126
+[THE CHALLENGE] While open-source libraries help us build products faster, managing their security has become extremely complex.
 
-00:00:23.795 --> 00:00:35.692
-[PROBLEM STATEMENT] This creates overwhelming alert fatigue—over 90% of reported CVEs are never actually reachable in application runtime code.
+00:00:18.126 --> 00:00:27.190
+[THE CHALLENGE] In large codebases, applications often contain multiple levels of nested dependencies.
 
-00:00:35.692 --> 00:00:47.590
-[PROBLEM STATEMENT] Furthermore, when automated tools blindly bump package versions, they break production builds and critical backend APIs, while remaining completely blind to CI/CD runner exploits.
+00:00:27.190 --> 00:00:36.253
+[THE CHALLENGE] The real challenge for engineering teams is knowing: Which vulnerabilities are actually reachable in production code, and which ones are never called?
 
-00:00:48.390 --> 00:01:00.663
-[PROPOSED SOLUTION] To solve these fundamental flaws, we engineered SupplyGraph: an enterprise Application Security Posture Management, or ASPM platform.
+00:00:36.253 --> 00:00:45.316
+[THE CHALLENGE] Without this reachability context, developers spend weeks investigating alerts or risk breaking live backend APIs during package upgrades.
 
-00:01:00.663 --> 00:01:12.936
-[PROPOSED SOLUTION] SupplyGraph unifies static dependency trees, multi-hop reachability graph algorithms, AST-guided surgical code remediation, runtime container sandboxing, and immutable blockchain attestation.
+00:00:45.316 --> 00:00:54.380
+[THE CHALLENGE] This is why modern software security requires a deeper, code-aware approach.
 
-00:01:12.936 --> 00:01:25.210
-[PROPOSED SOLUTION] Instead of isolated alerts, SupplyGraph correlates dependencies across npm, PyPI, Go, and GitHub Actions into actionable, verifiable security posture.
+00:00:54.980 --> 00:01:04.011
+[PROPOSED SOLUTION] To address this challenge, we created SupplyGraph.
 
-00:01:26.009 --> 00:01:35.461
-[CORE FEATURES] SupplyGraph introduces four breakthrough capabilities:
+00:01:04.011 --> 00:01:13.043
+[PROPOSED SOLUTION] SupplyGraph is an Application Security Posture Management platform designed to give developers complete visibility into their software supply chain.
 
-00:01:35.461 --> 00:01:44.913
-[CORE FEATURES] First, our deterministic NetworkX reverse-BFS engine constructs an interactive Attack DAG, proving actual multi-hop reachability from ingress endpoints to deep transitive packages.
+00:01:13.043 --> 00:01:22.075
+[PROPOSED SOLUTION] Instead of treating dependencies as flat isolated lists, SupplyGraph analyzes project call paths and builds an interactive visual attack graph.
 
-00:01:44.913 --> 00:01:54.365
-[CORE FEATURES] Second, it calculates a mathematical Blast Radius score, quantifying organizational exposure.
+00:01:22.075 --> 00:01:31.106
+[PROPOSED SOLUTION] It connects your code from user-facing entry points all the way down to deeply nested libraries.
 
-00:01:54.365 --> 00:02:03.817
-[CORE FEATURES] Third, our Autonomous Executive AI translates complex graph topology into plain-English threat briefings and containment protocols.
+00:01:31.106 --> 00:01:40.138
+[PROPOSED SOLUTION] It clearly verifies whether an execution path actually reaches a vulnerable component.
 
-00:02:03.817 --> 00:02:13.269
-[CORE FEATURES] And fourth, it generates enterprise CycloneDX version 1.5 SBOMs with deterministic SHA-256 digests computed via client-side Web Crypto for compliance.
+00:01:40.138 --> 00:01:49.170
+[PROPOSED SOLUTION] When an issue is identified, SupplyGraph provides safe, line-by-line code patches that preserve application functionality, while testing untrusted packages inside an isolated sandbox.
 
-00:02:14.069 --> 00:02:20.893
-[DEMO SCENARIOS] SupplyGraph comes preloaded with five critical real-world attack scenarios:
+00:01:49.770 --> 00:02:01.962
+[CORE FEATURES] Let us look at four core capabilities of SupplyGraph:
 
-00:02:20.893 --> 00:02:27.716
-[DEMO SCENARIOS] Scenario A demonstrates transitive Log4j remote code execution through multi-hop call paths.
+00:02:01.962 --> 00:02:14.154
+[CORE FEATURES] First is the Attack Graph. Powered by graph traversal algorithms, it visually maps the relationship between code and libraries, showing exact reachability paths.
 
-00:02:27.716 --> 00:02:34.539
-[DEMO SCENARIOS] Scenario B exposes prototype pollution in core JavaScript utility functions.
+00:02:14.153 --> 00:02:26.346
+[CORE FEATURES] Second is the Blast Radius Score. It calculates a clear risk metric from 0 to 100, helping teams understand potential operational impact.
 
-00:02:34.539 --> 00:02:41.363
-[DEMO SCENARIOS] Scenario C catches arbitrary code execution from malicious PyTorch pickle deserialization.
+00:02:26.346 --> 00:02:38.538
+[CORE FEATURES] Third is the Autonomous Executive AI. It summarizes technical vulnerability data into actionable briefings and prioritized containment steps.
 
-00:02:41.363 --> 00:02:48.186
-[DEMO SCENARIOS] Scenario D identifies unpinned GitHub Actions runners vulnerable to CI/CD pipeline poisoning.
+00:02:38.538 --> 00:02:50.730
+[CORE FEATURES] And fourth is the CycloneDX SBOM. It generates standard Software Bill of Materials documents with deterministic SHA-256 cryptographic verification for compliance.
 
-00:02:48.186 --> 00:02:55.009
-[DEMO SCENARIOS] And Scenario E simulates an npm postinstall script attempting malicious credential theft and command-and-control beaconing.
+00:02:51.330 --> 00:03:01.770
+[DEMO SCENARIOS] To demonstrate these capabilities, SupplyGraph includes five preloaded real-world scenarios:
 
-00:02:55.810 --> 00:03:07.449
-[REAL REPOSITORY AUDIT] Now let's examine a real-world open-source repository: listmonk by Kailash Nadh.
+00:03:01.770 --> 00:03:12.210
+[DEMO SCENARIOS] Scenario A illustrates a transitive Log4j call path, mapping how an incoming request travels through service layers to a vulnerable logging library.
 
-00:03:07.449 --> 00:03:19.089
-[REAL REPOSITORY AUDIT] When scanned with native GitHub Dependabot, zero pull requests are opened because Dependabot only examines top-level manifests.
+00:03:12.210 --> 00:03:22.650
+[DEMO SCENARIOS] Scenario B examines Prototype Pollution, showing how improper object merging can be safely identified and corrected.
 
-00:03:19.090 --> 00:03:30.730
-[REAL REPOSITORY AUDIT] SupplyGraph recursively indexes all 35 nested monorepo submodules and surfaces 21 critical findings—including 16 OSV CVEs and 6 first-party repository GHSAs with a Blast Radius of 60 out of 100.
+00:03:22.650 --> 00:03:33.090
+[DEMO SCENARIOS] Scenario C analyzes insecure Python pickle deserialization, demonstrating AST-level detection before code execution.
 
-00:03:30.730 --> 00:03:42.370
-[REAL REPOSITORY AUDIT] Clicking 'Fix with AI' generates an evidence-grounded, non-breaking remediation prompt specifically calibrated for AI coding agents like Antigravity, Cursor, and Copilot.
+00:03:33.090 --> 00:03:43.530
+[DEMO SCENARIOS] Scenario D audits GitHub Actions workflows, ensuring runners and third-party actions use immutable commit hashes.
 
-00:03:42.370 --> 00:03:54.009
-[REAL REPOSITORY AUDIT] In the AI Code Reviewer workspace, developers inspect surgical line-level unified git diffs rather than disruptive version bumps.
+00:03:43.530 --> 00:03:53.969
+[DEMO SCENARIOS] And Scenario E tests lifecycle scripts, demonstrating how package installation hooks are monitored and controlled.
 
-00:03:54.009 --> 00:04:05.649
-[REAL REPOSITORY AUDIT] And in our Universal Detonation Sandbox, untrusted lifecycle hooks are detonated inside isolated containers—instantly blocking outbound C2 network egress with exit code 137.
+00:03:54.570 --> 00:04:07.413
+[REAL PROJECT WALKTHROUGH] Now let us examine a real-world open-source repository: listmonk by Kailash Nadh.
 
-00:04:06.449 --> 00:04:16.296
-[BLOCKCHAIN ATTESTATION & CONCLUSION] Finally, every audit result is cryptographically anchored to the Polygon Amoy blockchain testnet, producing tamper-evident on-chain Merkle proofs for zero-trust compliance.
+00:04:07.413 --> 00:04:20.256
+[REAL PROJECT WALKTHROUGH] When scanning a multi-module repository like this, SupplyGraph indexes all 35 submodules and manifests, providing a unified inventory across frontend, backend, and workflows.
 
-00:04:16.296 --> 00:04:26.143
-[BLOCKCHAIN ATTESTATION & CONCLUSION] With full subtitle accessibility, multi-hop attack reachability, surgical AI auto-patching, and runtime container sandboxing, SupplyGraph delivers complete, verifiable software supply-chain defense.
+00:04:20.256 --> 00:04:33.100
+[REAL PROJECT WALKTHROUGH] It identifies 21 findings across direct and transitive dependencies, computing a contextual Blast Radius score of 60 out of 100.
 
-00:04:26.143 --> 00:04:35.990
-[BLOCKCHAIN ATTESTATION & CONCLUSION] Thank you for evaluating SupplyGraph!
+00:04:33.100 --> 00:04:45.943
+[REAL PROJECT WALKTHROUGH] With the 'Fix with AI' feature, SupplyGraph generates evidence-based, non-breaking remediation prompts specifically structured for AI coding agents like Antigravity, Cursor, and Copilot.
+
+00:04:45.943 --> 00:04:58.786
+[REAL PROJECT WALKTHROUGH] In the AI Code Reviewer, developers inspect surgical unified git diffs that correct specific vulnerable lines rather than forcing broad version jumps.
+
+00:04:58.786 --> 00:05:11.629
+[REAL PROJECT WALKTHROUGH] And in our Detonation Sandbox, lifecycle scripts run within an isolated container where unauthorized network connections and file modifications are safely contained.

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SupplyGraph (v3.0 ASPM) — Official Hackathon Demo Video (1080p HD, Indian English Voiceover, Full Subtitles)</title>
+  <title>SupplyGraph (v3.0 ASPM) — Official 5-Minute Hackathon Demo (Creator Voiceover)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -354,11 +354,11 @@
           <div class="brand-title">
             <span>SupplyGraph</span>
             <span class="badge-pill">v3.0 ASPM</span>
-            <span class="badge-voice">🎙️ Indian English Accent</span>
+            <span class="badge-voice">🎙️ Creator Voiceover</span>
             <span class="badge-sub">💬 Full Subtitles</span>
           </div>
           <div style="font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
-            Official Hackathon Demonstration Walkthrough (4:32) • 6 Key Evaluation Sections
+            Official 5-Minute Prototype Walkthrough • Merged from 5 Clean Audio Recordings
           </div>
         </div>
       </div>
@@ -370,8 +370,8 @@
         <a href="https://github.com/hemanthreddydaram-007/supplygraph" target="_blank" class="btn btn-secondary">
           <span>🐙 GitHub Repo</span>
         </a>
-        <a href="SupplyGraph_Hackathon_Demo_IndianVoiceover.mp4" download class="btn btn-secondary">
-          <span>📥 Download MP4 (1080p + Audio)</span>
+        <a href="SupplyGraph_Hackathon_Demo_UserVoice.mp4" download class="btn btn-secondary">
+          <span>📥 Download 5-Min MP4 (1080p + Audio)</span>
         </a>
         <a href="supplygraph_demo_subtitles.srt" download class="btn btn-secondary">
           <span>📄 Download Subtitles (.SRT)</span>
@@ -385,20 +385,20 @@
       <div class="player-card">
         <div class="video-wrap">
           <video id="demoVideo" controls autoplay playsinline preload="metadata">
+            <source src="SupplyGraph_Hackathon_Demo_UserVoice.mp4" type="video/mp4">
+            <source src="SupplyGraph_Hackathon_Demo_UserVoice.webm" type="video/webm">
             <source src="SupplyGraph_Hackathon_Demo_IndianVoiceover.mp4" type="video/mp4">
-            <source src="SupplyGraph_Hackathon_Demo_IndianVoiceover.webm" type="video/webm">
-            <source src="SupplyGraph_Hackathon_Demo_1080p_Voiceover.mp4" type="video/mp4">
             <track label="English (Indian Accent)" kind="subtitles" srclang="en" src="supplygraph_demo_subtitles.vtt" default>
             Your browser does not support the video tag.
           </video>
         </div>
         <div class="player-meta">
           <div>
-            <h2>SupplyGraph (v3.0 ASPM) — 6-Section Hackathon Prototype Walkthrough</h2>
-            <p>1080p Full HD • Spoken in Indian English • In-Video Broadcast Subtitle HUD • Zero-Lag Pacing</p>
+            <h2>SupplyGraph (v3.0 ASPM) — 5-Minute Prototype Walkthrough (Your Voice)</h2>
+            <p>1080p Full HD • Spoken by Project Creator • In-Video Broadcast Subtitle HUD • Zero Lag</p>
           </div>
           <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--emerald);">
-            ● Duration: 4m 32s | Full HD 1080p
+            ● Duration: 5m 09s | Full HD 1080p
           </div>
         </div>
       </div>
@@ -406,55 +406,47 @@
       <!-- Right: Interactive Chapters -->
       <div class="sidebar-card">
         <div class="sidebar-title">
-          <span>⏱️ 6 Master Chapters</span>
+          <span>⏱️ 5 Master Chapters</span>
           <span style="font-size: 11px; color: var(--text-muted);">Click to Jump</span>
         </div>
         <div class="chapter-list">
           <button class="chapter-item" onclick="seekVideo(0)">
             <span class="chapter-time">0:00</span>
             <div class="chapter-info">
-              <h4>1. Problem Statement</h4>
-              <p>600%+ supply-chain surge, 90% false alerts & broken builds</p>
+              <h4>1. The Challenge in Modern Software</h4>
+              <p>Hundreds of open-source packages & reachability context</p>
             </div>
           </button>
 
-          <button class="chapter-item" onclick="seekVideo(48)">
-            <span class="chapter-time">0:48</span>
+          <button class="chapter-item" onclick="seekVideo(55)">
+            <span class="chapter-time">0:55</span>
             <div class="chapter-info">
-              <h4>2. Proposed Solution</h4>
+              <h4>2. Introducing SupplyGraph</h4>
               <p>Unified ASPM platform uniting AST, graphs & sandbox</p>
             </div>
           </button>
 
-          <button class="chapter-item" onclick="seekVideo(86)">
-            <span class="chapter-time">1:26</span>
+          <button class="chapter-item" onclick="seekVideo(110)">
+            <span class="chapter-time">1:50</span>
             <div class="chapter-info">
-              <h4>3. Core Platform Features</h4>
-              <p>Reverse-BFS DAG, Blast Radius 85/100, AI & CycloneDX</p>
+              <h4>3. Four Core Platform Features</h4>
+              <p>Attack DAG, Blast Radius 85/100, Executive AI & CycloneDX</p>
             </div>
           </button>
 
-          <button class="chapter-item" onclick="seekVideo(134)">
-            <span class="chapter-time">2:14</span>
+          <button class="chapter-item" onclick="seekVideo(171)">
+            <span class="chapter-time">2:51</span>
             <div class="chapter-info">
-              <h4>4. Demo Scenarios (A through E)</h4>
-              <p>Log4j RCE, Prototype Pollution, PyTorch, Actions, npm hook</p>
+              <h4>4. Five Preloaded Security Scenarios</h4>
+              <p>Log4j RCE, Prototype Pollution, PyTorch, Actions & npm hook</p>
             </div>
           </button>
 
-          <button class="chapter-item" onclick="seekVideo(176)">
-            <span class="chapter-time">2:56</span>
+          <button class="chapter-item" onclick="seekVideo(235)">
+            <span class="chapter-time">3:55</span>
             <div class="chapter-info">
-              <h4>5. Repo Deep Dive: knadh/listmonk</h4>
-              <p>35 submodules, 6 GHSAs, Fix with AI, diffs & sandbox</p>
-            </div>
-          </button>
-
-          <button class="chapter-item" onclick="seekVideo(246)">
-            <span class="chapter-time">4:06</span>
-            <div class="chapter-info">
-              <h4>6. Blockchain Attestation & Conclusion</h4>
-              <p>Polygon Amoy Merkle audit anchor & final wrap-up</p>
+              <h4>5. Real Project Walkthrough (knadh/listmonk)</h4>
+              <p>35 submodules, Fix with AI, surgical diffs & sandbox</p>
             </div>
           </button>
         </div>
@@ -468,7 +460,7 @@
           📋 Ready-to-Paste Form Text (< 500 Characters)
         </h3>
         <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--emerald);">
-          412 / 500 Characters
+          410 / 500 Characters
         </span>
       </div>
       <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
@@ -478,7 +470,7 @@
       <div class="copy-box" id="formText">Live Prototype: https://supplygraph-five.vercel.app/
 Demo Player: https://supplygraph-five.vercel.app/demo.html
 GitHub: https://github.com/hemanthreddydaram-007/supplygraph
-Direct Video: https://github.com/hemanthreddydaram-007/supplygraph/raw/main/frontend/public/SupplyGraph_Hackathon_Demo_IndianVoiceover.mp4
+Direct Video: https://github.com/hemanthreddydaram-007/supplygraph/raw/main/frontend/public/SupplyGraph_Hackathon_Demo_UserVoice.mp4
 
 SupplyGraph is an ASPM platform featuring multi-hop DAG attack reachability, AST AI code diffs, GHSA auditing, and zero-egress sandboxing.</div>
       <button class="copy-btn" onclick="copyFormText()">Copy Text</button>
@@ -487,49 +479,32 @@ SupplyGraph is an ASPM platform featuring multi-hop DAG attack reachability, AST
     <!-- Full Synchronized Transcript -->
     <div class="script-section" style="margin-top: 32px;">
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
-        <h3>🎙️ 5-Minute Presentation Script (Clean & Professional Indian English)</h3>
-        <button class="btn btn-secondary" onclick="copySimpleScript()" style="font-size: 11px; padding: 4px 10px;">
-          📋 Copy Entire Script
-        </button>
+        <h3>🎙️ Spoken Presentation Transcript (Clean & Professional Indian English)</h3>
       </div>
-      <p style="font-size: 13px; color: #a5b4fc; margin-bottom: 16px;">
-        💡 <strong>Recording Tip</strong>: Read in a calm, confident, friendly Indian English accent (~125 words/min). Clean, positive engineering focus without mentioning other tools.
-      </p>
       <div class="script-content" id="simpleScriptBox">
         <p>
-          <span class="timestamp-badge">[0:00 - 0:50] 1. The Challenge in Modern Software:</span><br>
-          <em>[Screen Action: Start on Login page &rarr; Click 'Judge Fast Pass' &rarr; Show Dashboard alert counters]</em><br>
+          <span class="timestamp-badge">[0:00 - 0:55] 1. The Challenge in Modern Software:</span><br>
           "Hello everyone, and respected judges! Today, modern applications are built using hundreds of open-source packages and dependencies across npm, Python, Go, and GitHub workflows. While open-source libraries help us build products faster, managing their security has become extremely complex. In large codebases, applications often contain multiple levels of nested dependencies. The real challenge for engineering teams is knowing: Which vulnerabilities are actually reachable and active in production code, and which ones are never called? Without this reachability context, developers can spend weeks investigating alerts or risk breaking live backend APIs during package upgrades. That is why modern software security requires a deeper, code-aware approach."
         </p>
 
         <p>
-          <span class="timestamp-badge">[0:50 - 1:35] 2. Introducing SupplyGraph:</span><br>
-          <em>[Screen Action: Smoothly scroll down ASPM dashboard &rarr; Highlight multi-ecosystem support: npm, PyPI, Go, Actions]</em><br>
+          <span class="timestamp-badge">[0:55 - 1:50] 2. Introducing SupplyGraph:</span><br>
           "To address this challenge, we created <strong>SupplyGraph</strong>. SupplyGraph is an Application Security Posture Management platform designed to give developers complete visibility into their software supply chain. Instead of treating dependencies as flat isolated lists, SupplyGraph analyzes your project's call paths and builds an interactive visual attack graph. It connects your code from user-facing entry points all the way down to deeply nested libraries. It clearly verifies whether an execution path actually reaches a vulnerable component. When an issue is identified, SupplyGraph provides safe, line-by-line code patches that preserve application functionality, while testing untrusted packages inside an isolated sandbox."
         </p>
 
         <p>
-          <span class="timestamp-badge">[1:35 - 2:25] 3. Four Core Platform Features:</span><br>
-          <em>[Screen Action: Open Scenario A Attack Graph &rarr; Point to Blast Radius HUD 85/100 &rarr; Click Executive AI tab &rarr; Click CycloneDX SBOM]</em><br>
+          <span class="timestamp-badge">[1:50 - 2:51] 3. Four Core Platform Features:</span><br>
           "Let us look at four core capabilities of SupplyGraph: <strong>First is the Attack Graph.</strong> Powered by graph traversal algorithms, it visually maps the relationship between your application code and external libraries, showing the exact reachability path. <strong>Second is the Blast Radius Score.</strong> It calculates a clear risk metric from zero to hundred, helping teams understand the potential operational impact of each finding. <strong>Third is the Autonomous Executive AI.</strong> It summarizes technical vulnerability data into clear, actionable briefings and prioritized containment steps for both developers and engineering leaders. <strong>And fourth is the CycloneDX SBOM.</strong> It generates standard Software Bill of Materials documents with deterministic SHA-256 cryptographic verification for compliance and governance."
         </p>
 
         <p>
-          <span class="timestamp-badge">[2:25 - 3:10] 4. Five Preloaded Security Scenarios:</span><br>
-          <em>[Screen Action: Click through preset buttons: Scenario A &rarr; Scenario B &rarr; Scenario C &rarr; Scenario D &rarr; Scenario E]</em><br>
+          <span class="timestamp-badge">[2:51 - 3:55] 4. Five Preloaded Security Scenarios:</span><br>
           "To demonstrate these capabilities, SupplyGraph includes five preloaded real-world scenarios: <strong>Scenario A</strong> illustrates a transitive Log4j call path, mapping how an incoming request travels through service layers to a vulnerable logging library. <strong>Scenario B</strong> examines Prototype Pollution, showing how improper object merging can be safely identified and corrected. <strong>Scenario C</strong> analyzes insecure Python pickle deserialization, demonstrating AST-level detection before code execution. <strong>Scenario D</strong> audits GitHub Actions workflows, ensuring runners and third-party actions use immutable commit hashes. And <strong>Scenario E</strong> tests lifecycle scripts, demonstrating how package installation hooks are monitored and controlled."
         </p>
 
         <p>
-          <span class="timestamp-badge">[3:10 - 4:25] 5. Real Project Deep Dive (knadh/listmonk):</span><br>
-          <em>[Screen Action: In Scanner, enter knadh/listmonk &rarr; View benchmark & telemetry &rarr; Click 'Fix with AI' &rarr; Open AI Code Reviewer &rarr; Open Detonation Sandbox]</em><br>
+          <span class="timestamp-badge">[3:55 - 5:09] 5. Real Project Walkthrough (knadh/listmonk):</span><br>
           "Now let us examine a real-world open-source repository: <strong>listmonk</strong> by Kailash Nadh. When scanning a multi-module repository like this, SupplyGraph indexes all thirty-five submodules and manifests, providing a unified inventory across frontend, backend, and workflow automation. It identifies twenty-one findings across direct and transitive dependencies, computing a contextual Blast Radius score of sixty out of hundred. With the <strong>Fix with AI</strong> feature, SupplyGraph generates evidence-based, non-breaking remediation prompts specifically structured for AI coding agents like Antigravity, Cursor, and Copilot. In the <strong>AI Code Reviewer</strong>, developers can inspect surgical unified git diffs that correct the specific vulnerable lines rather than forcing broad version jumps. And in our <strong>Detonation Sandbox</strong>, lifecycle scripts run within an isolated container where unauthorized network connections and file modifications are safely contained."
-        </p>
-
-        <p>
-          <span class="timestamp-badge">[4:25 - 5:00] 6. Blockchain Proof & Conclusion:</span><br>
-          <em>[Screen Action: Open Polygon Amoy modal &rarr; Show transaction hash &rarr; Show final live URL and QR code]</em><br>
-          "Finally, every completed security audit can be cryptographically anchored to the <strong>Polygon Amoy blockchain</strong>, creating a tamper-evident audit trail for zero-trust compliance. In conclusion, SupplyGraph brings together visual attack graph reachability, surgical code remediation, runtime container isolation, and verifiable supply chain integrity. You can explore the live platform right now at <strong>supplygraph-five.vercel.app</strong>. Thank you very much for your time and consideration!"
         </p>
       </div>
     </div>
@@ -548,12 +523,6 @@ SupplyGraph is an ASPM platform featuring multi-hop DAG attack reachability, AST
       const text = document.getElementById('formText').innerText;
       navigator.clipboard.writeText(text);
       alert('Copied submission text to clipboard!');
-    }
-
-    function copySimpleScript() {
-      const text = document.getElementById('simpleScriptBox').innerText;
-      navigator.clipboard.writeText(text);
-      alert('Copied 5-minute teleprompter script to clipboard!');
     }
   </script>
 </body>
