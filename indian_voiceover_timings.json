@@ -1,0 +1,254 @@
+{
+  "total_duration": 275.99,
+  "voice": "en-IN-PrabhatNeural",
+  "accent": "Indian English (en-IN-PrabhatNeural)",
+  "section_count": 6,
+  "sections": [
+    {
+      "index": 1,
+      "id": "sec_01_problem_statement",
+      "section_num": "1/6",
+      "section_tag": "PROBLEM STATEMENT",
+      "title": "Software Supply-Chain Vulnerabilities & The Alert Fatigue Crisis",
+      "start_time": 0.0,
+      "audio_duration": 47.59,
+      "total_section_duration": 48.39,
+      "subtitles": [
+        {
+          "sub_index": 1,
+          "text": "Welcome to SupplyGraph. In modern software engineering, software supply-chain attacks like Log4j, SolarWinds, and malicious npm lifecycle hooks have surged by over 600%.",
+          "start": 0.0,
+          "end": 11.9
+        },
+        {
+          "sub_index": 2,
+          "text": "Traditional security tools like GitHub Dependabot, Snyk, or npm audit only perform flat, direct manifest lookups.",
+          "start": 11.9,
+          "end": 23.8
+        },
+        {
+          "sub_index": 3,
+          "text": "This creates overwhelming alert fatigue\u2014over 90% of reported CVEs are never actually reachable in application runtime code.",
+          "start": 23.8,
+          "end": 35.69
+        },
+        {
+          "sub_index": 4,
+          "text": "Furthermore, when automated tools blindly bump package versions, they break production builds and critical backend APIs, while remaining completely blind to CI/CD runner exploits.",
+          "start": 35.69,
+          "end": 47.59
+        }
+      ],
+      "speech_text": "Welcome to SupplyGraph. In modern software engineering, software supply-chain attacks like Log4j, SolarWinds, and malicious npm lifecycle hooks have surged by over 600 percent. Traditional security tools like GitHub Dependabot, Snyk, or npm audit only perform flat, direct manifest lookups. This creates overwhelming alert fatigue\u2014over 90 percent of reported CVEs are never actually reachable in application runtime code. Furthermore, when automated tools blindly bump package versions, they break production builds and critical backend APIs, while remaining completely blind to CI-CD runner exploits.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio_indian\\sec_01_problem_statement.mp3"
+    },
+    {
+      "index": 2,
+      "id": "sec_02_proposed_solution",
+      "section_num": "2/6",
+      "section_tag": "PROPOSED SOLUTION",
+      "title": "SupplyGraph: Unified Application Security Posture Management (ASPM)",
+      "start_time": 48.39,
+      "audio_duration": 36.82,
+      "total_section_duration": 37.62,
+      "subtitles": [
+        {
+          "sub_index": 1,
+          "text": "To solve these fundamental flaws, we engineered SupplyGraph: an enterprise Application Security Posture Management, or ASPM platform.",
+          "start": 48.39,
+          "end": 60.66
+        },
+        {
+          "sub_index": 2,
+          "text": "SupplyGraph unifies static dependency trees, multi-hop reachability graph algorithms, AST-guided surgical code remediation, runtime container sandboxing, and immutable blockchain attestation.",
+          "start": 60.66,
+          "end": 72.94
+        },
+        {
+          "sub_index": 3,
+          "text": "Instead of isolated alerts, SupplyGraph correlates dependencies across npm, PyPI, Go, and GitHub Actions into actionable, verifiable security posture.",
+          "start": 72.94,
+          "end": 85.21
+        }
+      ],
+      "speech_text": "To solve these fundamental flaws, we engineered SupplyGraph: an enterprise Application Security Posture Management, or ASPM platform. SupplyGraph unifies static dependency trees, multi-hop reachability graph algorithms, AST-guided surgical code remediation, runtime container sandboxing, and immutable blockchain attestation. Instead of isolated alerts, SupplyGraph correlates dependencies across npm, PyPI, Go, and GitHub Actions into actionable, verifiable security posture.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio_indian\\sec_02_proposed_solution.mp3"
+    },
+    {
+      "index": 3,
+      "id": "sec_03_features",
+      "section_num": "3/6",
+      "section_tag": "CORE FEATURES",
+      "title": "Deterministic DAG Reachability, Blast Radius & Autonomous AI Briefings",
+      "start_time": 86.01,
+      "audio_duration": 47.26,
+      "total_section_duration": 48.06,
+      "subtitles": [
+        {
+          "sub_index": 1,
+          "text": "SupplyGraph introduces four breakthrough capabilities:",
+          "start": 86.01,
+          "end": 95.46
+        },
+        {
+          "sub_index": 2,
+          "text": "First, our deterministic NetworkX reverse-BFS engine constructs an interactive Attack DAG, proving actual multi-hop reachability from ingress endpoints to deep transitive packages.",
+          "start": 95.46,
+          "end": 104.91
+        },
+        {
+          "sub_index": 3,
+          "text": "Second, it calculates a mathematical Blast Radius score, quantifying organizational exposure.",
+          "start": 104.91,
+          "end": 114.37
+        },
+        {
+          "sub_index": 4,
+          "text": "Third, our Autonomous Executive AI translates complex graph topology into plain-English threat briefings and containment protocols.",
+          "start": 114.37,
+          "end": 123.82
+        },
+        {
+          "sub_index": 5,
+          "text": "And fourth, it generates enterprise CycloneDX version 1.5 SBOMs with deterministic SHA-256 digests computed via client-side Web Crypto for compliance.",
+          "start": 123.82,
+          "end": 133.27
+        }
+      ],
+      "speech_text": "SupplyGraph introduces four breakthrough capabilities: First, our deterministic NetworkX reverse-BFS engine constructs an interactive Attack DAG, proving actual multi-hop reachability from ingress endpoints to deep transitive packages. Second, it calculates a mathematical Blast Radius score, quantifying organizational exposure. Third, our Autonomous Executive AI translates complex graph topology into plain-English threat briefings and containment protocols. And fourth, it generates enterprise CycloneDX version 1.5 SBOMs with deterministic SHA-256 digests computed via client-side Web Crypto for compliance.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio_indian\\sec_03_features.mp3"
+    },
+    {
+      "index": 4,
+      "id": "sec_04_scenarios",
+      "section_num": "4/6",
+      "section_tag": "DEMO SCENARIOS",
+      "title": "Preloaded Real-World Exploit Scenarios (Scenarios A through E)",
+      "start_time": 134.07,
+      "audio_duration": 40.94,
+      "total_section_duration": 41.74,
+      "subtitles": [
+        {
+          "sub_index": 1,
+          "text": "SupplyGraph comes preloaded with five critical real-world attack scenarios:",
+          "start": 134.07,
+          "end": 140.89
+        },
+        {
+          "sub_index": 2,
+          "text": "Scenario A demonstrates transitive Log4j remote code execution through multi-hop call paths.",
+          "start": 140.89,
+          "end": 147.72
+        },
+        {
+          "sub_index": 3,
+          "text": "Scenario B exposes prototype pollution in core JavaScript utility functions.",
+          "start": 147.72,
+          "end": 154.54
+        },
+        {
+          "sub_index": 4,
+          "text": "Scenario C catches arbitrary code execution from malicious PyTorch pickle deserialization.",
+          "start": 154.54,
+          "end": 161.36
+        },
+        {
+          "sub_index": 5,
+          "text": "Scenario D identifies unpinned GitHub Actions runners vulnerable to CI/CD pipeline poisoning.",
+          "start": 161.36,
+          "end": 168.19
+        },
+        {
+          "sub_index": 6,
+          "text": "And Scenario E simulates an npm postinstall script attempting malicious credential theft and command-and-control beaconing.",
+          "start": 168.19,
+          "end": 175.01
+        }
+      ],
+      "speech_text": "SupplyGraph comes preloaded with five critical real-world attack scenarios: Scenario A demonstrates transitive Log4j remote code execution through multi-hop call paths. Scenario B exposes prototype pollution in core JavaScript utility functions. Scenario C catches arbitrary code execution from malicious PyTorch pickle deserialization. Scenario D identifies unpinned GitHub Actions runners vulnerable to CI-CD pipeline poisoning. And Scenario E simulates an npm postinstall script attempting malicious credential theft and command-and-control beaconing.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio_indian\\sec_04_scenarios.mp3"
+    },
+    {
+      "index": 5,
+      "id": "sec_05_repo_deep_dive",
+      "section_num": "5/6",
+      "section_tag": "REAL REPOSITORY AUDIT",
+      "title": "Deep Dive: Auditing knadh/listmonk & Full Platform Feature Tour",
+      "start_time": 175.81,
+      "audio_duration": 69.84,
+      "total_section_duration": 70.64,
+      "subtitles": [
+        {
+          "sub_index": 1,
+          "text": "Now let's examine a real-world open-source repository: listmonk by Kailash Nadh.",
+          "start": 175.81,
+          "end": 187.45
+        },
+        {
+          "sub_index": 2,
+          "text": "When scanned with native GitHub Dependabot, zero pull requests are opened because Dependabot only examines top-level manifests.",
+          "start": 187.45,
+          "end": 199.09
+        },
+        {
+          "sub_index": 3,
+          "text": "SupplyGraph recursively indexes all 35 nested monorepo submodules and surfaces 21 critical findings\u2014including 16 OSV CVEs and 6 first-party repository GHSAs with a Blast Radius of 60 out of 100.",
+          "start": 199.09,
+          "end": 210.73
+        },
+        {
+          "sub_index": 4,
+          "text": "Clicking 'Fix with AI' generates an evidence-grounded, non-breaking remediation prompt specifically calibrated for AI coding agents like Antigravity, Cursor, and Copilot.",
+          "start": 210.73,
+          "end": 222.37
+        },
+        {
+          "sub_index": 5,
+          "text": "In the AI Code Reviewer workspace, developers inspect surgical line-level unified git diffs rather than disruptive version bumps.",
+          "start": 222.37,
+          "end": 234.01
+        },
+        {
+          "sub_index": 6,
+          "text": "And in our Universal Detonation Sandbox, untrusted lifecycle hooks are detonated inside isolated containers\u2014instantly blocking outbound C2 network egress with exit code 137.",
+          "start": 234.01,
+          "end": 245.65
+        }
+      ],
+      "speech_text": "Now let's examine a real-world open-source repository: listmonk by Kailash Nadh. When scanned with native GitHub Dependabot, zero pull requests are opened because Dependabot only examines top-level manifests. But SupplyGraph recursively indexes all thirty-five nested monorepo submodules and surfaces twenty-one critical findings\u2014including sixteen OSV CVEs and six first-party repository security advisories with a Blast Radius of sixty out of one hundred. Clicking 'Fix with AI' generates an evidence-grounded, non-breaking remediation prompt specifically calibrated for AI coding agents like Antigravity, Cursor, and Copilot. In the AI Code Reviewer workspace, developers inspect surgical line-level unified git diffs rather than disruptive version bumps. And in our Universal Detonation Sandbox, untrusted lifecycle hooks are detonated inside isolated containers\u2014instantly blocking outbound C2 network egress with exit code 137.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio_indian\\sec_05_repo_deep_dive.mp3"
+    },
+    {
+      "index": 6,
+      "id": "sec_06_attestation_conclusion",
+      "section_num": "6/6",
+      "section_tag": "BLOCKCHAIN ATTESTATION & CONCLUSION",
+      "title": "Polygon Amoy Cryptographic Anchor & Enterprise Readiness",
+      "start_time": 246.45,
+      "audio_duration": 29.54,
+      "total_section_duration": 29.54,
+      "subtitles": [
+        {
+          "sub_index": 1,
+          "text": "Finally, every audit result is cryptographically anchored to the Polygon Amoy blockchain testnet, producing tamper-evident on-chain Merkle proofs for zero-trust compliance.",
+          "start": 246.45,
+          "end": 256.3
+        },
+        {
+          "sub_index": 2,
+          "text": "With full subtitle accessibility, multi-hop attack reachability, surgical AI auto-patching, and runtime container sandboxing, SupplyGraph delivers complete, verifiable software supply-chain defense.",
+          "start": 256.3,
+          "end": 266.14
+        },
+        {
+          "sub_index": 3,
+          "text": "Thank you for evaluating SupplyGraph!",
+          "start": 266.14,
+          "end": 275.99
+        }
+      ],
+      "speech_text": "Finally, every audit result is cryptographically anchored to the Polygon Amoy blockchain testnet, producing tamper-evident on-chain Merkle proofs for zero-trust compliance. With full subtitle accessibility, multi-hop attack reachability, surgical AI auto-patching, and runtime container sandboxing, SupplyGraph delivers complete, verifiable software supply-chain defense. Thank you for evaluating SupplyGraph!",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio_indian\\sec_06_attestation_conclusion.mp3"
+    }
+  ]
+}
