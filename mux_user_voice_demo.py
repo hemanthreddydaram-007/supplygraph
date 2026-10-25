@@ -43,24 +43,34 @@ def main():
     out_webm = os.path.join(root_dir, "SupplyGraph_Hackathon_Demo_UserVoice.webm")
 
     print("==================================================================")
-    print("STEP 2: Multiplexing Video and User Voiceover Track (H.264 + AAC)")
+    print("STEP 2: Multiplexing Video and Normalized Master Voiceover (H.264 + AAC)")
     print("==================================================================")
 
     cmd_mp4 = [
         ffmpeg_exe, "-y",
         "-i", raw_video,
         "-i", voiceover_mp3,
+        "-map", "0:v:0",
+        "-map", "1:a:0",
         "-c:v", "libx264",
         "-pix_fmt", "yuv420p",
         "-preset", "fast",
-        "-crf", "22",
+        "-crf", "20",
         "-c:a", "aac",
-        "-b:a", "192k",
+        "-b:a", "256k",
+        "-ar", "48000",
+        "-ac", "2",
         "-shortest",
         out_mp4
     ]
     subprocess.run(cmd_mp4, check=True)
     print(f"[Success] MP4 created: {os.path.getsize(out_mp4):,} bytes")
+
+    # Volume check
+    p = subprocess.run([ffmpeg_exe, "-i", out_mp4, "-af", "volumedetect", "-f", "null", "-"], stderr=subprocess.PIPE, text=True)
+    for line in p.stderr.splitlines():
+        if "mean_volume" in line or "max_volume" in line:
+            print("  Volume Check:", line)
 
     print("==================================================================")
     print("STEP 3: Generating WebM (VP9 + Opus)")
@@ -69,9 +79,11 @@ def main():
         ffmpeg_exe, "-y",
         "-i", raw_video,
         "-i", voiceover_mp3,
+        "-map", "0:v:0",
+        "-map", "1:a:0",
         "-c:v", "copy",
         "-c:a", "libopus",
-        "-b:a", "128k",
+        "-b:a", "160k",
         "-shortest",
         out_webm
     ]
@@ -84,7 +96,8 @@ def main():
     shutil.copyfile(out_mp4, os.path.join(frontend_public, "SupplyGraph_Hackathon_Demo_UserVoice.mp4"))
     shutil.copyfile(out_webm, os.path.join(frontend_public, "SupplyGraph_Hackathon_Demo_UserVoice.webm"))
     shutil.copyfile(out_mp4, os.path.join(frontend_public, "SupplyGraph_Hackathon_Demo_1080p_Voiceover.mp4"))
-    
+    shutil.copyfile(voiceover_mp3, os.path.join(frontend_public, "User_Master_Voiceover.mp3"))
+
     # Subtitles
     shutil.copyfile(
         os.path.join(root_dir, "supplygraph_demo_subtitles.vtt"),
@@ -101,13 +114,14 @@ def main():
         os.path.join(frontend_public, "demo.html")
     )
 
-    # Artifact directory
+    # Copy to artifact directory
     artifact_dir = r"C:\Users\DARAM  HEMANTH REDDY\.gemini\antigravity\brain\8e77a058-88dc-4f96-867e-2a14e12ca8ba"
     if os.path.exists(artifact_dir):
         print(f"[Artifact] Copying assets to {artifact_dir}...")
         try:
             shutil.copyfile(out_mp4, os.path.join(artifact_dir, "SupplyGraph_Hackathon_Demo_UserVoice.mp4"))
             shutil.copyfile(out_webm, os.path.join(artifact_dir, "SupplyGraph_Hackathon_Demo_UserVoice.webm"))
+            shutil.copyfile(voiceover_mp3, os.path.join(artifact_dir, "User_Master_Voiceover.mp3"))
             shutil.copyfile(os.path.join(root_dir, "supplygraph_demo_subtitles.vtt"), os.path.join(artifact_dir, "supplygraph_demo_subtitles.vtt"))
             shutil.copyfile(os.path.join(root_dir, "supplygraph_demo_subtitles.srt"), os.path.join(artifact_dir, "supplygraph_demo_subtitles.srt"))
         except Exception as e:
