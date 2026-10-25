@@ -122,17 +122,24 @@ async function injectVirtualCursor(page: Page) {
       cursor.style.transition = "transform 0.08s ease-out, background 0.1s ease";
       document.body.appendChild(cursor);
 
+      const cur = cursor;
       window.addEventListener("mousemove", (e) => {
-        cursor.style.left = `${e.clientX}px`;
-        cursor.style.top = `${e.clientY}px`;
+        if (cur) {
+          cur.style.left = `${e.clientX}px`;
+          cur.style.top = `${e.clientY}px`;
+        }
       });
       window.addEventListener("mousedown", () => {
-        cursor.style.transform = "translate(-50%, -50%) scale(0.75)";
-        cursor.style.background = "rgba(245, 158, 11, 0.95)";
+        if (cur) {
+          cur.style.transform = "translate(-50%, -50%) scale(0.75)";
+          cur.style.background = "rgba(245, 158, 11, 0.95)";
+        }
       });
       window.addEventListener("mouseup", () => {
-        cursor.style.transform = "translate(-50%, -50%) scale(1.0)";
-        cursor.style.background = "rgba(239, 68, 68, 0.75)";
+        if (cur) {
+          cur.style.transform = "translate(-50%, -50%) scale(1.0)";
+          cur.style.background = "rgba(239, 68, 68, 0.75)";
+        }
       });
     }
   });
@@ -397,7 +404,7 @@ async function runUserVoiceRecording() {
     console.log(`\n🎬 [Section 4/5] ${s4.title} (169.54s -> 232.18s)`);
 
     // Helper to open scenario dropdown and select option
-    async function selectScenarioOption(scenLabel: string) {
+    const selectScenarioOption = async (scenLabel: string) => {
       try {
         const scenDropdown = page.locator("button").filter({ hasText: /Scenario/i }).first();
         if (await scenDropdown.isVisible()) {
@@ -409,7 +416,7 @@ async function runUserVoiceRecording() {
           }
         }
       } catch (_) {}
-    }
+    };
 
     // Subtitle 18 [169.54s - 177.0s] - Five Preloaded Scenarios
     await updateSubtitleHUD(page, s4.section_tag, s4.section_num, s4.title, s4.subtitles[0].text);

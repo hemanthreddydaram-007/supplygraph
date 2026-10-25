@@ -148,6 +148,9 @@ interface AuthUser {
   name: string;
   email: string;
   role: string;
+  provider?: "google" | "github" | "gmail" | "judge";
+  avatarUrl?: string;
+  githubUsername?: string;
 }
 
 // ============================================================
@@ -445,6 +448,13 @@ export default function Dashboard() {
 
   // Restore or set default user session
   useEffect(() => {
+    if (typeof window !== "undefined" && (window.location.search.includes("login") || window.location.hash.includes("login"))) {
+      try { localStorage.removeItem("supplygraph_user"); } catch (_) {}
+      setCurrentUser(null);
+      setCurrentView("login");
+      return;
+    }
+
     try {
       const saved = localStorage.getItem("supplygraph_user");
       if (saved) {
@@ -1631,14 +1641,62 @@ export default function Dashboard() {
           )}
 
           {currentUser && (
-            <button
-              onClick={handleSignOut}
-              className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 rounded-lg transition-colors text-xs font-mono flex items-center space-x-1"
-              title="Sign Out"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Sign Out</span>
-            </button>
+            <div className="flex items-center space-x-2 pl-2 border-l border-zinc-800">
+              <div className="flex items-center space-x-2 bg-zinc-900/90 border border-zinc-800 rounded-full py-1 px-2.5 shadow-sm">
+                {currentUser.avatarUrl ? (
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt={currentUser.name}
+                    className="w-5 h-5 rounded-full object-cover border border-zinc-700 shrink-0"
+                  />
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-red-600 to-indigo-600 text-[10px] font-bold text-white flex items-center justify-center shrink-0">
+                    {currentUser.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="text-left hidden md:block">
+                  <div className="text-xs font-semibold text-zinc-200 leading-none">
+                    {currentUser.name}
+                  </div>
+                  <div className="text-[10px] text-zinc-400 font-mono leading-none mt-0.5">
+                    {currentUser.email}
+                  </div>
+                </div>
+                {currentUser.provider === "google" && (
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                    <span>Google</span>
+                  </span>
+                )}
+                {currentUser.provider === "github" && (
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                    <span>GitHub</span>
+                  </span>
+                )}
+                {currentUser.provider === "gmail" && (
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30 flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                    <span>Gmail</span>
+                  </span>
+                )}
+                {currentUser.provider === "judge" && (
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    <span>Judge</span>
+                  </span>
+                )}
+              </div>
+
+              <button
+                onClick={handleSignOut}
+                className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-zinc-900 rounded-lg transition-colors text-xs font-mono flex items-center space-x-1"
+                title="Sign Out to switch account"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </button>
+            </div>
           )}
         </div>
       </header>
