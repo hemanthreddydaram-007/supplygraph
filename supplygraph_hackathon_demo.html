@@ -486,36 +486,50 @@ SupplyGraph is an ASPM platform featuring multi-hop DAG attack reachability, AST
 
     <!-- Full Synchronized Transcript -->
     <div class="script-section" style="margin-top: 32px;">
-      <h3>🎙️ Complete Subtitled Presentation Transcript (Indian English)</h3>
-      <div class="script-content">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+        <h3>🎙️ 5-Minute Teleprompter Script (Simple & Easy Indian English)</h3>
+        <button class="btn btn-secondary" onclick="copySimpleScript()" style="font-size: 11px; padding: 4px 10px;">
+          📋 Copy Entire Script
+        </button>
+      </div>
+      <p style="font-size: 13px; color: #a5b4fc; margin-bottom: 16px;">
+        💡 <strong>Recording Tip</strong>: Read in a calm, confident, friendly Indian English accent (~125 words/min). Follow the screen cues in brackets.
+      </p>
+      <div class="script-content" id="simpleScriptBox">
         <p>
-          <span class="timestamp-badge">[0:00 - 0:48] 1. Problem Statement:</span><br>
-          "Welcome to SupplyGraph. In modern software engineering, software supply-chain attacks like Log4j, SolarWinds, and malicious npm lifecycle hooks have surged by over 600 percent. Traditional security tools like GitHub Dependabot, Snyk, or npm audit only perform flat, direct manifest lookups. This creates overwhelming alert fatigue—over 90 percent of reported CVEs are never actually reachable in application runtime code. Furthermore, when automated tools blindly bump package versions, they break production builds and critical backend APIs, while remaining completely blind to CI-CD runner exploits."
+          <span class="timestamp-badge">[0:00 - 0:50] 1. The Problem Statement:</span><br>
+          <em>[Screen Action: Start on Login page &rarr; Click 'Judge Fast Pass' &rarr; Show Dashboard alert counters]</em><br>
+          "Hello everyone, and respected judges! Today, almost every software company uses open-source code from npm, Python, and GitHub. But here is the big problem: hackers are now hiding dangerous viruses and malware inside these small software packages. Existing tools like GitHub Dependabot or Snyk only look at simple lists. They send hundreds of warning alerts every single day. But over ninety percent of these alerts are false alarms, because that vulnerable code is never actually used in your application! Even worse, when developers try to blindly upgrade packages to make the warnings go away, their entire project crashes and backend APIs stop working. We clearly need a smarter way."
         </p>
 
         <p>
-          <span class="timestamp-badge">[0:48 - 1:26] 2. Proposed Solution:</span><br>
-          "To solve these fundamental flaws, we engineered SupplyGraph: an enterprise Application Security Posture Management, or ASPM platform. SupplyGraph unifies static dependency trees, multi-hop reachability graph algorithms, AST-guided surgical code remediation, runtime container sandboxing, and immutable blockchain attestation. Instead of isolated alerts, SupplyGraph correlates dependencies across npm, PyPI, Go, and GitHub Actions into actionable, verifiable security posture."
+          <span class="timestamp-badge">[0:50 - 1:35] 2. Our Proposed Solution &mdash; SupplyGraph:</span><br>
+          <em>[Screen Action: Smoothly scroll down ASPM dashboard &rarr; Highlight multi-ecosystem support: npm, PyPI, Go, Actions]</em><br>
+          "To solve this real problem, we built <strong>SupplyGraph</strong>. SupplyGraph is a complete Application Security Posture Management platform. Instead of just reading flat lists, SupplyGraph looks at your actual application code and builds an interactive visual attack graph. It connects your code from the main entrance all the way down to nested third-party packages. SupplyGraph answers the single most important question: <strong>'Can an attacker actually reach this bug in your running application?'</strong> If yes, it provides a clean, line-by-line code fix without breaking your project, and tests dangerous packages inside a secure isolated sandbox."
         </p>
 
         <p>
-          <span class="timestamp-badge">[1:26 - 2:14] 3. Core Features:</span><br>
-          "SupplyGraph introduces four breakthrough capabilities: First, our deterministic NetworkX reverse-BFS engine constructs an interactive Attack DAG, proving actual multi-hop reachability from ingress endpoints to deep transitive packages. Second, it calculates a mathematical Blast Radius score, quantifying organizational exposure. Third, our Autonomous Executive AI translates complex graph topology into plain-English threat briefings and containment protocols. And fourth, it generates enterprise CycloneDX version 1.5 SBOMs with deterministic SHA-256 digests computed via client-side Web Crypto for compliance."
+          <span class="timestamp-badge">[1:35 - 2:25] 3. Four Core Features Explained Simply:</span><br>
+          <em>[Screen Action: Open Scenario A Attack Graph &rarr; Point to Blast Radius HUD 85/100 &rarr; Click Executive AI tab &rarr; Click CycloneDX SBOM]</em><br>
+          "Let us look at four key features of SupplyGraph: <strong>First is our Attack Graph.</strong> It maps every connection between your code and external libraries like a GPS navigation map. <strong>Second is the Blast Radius Score.</strong> It gives you a simple score from zero to hundred, showing exactly how dangerous a bug is to your entire system. <strong>Third is our Autonomous Executive AI.</strong> It translates complex hacker threats into plain, simple English so both managers and developers understand immediately. <strong>And fourth is the CycloneDX SBOM.</strong> It generates an official digital inventory certificate of all your software parts, verified with a tamper-proof SHA-256 digital fingerprint."
         </p>
 
         <p>
-          <span class="timestamp-badge">[2:14 - 2:56] 4. Demo Scenarios (Scenarios A through E):</span><br>
-          "SupplyGraph comes preloaded with five critical real-world attack scenarios: Scenario A demonstrates transitive Log4j remote code execution through multi-hop call paths. Scenario B exposes prototype pollution in core JavaScript utility functions. Scenario C catches arbitrary code execution from malicious PyTorch pickle deserialization. Scenario D identifies unpinned GitHub Actions runners vulnerable to CI-CD pipeline poisoning. And Scenario E simulates an npm postinstall script attempting malicious credential theft and command-and-control beaconing."
+          <span class="timestamp-badge">[2:25 - 3:10] 4. Five Real-World Attack Scenarios:</span><br>
+          <em>[Screen Action: Click through preset buttons: Scenario A &rarr; Scenario B &rarr; Scenario C &rarr; Scenario D &rarr; Scenario E]</em><br>
+          "SupplyGraph comes preloaded with five real-world attack scenarios you can test with one click: <strong>Scenario A</strong> shows the famous Log4j attack, tracing how hackers enter through an API and take over your server. <strong>Scenario B</strong> shows Prototype Pollution, where bad inputs corrupt JavaScript objects. <strong>Scenario C</strong> catches dangerous Python pickle files that execute hidden hacker commands. <strong>Scenario D</strong> identifies unpinned GitHub Actions workflows where hackers can poison your build pipeline. And <strong>Scenario E</strong> simulates a malicious npm install script that tries to steal secret passwords and cloud tokens."
         </p>
 
         <p>
-          <span class="timestamp-badge">[2:56 - 4:06] 5. Real Repository Deep Dive (knadh/listmonk) & Full Feature Tour:</span><br>
-          "Now let's examine a real-world open-source repository: listmonk by Kailash Nadh. When scanned with native GitHub Dependabot, zero pull requests are opened because Dependabot only examines top-level manifests. But SupplyGraph recursively indexes all thirty-five nested monorepo submodules and surfaces twenty-one critical findings—including sixteen OSV CVEs and six first-party repository security advisories with a Blast Radius of sixty out of one hundred. Clicking 'Fix with AI' generates an evidence-grounded, non-breaking remediation prompt specifically calibrated for AI coding agents like Antigravity, Cursor, and Copilot. In the AI Code Reviewer workspace, developers inspect surgical line-level unified git diffs rather than disruptive version bumps. And in our Universal Detonation Sandbox, untrusted lifecycle hooks are detonated inside isolated containers—instantly blocking outbound C2 network egress with exit code 137."
+          <span class="timestamp-badge">[3:10 - 4:25] 5. Real Project Deep Dive (knadh/listmonk):</span><br>
+          <em>[Screen Action: Enter knadh/listmonk &rarr; Click 'vs. Dependabot' &rarr; Click 'Fix with AI' &rarr; Open AI Code Reviewer &rarr; Open Detonation Sandbox]</em><br>
+          "Now, let us test a real-world open-source project: <strong>listmonk</strong> by Kailash Nadh. When we check this repository with native GitHub Dependabot, it shows zero pull requests because it completely misses nested folders. Now look at SupplyGraph: our scanner scans all thirty-five submodules and finds twenty-one real vulnerabilities, with an overall Blast Radius score of sixty out of hundred! Next, look at our <strong>Fix with AI</strong> button. With one click, it writes a clear, evidence-based prompt for AI assistants like Antigravity, Cursor, and Copilot, telling them how to fix the code without breaking versions. In our <strong>AI Code Reviewer</strong>, developers see exact green and red diff lines showing the surgical fix. And in our <strong>Detonation Sandbox</strong>, when an untrusted package tries to secretly connect to a hacker server, our sandbox kills the process instantly with exit code 137."
         </p>
 
         <p>
-          <span class="timestamp-badge">[4:06 - 4:32] 6. Blockchain Attestation & Conclusion:</span><br>
-          "Finally, every audit result is cryptographically anchored to the Polygon Amoy blockchain testnet, producing tamper-evident on-chain Merkle proofs for zero-trust compliance. With full subtitle accessibility, multi-hop attack reachability, surgical AI auto-patching, and runtime container sandboxing, SupplyGraph delivers complete, verifiable software supply-chain defense. Thank you for evaluating SupplyGraph!"
+          <span class="timestamp-badge">[4:25 - 5:00] 6. Blockchain Proof & Conclusion:</span><br>
+          <em>[Screen Action: Open Polygon Amoy modal &rarr; Show transaction hash &rarr; Show final live URL and QR code]</em><br>
+          "Finally, every security audit report is anchored on the <strong>Polygon Amoy blockchain</strong>. This creates a permanent, tamper-proof proof that nobody can fake or alter. To conclude: SupplyGraph stops alert fatigue, prevents broken builds, isolates dangerous code, and secures modern software from start to finish. You can try the live demo right now at <strong>supplygraph-five.vercel.app</strong>. Thank you so much!"
         </p>
       </div>
     </div>
@@ -534,6 +548,12 @@ SupplyGraph is an ASPM platform featuring multi-hop DAG attack reachability, AST
       const text = document.getElementById('formText').innerText;
       navigator.clipboard.writeText(text);
       alert('Copied submission text to clipboard!');
+    }
+
+    function copySimpleScript() {
+      const text = document.getElementById('simpleScriptBox').innerText;
+      navigator.clipboard.writeText(text);
+      alert('Copied 5-minute teleprompter script to clipboard!');
     }
   </script>
 </body>
