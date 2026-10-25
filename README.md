@@ -42,12 +42,19 @@ SupplyGraph is fully deployed and accessible in production without any local env
 
 ---
 
-## 💡 Executive Summary
+## 💡 Executive Summary & Problem Statement
 
-Modern web and cloud applications are built from hundreds of open-source packages and dependencies across **npm, Python (PyPI), Go, and GitHub Actions workflows**. While modular ecosystems accelerate development, managing their security has grown exponentially difficult due to deep, multi-tier transitive nesting.
+Modern web and cloud applications are built from hundreds of open-source packages and dependencies across **npm, Python (PyPI), Go, and GitHub Actions workflows**. While modular ecosystems accelerate development, managing their security has grown exponentially difficult due to deep, multi-tier transitive nesting and modern automated development workflows.
 
-### The Reachability Problem
-In large software projects, dependencies frequently nest several levels deep. Security teams are often faced with thousands of reported CVE alerts, but lack critical operational context:
+### ⚠️ The Problem Statement: AI-Generated Web Applications & Supply-Chain Blindspots
+Today, a rapidly growing number of students, builders, and developers build complete websites and applications using AI coding assistants. While generative AI significantly accelerates prototyping and feature delivery, AI-generated codebases frequently introduce critical security vulnerabilities and architectural errors:
+- **Vulnerable & Outdated Dependencies:** AI models often suggest packages with known CVEs, unpatched transitive dependencies, or outdated library versions without verifying upstream security status.
+- **Hallucinated & Typosquatted Packages:** Generative AI can hallucinate package names or suggest internal modules that leave projects vulnerable to typosquatting, package hijacking, and dependency confusion attacks.
+- **Silent Security Flaws:** AI-generated boilerplate code frequently includes insecure defaults, such as unsanitized input parsing, insecure deserialization (`pickle.loads`), prototype pollution, hardcoded tokens, or overly permissive CI/CD workflow configurations (`permissions: write-all`).
+- **Absence of Reachability Verification:** Developers often deploy AI-generated applications directly to production without knowing which imported packages are actually reachable and active in executable paths.
+
+### 🔍 The Reachability Problem
+In modern software projects, dependencies frequently nest several levels deep. Security teams and developers are often faced with thousands of reported CVE alerts, but lack critical operational context:
 - **Which vulnerabilities are active and reachable** through executable call paths from application entrypoints?
 - **Which findings are dormant** (e.g., dead code, uncalled utilities, development-only artifacts) that do not threaten production?
 - **How can issues be fixed safely** without breaking live backend APIs or forcing major version jumps?
