@@ -435,6 +435,7 @@ class FindingModel(BaseModel):
     impact: ImpactModel
     evidence: List[EvidenceItem] = Field(default_factory=list)
     recommendations: List[ContainmentRecommendation] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     status: str = "open"
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -674,6 +675,18 @@ class SandboxExecutionResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
+class DependabotBenchmark(BaseModel):
+    """Benchmark comparing SupplyGraph results against GitHub Dependabot and native security tab."""
+    dependabot_configured: bool = False
+    dependabot_file_path: Optional[str] = None
+    open_dependabot_prs: int = 0
+    first_party_ghsas_count: int = 0
+    first_party_ghsas: List[Dict[str, Any]] = Field(default_factory=list)
+    supplygraph_advantage_summary: str = ""
+    additional_findings_caught: int = 0
+    github_dependency_graph_enabled: bool = True
+
+
 class AnalysisResponse(BaseModel):
     """Complete analysis response including graph, findings, paths."""
     api_version: str = "v1"
@@ -691,6 +704,7 @@ class AnalysisResponse(BaseModel):
     demo_label: Optional[str] = None
     detector_breakdown: Optional[Dict[str, Any]] = None
     code_reviews: List[CodeReviewItem] = Field(default_factory=list)
+    dependabot_benchmark: Optional[DependabotBenchmark] = None
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
 

@@ -110,6 +110,28 @@ export interface CodeReviewItem {
   unified_diff?: string;
 }
 
+export interface FirstPartyGHSA {
+  ghsa_id: string;
+  cve_id?: string;
+  title: string;
+  summary?: string;
+  severity: string;
+  html_url?: string;
+}
+
+export interface DependabotBenchmark {
+  dependabot_configured: boolean;
+  has_dependabot_config?: boolean;
+  dependabot_file_path?: string | null;
+  open_dependabot_prs: number;
+  first_party_ghsas_count: number;
+  first_party_ghsas: FirstPartyGHSA[];
+  supplygraph_advantage_summary: string;
+  supplygraph_advantage?: string;
+  additional_findings_caught: number;
+  github_dependency_graph_enabled?: boolean;
+}
+
 export interface AnalysisResponse {
   api_version: string;
   scan: any;
@@ -121,10 +143,12 @@ export interface AnalysisResponse {
   sbom?: SBOM;
   components?: SBOMComponent[];
   is_demo?: boolean;
+  demo_label?: string;
   gemini_explanation?: string;
   gemini_available?: boolean;
   detector_breakdown?: DetectorBreakdown;
   code_reviews?: CodeReviewItem[];
+  dependabot_benchmark?: DependabotBenchmark;
 }
 
 export interface SandboxExecutionRequest {

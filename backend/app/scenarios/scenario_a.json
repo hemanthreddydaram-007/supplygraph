@@ -385,5 +385,6 @@
     "edge_count": 3,
     "attack_path_count": 1
   },
-  "api_version": "v1"
+  "api_version": "v1",
+  "gemini_explanation": "SupplyGraph analyzed supply-chain-demo-a across 4 scanned components and identified 1 Critical transitive prototype pollution vulnerability (GHSA-8cvw-5q49-ppzz / CVE-2019-10746) in mixin-deep@1.3.1, introduced 2 hops away via lodash@4.17.20. Calculated Blast Radius: 85.0/100. Containment Recommendation: Add an explicit package.json overrides constraint (\"mixin-deep\": \">=2.0.1\") or update lodash to patch transitive prototype pollution without breaking top-level API contracts."
 }

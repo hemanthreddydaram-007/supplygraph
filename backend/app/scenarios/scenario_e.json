@@ -243,5 +243,5 @@
     "attack_path_count": 0
   },
   "api_version": "v1",
-  "gemini_explanation": "SupplyGraph's CI/CD analyzer identified a severely misconfigured GitHub Actions workflow (`build.yml`). \n\nThe workflow requests global `write-all` permissions, and actively downloads an untrusted script from a suspicious external repository using `curl | bash`. An attacker could replace the script to inject a backdoor into the resulting build artifact."
+  "gemini_explanation": "SupplyGraph analyzed supply-chain-demo-e across 1 repository asset and identified 2 High-severity CI/CD supply-chain vulnerabilities in .github/workflows/build.yml: overly permissive GITHUB_TOKEN (permissions: write-all) and untrusted script execution via curl | bash. Calculated Blast Radius: 70.0/100. Containment Recommendation: Restrict workflow permissions to least-privilege (contents: read), pin third-party GitHub Actions to 40-character commit SHAs, and verify cryptographic checksums before running external setup scripts."
 }

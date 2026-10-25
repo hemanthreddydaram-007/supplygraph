@@ -690,6 +690,11 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
                       <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
                         📄 {item.file_path} : L{item.line_number}
                       </span>
+                      {item.id.startsWith("adhoc-") && (
+                        <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                          ⚡ LIVE AD-HOC SCAN
+                        </span>
+                      )}
                       <span
                         className={cn(
                           "px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider border",

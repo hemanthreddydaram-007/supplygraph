@@ -2,7 +2,8 @@
 # Batch querying with persistent cache and SemVer-aware fixed version resolution
 from app.models.core import VulnerabilityModel, PURL, Severity
 from app.core.config import get_settings
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
+import asyncio
 import httpx
 import json
 import os
@@ -140,7 +141,8 @@ class OSVClient:
             return results
 
         CHUNK_SIZE = 150
-        async with httpx.AsyncClient() as client:
+        sem = asyncio.Semaphore(12)
+        async with httpx.AsyncClient(timeout=15.0) as client:
             for chunk_start in range(0, len(components), CHUNK_SIZE):
                 chunk_components = components[chunk_start:chunk_start + CHUNK_SIZE]
                 queries = []
@@ -168,25 +170,44 @@ class OSVClient:
                 }
 
                 try:
-                    response = await client.post(self.batch_url, json=payload, timeout=30.0)
+                    response = await client.post(self.batch_url, json=payload, timeout=15.0)
                     response.raise_for_status()
                     data = response.json()
 
                     batch_results = data.get("results", [])
+
+                    # 1. Collect all unique vuln_ids to fetch concurrently
+                    vuln_id_requests = {}
+                    for res_item in batch_results:
+                        for v in res_item.get("vulns", []):
+                            vid = v.get("id")
+                            if vid and vid not in vuln_id_requests:
+                                vuln_id_requests[vid] = v.get("modified")
+
+                    # 2. Concurrently fetch all unique vulnerability details with semaphore limit
+                    fetch_tasks = [
+                        self._fetch_vuln_detail(client, vid, mod, sem)
+                        for vid, mod in vuln_id_requests.items()
+                    ]
+                    fetch_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+                    vuln_cache_map = {}
+                    for fres in fetch_results:
+                        if isinstance(fres, tuple) and fres[1] is not None:
+                            vuln_cache_map[fres[0]] = fres[1]
+
+                    # 3. Assemble vulnerability models for each component
                     for i, result in enumerate(batch_results):
                         purl_str = chunk_components[i].canonical
                         vulns_data = result.get("vulns", [])
                         vuln_models = []
 
                         for v in vulns_data:
-                            vuln_id = v.get("id")
-                            modified = v.get("modified")
-                            if not vuln_id:
-                                continue
-
-                            full_vuln = await self._get_cached_or_fetch(client, vuln_id, modified)
-                            if full_vuln:
-                                vuln_models.append(self._parse_vuln(full_vuln))
+                            vid = v.get("id")
+                            if vid and vid in vuln_cache_map:
+                                try:
+                                    vuln_models.append(self._parse_vuln(vuln_cache_map[vid]))
+                                except Exception:
+                                    pass
 
                         if vuln_models:
                             if purl_str not in results:
@@ -198,31 +219,41 @@ class OSVClient:
 
         return results
 
-    async def _get_cached_or_fetch(self, client: httpx.AsyncClient, vuln_id: str, modified: Optional[str]) -> Optional[Dict[str, Any]]:
+    async def _fetch_vuln_detail(
+        self, client: httpx.AsyncClient, vuln_id: str, modified: Optional[str], sem: asyncio.Semaphore
+    ) -> Tuple[str, Optional[Dict[str, Any]]]:
         cache_path = self.cache_dir / f"{vuln_id}.json"
-        
+
         if cache_path.exists():
             try:
                 async with aiofiles.open(cache_path, "r") as f:
                     content = await f.read()
                     cached_data = json.loads(content)
                     if not modified or cached_data.get("modified") == modified:
-                        return cached_data
+                        return vuln_id, cached_data
             except (json.JSONDecodeError, OSError):
                 pass
-                
-        try:
-            url = self.vuln_url.format(vuln_id)
-            response = await client.get(url, timeout=15.0)
-            response.raise_for_status()
-            full_vuln = response.json()
-            
-            async with aiofiles.open(cache_path, "w") as f:
-                await f.write(json.dumps(full_vuln))
-                
-            return full_vuln
-        except Exception:
-            return None
+
+        async with sem:
+            try:
+                url = self.vuln_url.format(vuln_id)
+                response = await client.get(url, timeout=4.0)
+                if response.status_code == 200:
+                    full_vuln = response.json()
+                    try:
+                        async with aiofiles.open(cache_path, "w") as f:
+                            await f.write(json.dumps(full_vuln))
+                    except Exception:
+                        pass
+                    return vuln_id, full_vuln
+            except Exception:
+                pass
+        return vuln_id, None
+
+    async def _get_cached_or_fetch(self, client: httpx.AsyncClient, vuln_id: str, modified: Optional[str]) -> Optional[Dict[str, Any]]:
+        sem = asyncio.Semaphore(1)
+        _, res = await self._fetch_vuln_detail(client, vuln_id, modified, sem)
+        return res
             
     def _extract_severity(self, data: Dict[str, Any]) -> tuple[Severity, Optional[float], Optional[str]]:
         """

@@ -4,7 +4,7 @@ from github import Github, Auth
 from github.GithubException import GithubException
 from app.models.core import RepositoryModel
 from app.core.config import get_settings
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Any
 import re
 import time
 from urllib.parse import urlparse
@@ -220,16 +220,41 @@ class GitHubService:
                 return cached_files
 
         full_name = self._extract_repo_name(repo_url)
+        settings = get_settings()
+        headers = {"User-Agent": "SupplyGraph-Scanner/3.0"}
+        if settings.github_token:
+            headers["Authorization"] = f"Bearer {settings.github_token}"
+
+        # If requesting root, perform high-speed recursive discovery for monorepos (e.g. knadh/koanf)
+        if path == "":
+            branches_to_try = [ref] if ref else ["main", "master", "HEAD"]
+            # 1. Direct Git Trees API via httpx (handles unauthenticated & authenticated with zero PyGithub overhead)
+            import httpx
+            for b in branches_to_try:
+                try:
+                    tree_url = f"https://api.github.com/repos/{full_name}/git/trees/{b}?recursive=1"
+                    with httpx.Client(timeout=6.0, headers=headers) as client:
+                        resp = client.get(tree_url)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            tree_items = data.get("tree", [])
+                            if tree_items:
+                                file_paths = [item["path"] for item in tree_items if item.get("type") == "blob"]
+                                if file_paths:
+                                    _LIST_CACHE[cache_key] = (now, file_paths)
+                                    return file_paths
+                except Exception:
+                    pass
+
         try:
             repo = self.github.get_repo(full_name)
             kwargs = {}
             if ref:
                 kwargs['ref'] = ref
 
-            # If requesting root, attempt recursive discovery for monorepos
+            # 2. PyGithub get_git_tree fallback
             if path == "":
                 branch = ref or repo.default_branch or "main"
-                # 1. Attempt GitHub Git Trees API (recursive=True)
                 try:
                     tree = repo.get_git_tree(sha=branch, recursive=True)
                     if tree and tree.tree:
@@ -240,22 +265,10 @@ class GitHubService:
                 except Exception:
                     pass
 
-                # If tree with requested branch failed and ref was specified, try repo.default_branch
-                if ref and repo.default_branch and ref != repo.default_branch:
-                    try:
-                        tree = repo.get_git_tree(sha=repo.default_branch, recursive=True)
-                        if tree and tree.tree:
-                            tree_files = [item.path for item in tree.tree if item.type == "blob"]
-                            if tree_files:
-                                _LIST_CACHE[cache_key] = (now, tree_files)
-                                return tree_files
-                    except Exception:
-                        pass
-
-                # 2. Fallback: inspect root and common monorepo subdirectories
+                # Fallback: inspect root and common monorepo subdirectories
                 common_dirs = [
                     "", "frontend", "backend", "client", "server",
-                    "web", "api", "app", ".github/workflows"
+                    "web", "api", "app", "providers", "parsers", "modules", ".github/workflows"
                 ]
                 discovered_files: List[str] = []
                 for d in common_dirs:
@@ -267,16 +280,6 @@ class GitHubService:
                             if c.type == "file" and c.path not in discovered_files:
                                 discovered_files.append(c.path)
                     except Exception:
-                        if ref:
-                            try:
-                                contents = repo.get_contents(d)
-                                if not isinstance(contents, list):
-                                    contents = [contents]
-                                for c in contents:
-                                    if c.type == "file" and c.path not in discovered_files:
-                                        discovered_files.append(c.path)
-                            except Exception:
-                                pass
                         continue
                 if discovered_files:
                     _LIST_CACHE[cache_key] = (now, discovered_files)
@@ -296,3 +299,54 @@ class GitHubService:
             raise ValueError(self._format_github_error(full_name, e))
         except Exception:
             return []
+
+    def get_repo_security_advisories(self, repo_url: str) -> List[Dict[str, Any]]:
+        """Fetch published first-party GitHub Security Advisories (GHSAs) for the target repository."""
+        full_name = self._extract_repo_name(repo_url)
+        settings = get_settings()
+        headers = {"User-Agent": "SupplyGraph-Scanner/3.0"}
+        if settings.github_token:
+            headers["Authorization"] = f"Bearer {settings.github_token}"
+
+        import httpx
+        url = f"https://api.github.com/repos/{full_name}/security-advisories"
+        try:
+            with httpx.Client(timeout=5.0, headers=headers) as client:
+                resp = client.get(url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, list):
+                        return data
+        except Exception:
+            pass
+        return []
+
+    def get_dependabot_info(self, repo_url: str, all_repo_files: List[str]) -> Dict[str, Any]:
+        """Inspect dependabot configuration and query open Dependabot PRs for benchmark comparison."""
+        full_name = self._extract_repo_name(repo_url)
+        settings = get_settings()
+        headers = {"User-Agent": "SupplyGraph-Scanner/3.0"}
+        if settings.github_token:
+            headers["Authorization"] = f"Bearer {settings.github_token}"
+
+        # 1. Check for dependabot configuration file
+        dep_files = [".github/dependabot.yml", ".github/dependabot.yaml", "dependabot.yml", "dependabot.yaml"]
+        found_config = next((f for f in all_repo_files if any(f.endswith(d) for d in dep_files)), None)
+
+        # 2. Query open Dependabot PR count
+        import httpx
+        open_prs_count = 0
+        search_url = f"https://api.github.com/search/issues?q=repo:{full_name}+is:pr+author:app/dependabot+is:open"
+        try:
+            with httpx.Client(timeout=4.0, headers=headers) as client:
+                resp = client.get(search_url)
+                if resp.status_code == 200:
+                    open_prs_count = resp.json().get("total_count", 0)
+        except Exception:
+            pass
+
+        return {
+            "configured": found_config is not None,
+            "file_path": found_config,
+            "open_prs": open_prs_count
+        }

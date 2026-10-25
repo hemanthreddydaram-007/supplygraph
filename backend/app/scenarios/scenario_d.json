@@ -645,5 +645,6 @@
     "edge_count": 8,
     "attack_path_count": 1
   },
-  "api_version": "v1"
+  "api_version": "v1",
+  "gemini_explanation": "SupplyGraph analyzed supply-chain-demo-d across 6 components and traced a multi-tier attack path propagating 4 levels deep from malicious-logger@1.0.0 through Package C -> Package B -> Package A -> Application -> Auth Gateway. Calculated Blast Radius: 92.0/100 with 1 Critical AST finding. Containment Recommendation: Isolate subshell execution with shell=False, enforce strict namespace pinning on all deep logging dependencies, and apply the generated SupplyGraph AST code fix."
 }

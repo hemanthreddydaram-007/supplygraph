@@ -240,5 +240,5 @@
     "attack_path_count": 0
   },
   "api_version": "v1",
-  "gemini_explanation": "SupplyGraph identified a compromised update in the supply chain. The package `data-parser` updated from v1.2.0 to v1.3.0, and our AST analyzer immediately detected an obfuscated `subprocess` call hidden inside the new release.\n\nThis strongly indicates a malicious actor hijacked the package and published a trojanized version. It is highly recommended to roll back to v1.2.0 and pin the version."
+  "gemini_explanation": "SupplyGraph analyzed supply-chain-demo-c across 2 scanned components and identified a High-severity compromised package update: data-parser updated from v1.2.0 to v1.3.0, and AST analysis detected an obfuscated subprocess execution vector. Calculated Blast Radius: 75.0/100. Containment Recommendation: Pin package to known-good version data-parser==1.2.0, verify SHA-256 package hashes against the package index, and audit network egress for backdoored builds."
 }

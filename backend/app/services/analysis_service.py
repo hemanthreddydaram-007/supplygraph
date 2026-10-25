@@ -11,7 +11,8 @@ from typing import List, Dict, Any, Set, Optional, Tuple
 from app.models.core import (
     AnalysisRequest, AnalysisResponse, ScanMetadata, ScanStatus,
     FindingModel, FindingType, Severity, EvidenceItem, EvidenceClassification,
-    EvidenceSource, PURL, AssetModel, RepositoryModel, FolderAnalysisRequest, CodeReviewItem
+    EvidenceSource, PURL, AssetModel, RepositoryModel, FolderAnalysisRequest, CodeReviewItem,
+    DependabotBenchmark
 )
 from app.engines.confidence import compute_confidence, ConfidenceFactor, compute_blast_radius
 from app.services.github_service import GitHubService
@@ -160,13 +161,17 @@ class AnalysisService:
         scan_metadata.lockfile_types = filtered_lockfiles
 
         raw_components = []
+        # Concurrent fetching of discovered manifests (supports multi-module monorepos like knadh/koanf)
         lockfile_contents = await self._fetch_files_concurrently(
-            request.github_url, filtered_lockfiles, request.branch, max_concurrency=8, timeout=4.0
+            request.github_url, filtered_lockfiles[:35], request.branch, max_concurrency=15, timeout=8.0
         )
         for lockfile, content in lockfile_contents.items():
             if content:
                 try:
                     components = self.lockfile_parser.parse_lockfile(content, lockfile)
+                    submodule = lockfile.rsplit("/", 1)[0] if "/" in lockfile else ""
+                    for c in components:
+                        c.declared_in = lockfile
                     raw_components.extend(components)
                 except Exception as pe:
                     logger.warning(f"Error parsing lockfile {lockfile}: {pe}")
@@ -544,6 +549,114 @@ class AnalysisService:
         except Exception as cre:
             logger.warning(f"Code reviewer failed in run_analysis: {cre}")
 
+        # --- STEP 13.6: First-Party Repository GHSAs & Dependabot Benchmark ---
+        first_party_ghsas_raw = []
+        dependabot_meta = {"configured": False, "file_path": None, "open_prs": 0}
+        try:
+            first_party_ghsas_raw = self.github_service.get_repo_security_advisories(request.github_url)
+            dependabot_meta = self.github_service.get_dependabot_info(request.github_url, all_repo_files)
+        except Exception as d_err:
+            logger.warning(f"Failed to fetch dependabot info or first party GHSAs: {d_err}")
+
+        repo_ghsa_findings: List[FindingModel] = []
+        for adv in first_party_ghsas_raw:
+            ghsa_id = adv.get("ghsa_id") or adv.get("id") or "GHSA-UNKNOWN"
+            cve_id = adv.get("cve_id")
+            summary = adv.get("summary") or "First-party repository security advisory"
+            desc = adv.get("description") or summary
+            sev_raw = (adv.get("severity") or "HIGH").upper()
+            sev_map = {
+                "CRITICAL": Severity.CRITICAL,
+                "HIGH": Severity.HIGH,
+                "MODERATE": Severity.MEDIUM,
+                "MEDIUM": Severity.MEDIUM,
+                "LOW": Severity.LOW,
+            }
+            severity = sev_map.get(sev_raw, Severity.HIGH)
+
+            patched_versions = []
+            for v in adv.get("vulnerabilities", []):
+                pv = v.get("patched_versions")
+                if pv:
+                    patched_versions.append(pv)
+
+            f_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"ghsa-{ghsa_id}"))
+            finding = FindingModel(
+                id=f_id,
+                scan_id=scan_id,
+                finding_type=FindingType.VULNERABLE,
+                severity=severity,
+                entity_type="Repository",
+                entity_id=None,
+                confidence=compute_confidence([
+                    ConfidenceFactor(evidence_type="GITHUB_SECURITY_ADVISORY", source="github", raw_weight=1.0, reliability=1.0)
+                ]),
+                impact=compute_blast_radius(package_count=1, service_count=1, api_count=1, production_deployment_count=0),
+                evidence=[
+                    EvidenceItem(
+                        source=EvidenceSource.GITHUB,
+                        evidence_type="SECURITY_ADVISORY",
+                        classification=EvidenceClassification.FACT,
+                        description=f"Published GitHub Security Advisory {ghsa_id}: {summary}"
+                    )
+                ],
+                title=f"[{ghsa_id}] {summary}",
+                description=desc,
+                package_name=repo_repo,
+                installed_version="Repository Level",
+                fixed_versions=patched_versions if patched_versions else None,
+                cve_id=cve_id,
+                remediation_advice=f"Upgrade {repo_repo} to patched release: {', '.join(patched_versions) if patched_versions else 'Latest release'}",
+                metadata={
+                    "is_first_party_ghsa": True,
+                    "badge": "REPO GHSA",
+                    "ghsa_id": ghsa_id,
+                    "cve_id": cve_id,
+                    "html_url": adv.get("html_url", f"https://github.com/{repo_name}/security/advisories/{ghsa_id}"),
+                    "cvss_score": adv.get("cvss", {}).get("score") if isinstance(adv.get("cvss"), dict) else None,
+                }
+            )
+            repo_ghsa_findings.append(finding)
+
+        if repo_ghsa_findings:
+            findings.extend(repo_ghsa_findings)
+            scan_metadata.total_findings += len(repo_ghsa_findings)
+
+        # Build Dependabot Benchmark
+        dep_configured = dependabot_meta.get("configured", False)
+        open_prs = dependabot_meta.get("open_prs", 0)
+        ghsa_count = len(repo_ghsa_findings)
+
+        adv_points = []
+        if not dep_configured:
+            adv_points.append("No dependabot.yml configured in repository")
+        if open_prs == 0:
+            adv_points.append(f"0 open Dependabot PRs vs. {len(findings)} SupplyGraph security findings")
+        else:
+            adv_points.append(f"{len(findings)} SupplyGraph findings vs. {open_prs} open Dependabot PR(s)")
+        if ghsa_count > 0:
+            adv_points.append(f"{ghsa_count} First-Party GHSAs indexed from /security")
+
+        dependabot_benchmark = DependabotBenchmark(
+            dependabot_configured=dep_configured,
+            dependabot_file_path=dependabot_meta.get("file_path"),
+            open_dependabot_prs=open_prs,
+            first_party_ghsas_count=ghsa_count,
+            first_party_ghsas=[
+                {
+                    "ghsa_id": f.metadata.get("ghsa_id"),
+                    "cve_id": f.metadata.get("cve_id"),
+                    "title": f.title,
+                    "severity": f.severity.value,
+                    "html_url": f.metadata.get("html_url")
+                }
+                for f in repo_ghsa_findings
+            ],
+            supplygraph_advantage_summary=" • ".join(adv_points),
+            additional_findings_caught=max(0, len(findings) - open_prs),
+            github_dependency_graph_enabled=len(deduped_components) > 0
+        )
+
         # --- STEP 14: AI Executive Briefing ---
         response_prelim = AnalysisResponse(
             scan=scan_metadata,
@@ -557,7 +670,8 @@ class AnalysisService:
             gemini_explanation="Generating...",
             gemini_available=self.gemini_service.gemini_available or self.gemini_service.bedrock_available,
             is_demo=False,
-            code_reviews=code_reviews
+            code_reviews=code_reviews,
+            dependabot_benchmark=dependabot_benchmark
         )
 
         try:
@@ -612,6 +726,7 @@ class AnalysisService:
             is_demo=False,
             detector_breakdown=detector_breakdown,
             code_reviews=code_reviews,
+            dependabot_benchmark=dependabot_benchmark,
         )
 
     async def run_folder_analysis(self, request: FolderAnalysisRequest) -> AnalysisResponse:
