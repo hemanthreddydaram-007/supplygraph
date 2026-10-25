@@ -187,9 +187,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-[#070b13] text-zinc-100 selection:bg-red-500/30 selection:text-red-200">
+    <div className="min-h-screen lg:h-screen lg:h-[100dvh] w-full flex flex-col lg:flex-row bg-[#070b13] text-zinc-100 selection:bg-red-500/30 selection:text-red-200 overflow-x-hidden lg:overflow-hidden">
       {/* LEFT PANEL: CYBER BRANDING & ARCHITECTURE TELEMETRY */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden border-r border-zinc-800/80 bg-gradient-to-br from-zinc-950 via-[#090e1a] to-[#0d1527]">
+      <div className="hidden lg:flex lg:w-1/2 lg:h-full flex-col justify-between p-8 xl:p-12 relative overflow-y-auto border-r border-zinc-800/80 bg-gradient-to-br from-zinc-950 via-[#090e1a] to-[#0d1527]">
         {/* Ambient background glow */}
         <div className="absolute top-0 left-0 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -275,8 +275,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       </div>
 
       {/* RIGHT PANEL: AUTHENTICATION FORM & SOCIAL OAUTH */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative overflow-y-auto">
-        <div className="w-full max-w-md space-y-6">
+      <div className="w-full lg:w-1/2 lg:h-full overflow-y-auto p-4 sm:p-8 xl:p-12 flex flex-col items-center">
+        <div className="w-full max-w-md my-auto py-6 space-y-5">
           {/* Header */}
           <div className="text-center sm:text-left space-y-2">
             <div className="lg:hidden flex items-center justify-center sm:justify-start space-x-2 mb-4">
