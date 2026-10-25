@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SupplyGraph (v3.0 ASPM) — Official Hackathon Demo Video & Pitch Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070b13;
+      --card-bg: rgba(13, 21, 39, 0.7);
+      --border: rgba(39, 49, 78, 0.7);
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+      --red: #ef4444;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --text: #f4f4f5;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.5;
+    }
+
+    /* Ambient background lights */
+    .ambient-glow {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+      filter: blur(120px);
+      opacity: 0.15;
+    }
+    .glow-1 { top: -100px; left: -100px; background: var(--red); }
+    .glow-2 { bottom: -100px; right: -100px; background: var(--accent); }
+
+    .container {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 32px 24px;
+      position: relative;
+      z-index: 10;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--red), var(--accent));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3);
+      font-size: 20px;
+    }
+    .brand-title {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+    }
+
+    .header-links {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 4px 16px var(--accent-glow);
+    }
+    .btn-primary:hover { background: #4f46e5; transform: translateY(-1px); }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
+
+    /* Main Demo Layout */
+    .demo-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 28px;
+      margin-bottom: 40px;
+    }
+    @media (max-width: 1080px) {
+      .demo-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Video Player Box */
+    .player-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    }
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      background: #000;
+      aspect-ratio: 16 / 9;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    .player-meta {
+      padding: 20px 24px;
+      border-top: 1px solid var(--border);
+    }
+    .player-meta h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .player-meta p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Chapters & Sidebar */
+    .sidebar-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 20px;
+      backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .sidebar-title {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chapter-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 480px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .chapter-item {
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+      width: 100%;
+      color: inherit;
+    }
+    .chapter-item:hover, .chapter-item.active {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: rgba(99, 102, 241, 0.4);
+      transform: translateX(2px);
+    }
+    .chapter-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--emerald);
+      background: rgba(16, 185, 129, 0.15);
+      padding: 2px 6px;
+      border-radius: 6px;
+      shrink-0: 0;
+    }
+    .chapter-info h4 {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+    .chapter-info p {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Pitch Script Box */
+    .script-section {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      backdrop-filter: blur(20px);
+      margin-bottom: 40px;
+    }
+    .script-section h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #e0e7ff;
+    }
+    .script-content {
+      font-size: 14px;
+      line-height: 1.8;
+      color: #cbd5e1;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      font-family: system-ui, sans-serif;
+    }
+    .script-content p { margin-bottom: 14px; }
+    .script-content p:last-child { margin-bottom: 0; }
+    .timestamp-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    /* Submission Form Box */
+    .form-box {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(239, 68, 68, 0.05));
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 16px;
+      padding: 24px;
+      margin-top: 24px;
+    }
+    .copy-box {
+      position: relative;
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #a5f3fc;
+      margin-top: 10px;
+      white-space: pre-wrap;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 4px 10px;
+      background: var(--accent);
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .copy-btn:hover { background: #4f46e5; }
+  </style>
+</head>
+<body>
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">🛡️</div>
+        <div>
+          <div class="brand-title">
+            <span>SupplyGraph</span>
+            <span class="badge-pill">v3.0 ASPM</span>
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
+            Official Hackathon Prototype Demo • Target Event: YUKTHI 2026
+          </div>
+        </div>
+      </div>
+
+      <div class="header-links">
+        <a href="https://supplygraph-five.vercel.app/" target="_blank" class="btn btn-primary">
+          <span>🚀 Open Live App</span>
+        </a>
+        <a href="https://github.com/hemanthreddydaram-007/supplygraph" target="_blank" class="btn btn-secondary">
+          <span>🐙 GitHub Repo</span>
+        </a>
+        <a href="SupplyGraph_Hackathon_Demo_1080p.webm" download class="btn btn-secondary">
+          <span>📥 Download Video (1080p HD)</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Main Player Grid -->
+    <div class="demo-grid">
+      <!-- Left: Video Player -->
+      <div class="player-card">
+        <div class="video-wrap">
+          <video id="demoVideo" controls autoplay muted playsinline>
+            <source src="SupplyGraph_Hackathon_Demo_1080p.webm" type="video/webm">
+            Your browser does not support the video tag.
+          </video>
+        </div>
+        <div class="player-meta">
+          <h2>SupplyGraph (v3.0 ASPM) — Interactive Hackathon Video Walkthrough</h2>
+          <p>Full HD 1080p walkthrough showcasing end-to-end multi-hop attack graphs, autonomous AI briefings, surgical code diffs, and container sandbox interception.</p>
+        </div>
+      </div>
+
+      <!-- Right: Interactive Chapters -->
+      <div class="sidebar-card">
+        <div class="sidebar-title">
+          <span>⏱️ Click to Jump Chapter</span>
+        </div>
+        <div class="chapter-list">
+          <button class="chapter-item" onclick="seekVideo(0)">
+            <span class="chapter-time">0:00</span>
+            <div class="chapter-info">
+              <h4>Login & Evaluator Fast Pass</h4>
+              <p>1-Click judge access & ASPM telemetry</p>
+            </div>
+          </button>
+
+          <button class="chapter-item" onclick="seekVideo(12)">
+            <span class="chapter-time">0:12</span>
+            <div class="chapter-info">
+              <h4>ASPM Architecture Dashboard</h4>
+              <p>Exploit monitoring & scenario matrix</p>
+            </div>
+          </button>
+
+          <button class="chapter-item" onclick="seekVideo(25)">
+            <span class="chapter-time">0:25</span>
+            <div class="chapter-info">
+              <h4>Log4j Attack Graph (React Flow DAG)</h4>
+              <p>Multi-hop reachability to log4j-core:2.14.1</p>
+            </div>
+          </button>
+
+          <button class="chapter-item" onclick="seekVideo(48)">
+            <span class="chapter-time">0:48</span>
+            <div class="chapter-info">
+              <h4>Autonomous Executive AI Briefing</h4>
+              <p>Quantified Blast Radius (85/100) & advice</p>
+            </div>
+          </button>
+
+          <button class="chapter-item" onclick="seekVideo(62)">
+            <span class="chapter-time">1:02</span>
+            <div class="chapter-info">
+              <h4>Fix with AI Prompt Generator</h4>
+              <p>Evidence-grounded prompt for coding agents</p>
+            </div>
+          </button>
+
+          <button class="chapter-item" onclick="seekVideo(76)">
+            <span class="chapter-time">1:16</span>
+            <div class="chapter-info">
+              <h4>CycloneDX v1.5 SBOM Attestation</h4>
+              <p>Web Crypto deterministic SHA-256 hash</p>
+            </div>
+          </button>
+
+          <button class="chapter-item" onclick="seekVideo(88)">
+            <span class="chapter-time">1:28</span>
+            <div class="chapter-info">
+              <h4>AI Code Reviewer & Auto-Patcher</h4>
+              <p>Line-level surgical unified git diffs</p>
+            </div>
+          </button>
+
+          <button class="chapter-item" onclick="seekVideo(108)">
+            <span class="chapter-time">1:48</span>
+            <div class="chapter-info">
+              <h4>Dynamic Detonation Sandbox</h4>
+              <p>Zero-egress container intercepting C2 drops</p>
+            </div>
+          </button>
+
+          <button class="chapter-item" onclick="seekVideo(132)">
+            <span class="chapter-time">2:12</span>
+            <div class="chapter-info">
+              <h4>vs. GitHub Dependabot Benchmark</h4>
+              <p>35 nested submodules + 6 repo GHSAs</p>
+            </div>
+          </button>
+
+          <button class="chapter-item" onclick="seekVideo(148)">
+            <span class="chapter-time">2:28</span>
+            <div class="chapter-info">
+              <h4>Polygon Amoy Blockchain Anchor</h4>
+              <p>Immutable on-chain Merkle audit proof</p>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ready-to-Paste Hackathon Submission Form Text -->
+    <div class="form-box">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <h3 style="font-size: 16px; font-weight: 700; color: #fff;">
+          📋 Ready-to-Paste Form Text (< 500 Characters)
+        </h3>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--emerald);">
+          410 / 500 Characters
+        </span>
+      </div>
+      <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+        Paste this directly into the <strong>"Video demo of the project prototype"</strong> field:
+      </p>
+
+      <div class="copy-box" id="formText">Live Prototype: https://supplygraph-five.vercel.app/
+GitHub: https://github.com/hemanthreddydaram-007/supplygraph
+Video Demo: [UPLOAD SupplyGraph_Hackathon_Demo_1080p.webm TO GOOGLE DRIVE / YOUTUBE & PASTE LINK HERE]
+
+SupplyGraph is an Application Security Posture Management (ASPM) platform featuring multi-hop DAG attack reachability, AST-guided AI code remediation diffs, first-party GHSA auditing, CycloneDX v1.5 SBOM attestation, and zero-egress runtime detonation.</div>
+      <button class="copy-btn" onclick="copyFormText()">Copy Text</button>
+    </div>
+
+    <!-- Pitch Script -->
+    <div class="script-section" style="margin-top: 32px;">
+      <h3>🎤 Word-for-Word Hackathon Judge Presentation Script (2 Minutes)</h3>
+      <div class="script-content">
+        <p>
+          <span class="timestamp-badge">[0:00 - 0:20] The Problem:</span><br>
+          "Respected judges, software supply-chain attacks like Log4j and malicious npm lifecycle hooks have surged by over 600%. Existing scanners like Snyk and GitHub Dependabot only analyze flat, direct manifests—creating overwhelming false-positive alerts while completely missing multi-hop transitive call chains and CI/CD runner attacks."
+        </p>
+
+        <p>
+          <span class="timestamp-badge">[0:20 - 0:50] The Solution & Attack Graph DAG:</span><br>
+          "To solve this, we built <strong>SupplyGraph</strong>—a unified ASPM platform deployed live at <code>supplygraph-five.vercel.app</code>. In Scenario A, our NetworkX reverse-BFS engine maps the complete attack graph from application entrypoint <code>server.js</code> down to vulnerable <code>log4j-core:2.14.1</code>. Unlike flat scanners, SupplyGraph proves actual runtime reachability, computing a quantified mathematical Blast Radius score of 85.0/100 and generating an autonomous Executive AI Briefing."
+        </p>
+
+        <p>
+          <span class="timestamp-badge">[0:50 - 1:25] AI Code Reviewer & Auto-Patcher:</span><br>
+          "Rather than breaking dependencies with blunt version upgrades, our <strong>AI Code Reviewer</strong> generates surgical, line-level unified git diffs for Python, JS/TS, and YAML workflows. Furthermore, our <strong>Fix with AI</strong> prompt generator equips AI coding agents like Antigravity, Cursor, and Copilot with non-breaking constraints and 3-tier modification boundaries."
+        </p>
+
+        <p>
+          <span class="timestamp-badge">[1:25 - 2:00] Detonation Sandbox & Benchmark:</span><br>
+          "Finally, our <strong>Universal Detonation Sandbox</strong> detonates untrusted lifecycle hooks inside isolated gVisor containers, instantly intercepting unauthorized network egress, filesystem destruction, and credential probes with exit code 137. In head-to-head benchmarking against GitHub Dependabot, SupplyGraph indexes 35 nested monorepo submodules and surfaces 6 published repository GHSAs completely missed by native tools, with immutable attestation anchored on the Polygon Amoy blockchain. Thank you!"
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('demoVideo');
+    function seekVideo(seconds) {
+      if (video) {
+        video.currentTime = seconds;
+        video.play();
+      }
+    }
+
+    function copyFormText() {
+      const text = document.getElementById('formText').innerText;
+      navigator.clipboard.writeText(text);
+      alert('Copied submission text to clipboard!');
+    }
+  </script>
+</body>
+</html>
