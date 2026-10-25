@@ -213,9 +213,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
         {/* Center Graphic & Mission Statement */}
         <div className="relative z-10 my-auto py-8 space-y-6 max-w-lg">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Target Event: YUKTHI 2026 (Mohan Babu University)</span>
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-mono">
+            <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+            <span>Application Security Posture Management</span>
           </div>
 
           <h1 className="text-3xl font-extrabold tracking-tight text-zinc-100 sm:text-4xl leading-tight">
@@ -269,8 +269,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
         {/* Footer */}
         <div className="relative z-10 text-[11px] text-zinc-500 font-mono flex items-center justify-between">
-          <span>Target Event: YUKTHI 2026</span>
-          <span>Sponsors: AWS • Chai aur Code • Masterji • RTIH</span>
+          <span>SupplyGraph Zero-Trust Architecture</span>
+          <span>v3.0 Production Release</span>
         </div>
       </div>
 
@@ -581,6 +581,19 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               )}
             </button>
           </form>
+
+          {/* Authentication Feature Notice */}
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-200/90 text-xs flex items-start space-x-2.5">
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <span className="font-semibold text-amber-300 font-mono text-[11px] uppercase tracking-wide">
+                Notice: Authentication In Progress
+              </span>
+              <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                Full sign-up and sign-in features will be implemented. Please use the <strong>Judge Fast-Pass</strong> above for instant 1-click evaluation access.
+              </p>
+            </div>
+          </div>
 
           {/* Privacy Note */}
           <p className="text-[11px] text-zinc-500 text-center font-mono">
