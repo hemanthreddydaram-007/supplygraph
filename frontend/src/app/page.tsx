@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { fetchRepositoryAnalysis, fetchDemoAnalysis, fetchFolderAnalysis, compareScans } from "@/lib/api";
-import { AnalysisResponse, DetectorBreakdown, PolygonAttestation, SBOM, CodeReviewItem, ScanHistoryRecord, GraphNode } from "@/types";
+import { AnalysisResponse, DetectorBreakdown, SBOM, CodeReviewItem, ScanHistoryRecord, GraphNode } from "@/types";
 import {
   parseSemVer,
   compareSemVer,
@@ -249,9 +249,6 @@ export default function Dashboard() {
     timestamp: number;
   } | null>(null);
   const [showSbomModal, setShowSbomModal] = useState(false);
-  const [showPolygonModal, setShowPolygonModal] = useState(false);
-  const [polygonAttested, setPolygonAttested] = useState(false);
-  const [attestCopied, setAttestCopied] = useState(false);
   const [showFormulaTooltip, setShowFormulaTooltip] = useState(false);
   const [showAllFindings, setShowAllFindings] = useState(false);
   const [prodOnly, setProdOnly] = useState(false);
@@ -535,7 +532,6 @@ export default function Dashboard() {
     setError(null);
     setData(null);
     setActiveScenario(null);
-    setPolygonAttested(false);
     setFocusNodeId(null);
     setFocusTarget(null);
     setShowAllFindings(false);
@@ -560,7 +556,6 @@ export default function Dashboard() {
     setError(null);
     setData(null);
     setActiveScenario(scenarioId);
-    setPolygonAttested(false);
     setFocusNodeId(null);
     setFocusTarget(null);
     setShowAllFindings(false);
@@ -585,7 +580,6 @@ export default function Dashboard() {
     setError(null);
     setData(null);
     setActiveScenario(null);
-    setPolygonAttested(false);
     setFocusNodeId(null);
     setFocusTarget(null);
     setShowAllFindings(false);
@@ -783,7 +777,6 @@ export default function Dashboard() {
       report += `- CI/CD Workflows: ${bd.cicd_count || 0}\n`;
       report += `- Dependency Confusion: ${bd.confusion_count || 0}\n`;
       if (bd.sbom_sha256) report += `- SBOM SHA-256: ${bd.sbom_sha256}\n`;
-      if (bd.merkle_root) report += `- Merkle Root: ${bd.merkle_root}\n`;
       if (bd.model_provider) report += `- AI Provider: ${bd.model_provider}\n`;
     }
     report += `\n## AI Executive Briefing\n${data?.gemini_explanation || "N/A"}\n`;
@@ -1037,11 +1030,6 @@ export default function Dashboard() {
     a.click();
     URL.revokeObjectURL(url);
   }, [data, computedSbomSha]);
-
-  const handleAnchorPolygon = useCallback(() => {
-    setShowPolygonModal(true);
-    setPolygonAttested(true);
-  }, []);
 
   const handleGetStarted = useCallback(() => setCurrentView("scanner"), []);
   const handleSelectScenario = useCallback((id: ScenarioId) => executeScenario(id), [executeScenario]);
@@ -1535,8 +1523,6 @@ export default function Dashboard() {
   if (currentView === "login" || !currentUser) {
     return <LoginPage onLogin={handleLogin} />;
   }
-
-  const attestation = data?.detector_breakdown?.polygon_attestation;
 
   return (
     <ErrorBoundary fallbackTitle="SupplyGraph Session Recovered">
@@ -3209,77 +3195,6 @@ export default function Dashboard() {
             >
               <Download className="w-3.5 h-3.5" />
               <span>Download CycloneDX JSON</span>
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* ============================================================
-          POLYGON AMOY ATTESTATION MODAL
-      ============================================================ */}
-      <Modal
-        open={showPolygonModal}
-        onClose={() => setShowPolygonModal(false)}
-        title={
-          <div className="flex items-center space-x-2 text-purple-300">
-            <Shield className="w-4 h-4 text-purple-400" />
-            <span>Polygon Blockchain Attestation (Chain ID: 80002)</span>
-          </div>
-        }
-      >
-        <div className="space-y-4 text-xs font-mono">
-          <div className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-800/40 text-purple-200 leading-relaxed">
-            {attestation?.verification_note ||
-              "Attestation anchored to Polygon Amoy Testnet using cryptographic Merkle security proof."}
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2 text-[11px]">
-            <div className="flex items-center justify-between text-zinc-400">
-              <span>Network:</span>
-              <span className="text-purple-300 font-bold">{attestation?.network || "Polygon Amoy Testnet"}</span>
-            </div>
-            <div className="flex items-center justify-between text-zinc-400">
-              <span>Contract Address:</span>
-              <span className="text-zinc-200 text-[10px]">{attestation?.contract_address || "0xSupplyGraphRegistry..."}</span>
-            </div>
-            <div className="flex items-center justify-between text-zinc-400">
-              <span>Merkle Security Root:</span>
-              <span className="text-zinc-200 text-[10px] break-all">{attestation?.merkle_root || "0x..."}</span>
-            </div>
-            <div className="flex items-center justify-between text-zinc-400">
-              <span>Payload Hash:</span>
-              <span className="text-zinc-200 text-[10px] break-all">{attestation?.payload_hash || "0x..."}</span>
-            </div>
-            <div className="flex items-center justify-between text-zinc-400">
-              <span>Status:</span>
-              <span className="text-emerald-400 font-bold">VERIFIED ON-CHAIN (SIMULATED RELAYER)</span>
-            </div>
-          </div>
-
-          {attestation?.solidity_verification && (
-            <div>
-              <div className="text-zinc-400 text-[10px] uppercase tracking-wider mb-1">
-                Solidity Verification Interface:
-              </div>
-              <pre className="p-3 rounded-xl bg-black/80 border border-zinc-800 text-[10px] text-zinc-300 overflow-x-auto whitespace-pre-wrap break-all">
-                {attestation.solidity_verification}
-              </pre>
-            </div>
-          )}
-
-          <div className="flex items-center justify-end space-x-2 pt-2">
-            <button
-              onClick={() => {
-                if (attestation) {
-                  navigator.clipboard.writeText(JSON.stringify(attestation, null, 2));
-                  setAttestCopied(true);
-                  setTimeout(() => setAttestCopied(false), 2000);
-                }
-              }}
-              className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-md shadow-purple-600/20"
-            >
-              {attestCopied ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{attestCopied ? "Copied Proof JSON!" : "Copy Verification Proof"}</span>
             </button>
           </div>
         </div>

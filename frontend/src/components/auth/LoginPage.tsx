@@ -241,10 +241,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 backdrop-blur-sm">
               <div className="text-[11px] font-mono text-zinc-400 flex items-center space-x-1.5">
                 <Shield className="w-3.5 h-3.5 text-indigo-400" />
-                <span>On-Chain SBOM</span>
+                <span>Standard SBOM</span>
               </div>
-              <div className="text-sm font-semibold text-zinc-200 mt-1">Polygon Amoy Testnet</div>
-              <div className="text-[10px] text-zinc-500 font-mono mt-0.5">Immutable Merkle proofs</div>
+              <div className="text-sm font-semibold text-zinc-200 mt-1">CycloneDX v1.5 Export</div>
+              <div className="text-[10px] text-zinc-500 font-mono mt-0.5">SHA-256 integrity verification</div>
             </div>
 
             <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 backdrop-blur-sm">
@@ -269,7 +269,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
         {/* Footer */}
         <div className="relative z-10 text-[11px] text-zinc-500 font-mono flex items-center justify-between">
-          <span>Theme: Blockchain & Cybersecurity</span>
+          <span>Target Event: YUKTHI 2026</span>
           <span>Sponsors: AWS • Chai aur Code • Masterji • RTIH</span>
         </div>
       </div>

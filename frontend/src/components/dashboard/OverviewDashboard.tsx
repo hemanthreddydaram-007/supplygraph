@@ -2,6 +2,7 @@
 
 import React from "react";
 import {
+  Shield,
   ShieldAlert,
   ArrowRight,
   GitBranch,
@@ -48,7 +49,7 @@ export const OverviewDashboard = React.memo(function OverviewDashboard({ onGetSt
           <p className="text-base text-zinc-400 leading-relaxed max-w-2xl">
             Protect modern applications from deep transitive CVEs, behavioral backdoors, and source code vulnerabilities.
             Combines multi-ecosystem lockfile ingestion with deterministic Reverse DAG reachability,
-            blockchain SBOM anchoring on Polygon, and line-level AI code auto-patching.
+            cryptographic CycloneDX SBOM verification, and line-level AI code auto-patching.
           </p>
 
           <div className="flex flex-wrap items-center gap-4 pt-2">
@@ -62,7 +63,7 @@ export const OverviewDashboard = React.memo(function OverviewDashboard({ onGetSt
 
             <div className="flex items-center space-x-2 text-xs font-mono text-zinc-400 bg-zinc-900/60 border border-zinc-800 rounded-xl px-4 py-3">
               <span className="text-emerald-400 font-bold">100% Deterministic:</span>
-              <span>NetworkX DAG • OSV.dev • Polygon Amoy</span>
+              <span>NetworkX DAG • OSV.dev • AST Static Engine</span>
             </div>
           </div>
         </div>
@@ -78,7 +79,7 @@ export const OverviewDashboard = React.memo(function OverviewDashboard({ onGetSt
             How SupplyGraph Works
           </h2>
           <p className="text-xs sm:text-sm text-zinc-400">
-            From raw repository ingestion to cryptographic blockchain attestation in four automated stages.
+            From raw repository ingestion to surgical line-level remediation in four automated stages.
           </p>
         </div>
 
@@ -140,10 +141,10 @@ export const OverviewDashboard = React.memo(function OverviewDashboard({ onGetSt
               <span className="text-[10px] font-mono text-zinc-500">Remediation</span>
             </div>
             <h3 className="text-sm font-semibold text-zinc-200 group-hover:text-emerald-300 transition-colors">
-              Auto-Fixer & Polygon Attestation
+              Auto-Fixer & Surgical Code Reviewer
             </h3>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Generates copyable lockfile overrides, outputs line-level code diffs, and anchors cryptographic CycloneDX SBOM digests on the Polygon Amoy Testnet.
+              Generates copyable lockfile overrides, outputs line-level code diffs, and exports standardized CycloneDX SBOMs with deterministic SHA-256 integrity digests.
             </p>
           </div>
         </div>
@@ -211,11 +212,11 @@ export const OverviewDashboard = React.memo(function OverviewDashboard({ onGetSt
           {/* Feature 5 */}
           <div className="p-6 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 hover:border-zinc-700 transition-all space-y-3">
             <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
-              <Lock className="w-5 h-5" />
+              <Shield className="w-5 h-5" />
             </div>
-            <h3 className="text-base font-semibold text-zinc-100">Polygon Blockchain Attestation</h3>
+            <h3 className="text-base font-semibold text-zinc-100">CI/CD Pipeline & Runner Hardening</h3>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Anchors Merkle security roots (combining SBOM digest and blast radius) onto Polygon Amoy Testnet (Chain ID 80002) for immutable tamper-proof audit trails.
+              Audits GitHub Actions workflows to enforce immutable 40-character commit hashes, detects unpinned third-party actions, and enforces least-privilege runner permissions.
             </p>
           </div>
 
@@ -301,13 +302,13 @@ export const OverviewDashboard = React.memo(function OverviewDashboard({ onGetSt
               </tr>
               <tr>
                 <td className="py-3.5 px-4 font-medium text-zinc-200">
-                  Blockchain-Anchored CycloneDX SBOM (Polygon)
+                  CycloneDX v1.5 Standard SBOM (Deterministic SHA-256)
                 </td>
                 <td className="py-3.5 px-4 text-emerald-400 font-semibold bg-red-500/5">
-                  ✅ Immutable SHA-256 Merkle Proof
+                  ✅ Cryptographic SHA-256 Digest
                 </td>
                 <td className="py-3.5 px-4 text-zinc-500">❌ Mutable JSON files only</td>
-                <td className="py-3.5 px-4 text-zinc-500">❌ No blockchain verification</td>
+                <td className="py-3.5 px-4 text-zinc-500">❌ Basic manifest dump</td>
               </tr>
               <tr>
                 <td className="py-3.5 px-4 font-medium text-zinc-200">
