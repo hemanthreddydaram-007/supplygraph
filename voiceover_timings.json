@@ -1,0 +1,116 @@
+{
+  "total_duration": 238.95,
+  "scene_count": 11,
+  "scenes": [
+    {
+      "index": 1,
+      "id": "scene_01_fastpass",
+      "title": "Introduction & Evaluator Fast Pass",
+      "start_time": 0.0,
+      "audio_duration": 19.85,
+      "total_scene_duration": 20.45,
+      "text": "Welcome to SupplyGraph\u2014an advanced Application Security Posture Management, or ASPM platform, engineered to defend modern software supply chains. We are kicking off this walkthrough using our Evaluator Fast Pass, granting hackathon judges immediate, one-click access to an authenticated zero-trust security session.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio\\scene_01_fastpass.mp3"
+    },
+    {
+      "index": 2,
+      "id": "scene_02_dashboard",
+      "title": "ASPM Dashboard & Telemetry HUD",
+      "start_time": 20.45,
+      "audio_duration": 20.59,
+      "total_scene_duration": 21.19,
+      "text": "Here on the main ASPM dashboard, SupplyGraph continuously monitors security posture across multiple package managers, lockfiles, and CI-CD pipelines. Rather than presenting flat, disconnected vulnerability lists, our engine correlates direct and transitive dependencies into unified posture analytics and live exploit matrices.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio\\scene_02_dashboard.mp3"
+    },
+    {
+      "index": 3,
+      "id": "scene_03_attack_graph",
+      "title": "Multi-Hop Attack Graph (Log4j RCE DAG)",
+      "start_time": 41.64,
+      "audio_duration": 27.72,
+      "total_scene_duration": 28.32,
+      "text": "Now exploring Scenario A: a critical Log4j remote code execution chain. Powered by our deterministic NetworkX reverse-BFS engine, SupplyGraph builds an interactive attack DAG. Notice how it traces the multi-hop call path from public API entrypoints down to deeply nested log4j-core. It calculates a quantified Blast Radius of 85 out of 100, proving true runtime reachability.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio\\scene_03_attack_graph.mp3"
+    },
+    {
+      "index": 4,
+      "id": "scene_04_executive_ai",
+      "title": "Autonomous Executive AI Briefing",
+      "start_time": 69.96,
+      "audio_duration": 18.17,
+      "total_scene_duration": 18.77,
+      "text": "Switching to the Executive AI tab, SupplyGraph autonomously translates raw graph topology into an actionable security briefing. It delivers a plain-English exploit breakdown, verified call path proofs, and prioritized containment protocols, giving security leads immediate decision clarity.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio\\scene_04_executive_ai.mp3"
+    },
+    {
+      "index": 5,
+      "id": "scene_05_fix_prompt",
+      "title": "Fix with AI Master Remediation Generator",
+      "start_time": 88.73,
+      "audio_duration": 20.11,
+      "total_scene_duration": 20.71,
+      "text": "Our Fix with AI engine eliminates the biggest frustration in automated security: broken builds. Instead of blunt version bumps, it generates evidence-grounded remediation prompts tailored for AI coding agents like Antigravity, Cursor, and Copilot\u2014enforcing non-breaking version constraints and strict modification boundaries.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio\\scene_05_fix_prompt.mp3"
+    },
+    {
+      "index": 6,
+      "id": "scene_06_cyclonedx_sbom",
+      "title": "CycloneDX v1.5 SBOM & Deterministic Hash",
+      "start_time": 109.44,
+      "audio_duration": 21.94,
+      "total_scene_duration": 22.54,
+      "text": "SupplyGraph generates enterprise-grade CycloneDX version 1.5 Software Bill of Materials. Using client-side Web Crypto, it computes a deterministic SHA-256 cryptographic digest on the fly. This ensures every exported inventory has tamper-evident attestation, ready for regulatory compliance and audit trails.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio\\scene_06_cyclonedx_sbom.mp3"
+    },
+    {
+      "index": 7,
+      "id": "scene_07_code_reviewer",
+      "title": "AI Code Reviewer & Line-Level Unified Diffs",
+      "start_time": 131.98,
+      "audio_duration": 21.94,
+      "total_scene_duration": 22.54,
+      "text": "Navigating to the AI Code Reviewer workspace, SupplyGraph provides line-level surgical code patches. Here we inspect real AST vulnerability analyses for prototype pollution, insecure pickle deserialization, and cross-site scripting. Developers can toggle between Unified Git Diffs and Stacked Views to verify fixes before applying them.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio\\scene_07_code_reviewer.mp3"
+    },
+    {
+      "index": 8,
+      "id": "scene_08_adhoc_analyzer",
+      "title": "Ad-Hoc Live Code Analyzer",
+      "start_time": 154.52,
+      "audio_duration": 19.92,
+      "total_scene_duration": 20.52,
+      "text": "For uncommitted code or custom scripts, the Ad-Hoc Live Analyzer offers instant AST auditing. Pasting a command-execution snippet in Python, we trigger live review. Within seconds, SupplyGraph flags the insecure subprocess execution and generates a production-ready, sanitized replacement.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio\\scene_08_adhoc_analyzer.mp3"
+    },
+    {
+      "index": 9,
+      "id": "scene_09_detonation_sandbox",
+      "title": "Universal Detonation Sandbox",
+      "start_time": 175.04,
+      "audio_duration": 23.21,
+      "total_scene_duration": 23.81,
+      "text": "To neutralize untrusted packages before deployment, SupplyGraph features an ephemeral Detonation Sandbox. When an npm postinstall script attempts outbound command-and-control communication, our zero-egress sandbox intercepts the socket and halts the process with exit code 137. Testing a Python credential probe similarly blocks unauthorized token scraping.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio\\scene_09_detonation_sandbox.mp3"
+    },
+    {
+      "index": 10,
+      "id": "scene_10_dependabot_benchmark",
+      "title": "Head-to-Head Benchmark vs. GitHub Dependabot",
+      "start_time": 198.85,
+      "audio_duration": 20.16,
+      "total_scene_duration": 20.76,
+      "text": "In our live head-to-head benchmark across real-world open-source repositories like listmonk, SupplyGraph dramatically outperforms native tools. While Dependabot only parses top-level manifests, SupplyGraph indexes 35 nested submodules and detects 6 first-party repository security advisories that native scanners miss.",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio\\scene_10_dependabot_benchmark.mp3"
+    },
+    {
+      "index": 11,
+      "id": "scene_11_polygon_outro",
+      "title": "Polygon Amoy Cryptographic Anchor & Conclusion",
+      "start_time": 219.61,
+      "audio_duration": 19.34,
+      "total_scene_duration": 19.34,
+      "text": "Finally, every audit result can be cryptographically anchored to the Polygon Amoy blockchain, producing verifiable on-chain Merkle proofs. From multi-hop attack graphs to runtime container sandboxing, SupplyGraph delivers true end-to-end supply-chain defense. Thank you for evaluating SupplyGraph!",
+      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\Desktop\\supplygraph\\voiceover_audio\\scene_11_polygon_outro.mp3"
+    }
+  ]
+}

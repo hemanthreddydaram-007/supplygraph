@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SupplyGraph (v3.0 ASPM) — Official Hackathon Demo Video & Pitch Deck</title>
+  <title>SupplyGraph (v3.0 ASPM) — Official Hackathon Demo Video (1080p Full HD with English Voiceover)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #070b13;
-      --card-bg: rgba(13, 21, 39, 0.7);
-      --border: rgba(39, 49, 78, 0.7);
+      --card-bg: rgba(13, 21, 39, 0.75);
+      --border: rgba(39, 49, 78, 0.75);
       --accent: #6366f1;
-      --accent-glow: rgba(99, 102, 241, 0.25);
+      --accent-glow: rgba(99, 102, 241, 0.3);
       --red: #ef4444;
       --emerald: #10b981;
       --amber: #f59e0b;
@@ -39,14 +39,14 @@
       border-radius: 50%;
       pointer-events: none;
       z-index: 0;
-      filter: blur(120px);
-      opacity: 0.15;
+      filter: blur(140px);
+      opacity: 0.18;
     }
-    .glow-1 { top: -100px; left: -100px; background: var(--red); }
-    .glow-2 { bottom: -100px; right: -100px; background: var(--accent); }
+    .glow-1 { top: -120px; left: -100px; background: var(--red); }
+    .glow-2 { bottom: -120px; right: -100px; background: var(--accent); }
 
     .container {
-      max-width: 1360px;
+      max-width: 1400px;
       margin: 0 auto;
       padding: 32px 24px;
       position: relative;
@@ -67,26 +67,26 @@
     .brand {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
     }
     .brand-icon {
-      width: 44px;
-      height: 44px;
+      width: 46px;
+      height: 46px;
       border-radius: 12px;
       background: linear-gradient(135deg, var(--red), var(--accent));
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3);
-      font-size: 20px;
+      box-shadow: 0 4px 20px rgba(239, 68, 68, 0.35);
+      font-size: 22px;
     }
     .brand-title {
-      font-size: 20px;
+      font-size: 22px;
       font-weight: 800;
       letter-spacing: -0.02em;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
     .badge-pill {
       font-family: 'JetBrains Mono', monospace;
@@ -97,9 +97,19 @@
       border: 1px solid rgba(239, 68, 68, 0.35);
       color: #fca5a5;
     }
+    .badge-voice {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #6ee7b7;
+    }
 
     .header-links {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 12px;
     }
@@ -131,11 +141,11 @@
     /* Main Demo Layout */
     .demo-grid {
       display: grid;
-      grid-template-columns: 1fr 380px;
+      grid-template-columns: 1fr 420px;
       gap: 28px;
       margin-bottom: 40px;
     }
-    @media (max-width: 1080px) {
+    @media (max-width: 1120px) {
       .demo-grid { grid-template-columns: 1fr; }
     }
 
@@ -146,7 +156,7 @@
       border-radius: 20px;
       overflow: hidden;
       backdrop-filter: blur(20px);
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
     }
     .video-wrap {
       position: relative;
@@ -163,11 +173,16 @@
     .player-meta {
       padding: 20px 24px;
       border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
     }
     .player-meta h2 {
       font-size: 18px;
       font-weight: 700;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     .player-meta p {
       font-size: 13px;
@@ -183,10 +198,10 @@
       backdrop-filter: blur(20px);
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
     }
     .sidebar-title {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -194,18 +209,18 @@
       font-family: 'JetBrains Mono', monospace;
       display: flex;
       align-items: center;
-      gap: 6px;
+      justify-content: space-between;
     }
     .chapter-list {
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      max-height: 480px;
+      gap: 7px;
+      max-height: 520px;
       overflow-y: auto;
       padding-right: 4px;
     }
     .chapter-item {
-      padding: 10px 12px;
+      padding: 9px 12px;
       border-radius: 10px;
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.05);
@@ -220,8 +235,8 @@
     }
     .chapter-item:hover, .chapter-item.active {
       background: rgba(99, 102, 241, 0.15);
-      border-color: rgba(99, 102, 241, 0.4);
-      transform: translateX(2px);
+      border-color: rgba(99, 102, 241, 0.45);
+      transform: translateX(3px);
     }
     .chapter-time {
       font-family: 'JetBrains Mono', monospace;
@@ -231,7 +246,7 @@
       background: rgba(16, 185, 129, 0.15);
       padding: 2px 6px;
       border-radius: 6px;
-      shrink-0: 0;
+      flex-shrink: 0;
     }
     .chapter-info h4 {
       font-size: 12.5px;
@@ -263,13 +278,12 @@
       font-size: 14px;
       line-height: 1.8;
       color: #cbd5e1;
-      background: rgba(0, 0, 0, 0.4);
+      background: rgba(0, 0, 0, 0.45);
       padding: 20px;
       border-radius: 12px;
       border: 1px solid rgba(255, 255, 255, 0.05);
-      font-family: system-ui, sans-serif;
     }
-    .script-content p { margin-bottom: 14px; }
+    .script-content p { margin-bottom: 16px; }
     .script-content p:last-child { margin-bottom: 0; }
     .timestamp-badge {
       font-family: 'JetBrains Mono', monospace;
@@ -280,11 +294,11 @@
 
     /* Submission Form Box */
     .form-box {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(239, 68, 68, 0.05));
-      border: 1px solid rgba(99, 102, 241, 0.3);
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(239, 68, 68, 0.06));
+      border: 1px solid rgba(99, 102, 241, 0.35);
       border-radius: 16px;
       padding: 24px;
-      margin-top: 24px;
+      margin-top: 28px;
     }
     .copy-box {
       position: relative;
@@ -302,7 +316,7 @@
       position: absolute;
       top: 10px;
       right: 10px;
-      padding: 4px 10px;
+      padding: 5px 12px;
       background: var(--accent);
       border: none;
       border-radius: 6px;
@@ -327,9 +341,10 @@
           <div class="brand-title">
             <span>SupplyGraph</span>
             <span class="badge-pill">v3.0 ASPM</span>
+            <span class="badge-voice">🎙️ English Voiceover</span>
           </div>
           <div style="font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
-            Official Hackathon Prototype Demo • Target Event: YUKTHI 2026
+            Official Hackathon Demonstration Walkthrough (3:58) • YUKTHI 2026 Evaluation Suite
           </div>
         </div>
       </div>
@@ -341,8 +356,11 @@
         <a href="https://github.com/hemanthreddydaram-007/supplygraph" target="_blank" class="btn btn-secondary">
           <span>🐙 GitHub Repo</span>
         </a>
-        <a href="SupplyGraph_Hackathon_Demo_1080p.webm" download class="btn btn-secondary">
-          <span>📥 Download Video (1080p HD)</span>
+        <a href="SupplyGraph_Hackathon_Demo_1080p_Voiceover.mp4" download class="btn btn-secondary">
+          <span>📥 Download MP4 (1080p + Audio)</span>
+        </a>
+        <a href="SupplyGraph_Hackathon_Demo_1080p_Voiceover.webm" download class="btn btn-secondary">
+          <span>📥 Download WebM</span>
         </a>
       </div>
     </header>
@@ -352,100 +370,116 @@
       <!-- Left: Video Player -->
       <div class="player-card">
         <div class="video-wrap">
-          <video id="demoVideo" controls autoplay muted playsinline>
+          <video id="demoVideo" controls autoplay playsinline preload="metadata">
+            <source src="SupplyGraph_Hackathon_Demo_1080p_Voiceover.mp4" type="video/mp4">
+            <source src="SupplyGraph_Hackathon_Demo_1080p_Voiceover.webm" type="video/webm">
             <source src="SupplyGraph_Hackathon_Demo_1080p.webm" type="video/webm">
             Your browser does not support the video tag.
           </video>
         </div>
         <div class="player-meta">
-          <h2>SupplyGraph (v3.0 ASPM) — Interactive Hackathon Video Walkthrough</h2>
-          <p>Full HD 1080p walkthrough showcasing end-to-end multi-hop attack graphs, autonomous AI briefings, surgical code diffs, and container sandbox interception.</p>
+          <div>
+            <h2>SupplyGraph (v3.0 ASPM) — 1080p HD Demonstration with English Narration</h2>
+            <p>Paced, non-lagging walkthrough highlighting attack graph DAGs, autonomous executive briefings, AI diffs, and container sandboxing.</p>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--emerald);">
+            ● Duration: 3m 58s | Full HD 1080p
+          </div>
         </div>
       </div>
 
       <!-- Right: Interactive Chapters -->
       <div class="sidebar-card">
         <div class="sidebar-title">
-          <span>⏱️ Click to Jump Chapter</span>
+          <span>⏱️ Click Chapter to Jump</span>
+          <span style="font-size: 11px; color: var(--text-muted);">11 Stages</span>
         </div>
         <div class="chapter-list">
           <button class="chapter-item" onclick="seekVideo(0)">
             <span class="chapter-time">0:00</span>
             <div class="chapter-info">
-              <h4>Login & Evaluator Fast Pass</h4>
-              <p>1-Click judge access & ASPM telemetry</p>
+              <h4>1. Introduction & Evaluator Fast Pass</h4>
+              <p>1-Click judge access & zero-trust session</p>
             </div>
           </button>
 
-          <button class="chapter-item" onclick="seekVideo(12)">
-            <span class="chapter-time">0:12</span>
+          <button class="chapter-item" onclick="seekVideo(20)">
+            <span class="chapter-time">0:20</span>
             <div class="chapter-info">
-              <h4>ASPM Architecture Dashboard</h4>
-              <p>Exploit monitoring & scenario matrix</p>
+              <h4>2. ASPM Dashboard & Telemetry HUD</h4>
+              <p>Multi-ecosystem exploit surveillance</p>
             </div>
           </button>
 
-          <button class="chapter-item" onclick="seekVideo(25)">
-            <span class="chapter-time">0:25</span>
+          <button class="chapter-item" onclick="seekVideo(41)">
+            <span class="chapter-time">0:41</span>
             <div class="chapter-info">
-              <h4>Log4j Attack Graph (React Flow DAG)</h4>
-              <p>Multi-hop reachability to log4j-core:2.14.1</p>
+              <h4>3. Multi-Hop Attack Graph (Log4j DAG)</h4>
+              <p>Reverse-BFS reachability & Blast Radius 85/100</p>
             </div>
           </button>
 
-          <button class="chapter-item" onclick="seekVideo(48)">
-            <span class="chapter-time">0:48</span>
+          <button class="chapter-item" onclick="seekVideo(70)">
+            <span class="chapter-time">1:10</span>
             <div class="chapter-info">
-              <h4>Autonomous Executive AI Briefing</h4>
-              <p>Quantified Blast Radius (85/100) & advice</p>
-            </div>
-          </button>
-
-          <button class="chapter-item" onclick="seekVideo(62)">
-            <span class="chapter-time">1:02</span>
-            <div class="chapter-info">
-              <h4>Fix with AI Prompt Generator</h4>
-              <p>Evidence-grounded prompt for coding agents</p>
-            </div>
-          </button>
-
-          <button class="chapter-item" onclick="seekVideo(76)">
-            <span class="chapter-time">1:16</span>
-            <div class="chapter-info">
-              <h4>CycloneDX v1.5 SBOM Attestation</h4>
-              <p>Web Crypto deterministic SHA-256 hash</p>
+              <h4>4. Autonomous Executive AI Briefing</h4>
+              <p>Automated exploit breakdown & containment protocols</p>
             </div>
           </button>
 
           <button class="chapter-item" onclick="seekVideo(88)">
             <span class="chapter-time">1:28</span>
             <div class="chapter-info">
-              <h4>AI Code Reviewer & Auto-Patcher</h4>
-              <p>Line-level surgical unified git diffs</p>
+              <h4>5. Fix with AI Prompt Generator</h4>
+              <p>Evidence-grounded prompts for AI coding agents</p>
             </div>
           </button>
 
-          <button class="chapter-item" onclick="seekVideo(108)">
-            <span class="chapter-time">1:48</span>
+          <button class="chapter-item" onclick="seekVideo(109)">
+            <span class="chapter-time">1:49</span>
             <div class="chapter-info">
-              <h4>Dynamic Detonation Sandbox</h4>
-              <p>Zero-egress container intercepting C2 drops</p>
+              <h4>6. CycloneDX v1.5 SBOM Modal</h4>
+              <p>Web Crypto deterministic SHA-256 digest</p>
             </div>
           </button>
 
           <button class="chapter-item" onclick="seekVideo(132)">
             <span class="chapter-time">2:12</span>
             <div class="chapter-info">
-              <h4>vs. GitHub Dependabot Benchmark</h4>
-              <p>35 nested submodules + 6 repo GHSAs</p>
+              <h4>7. AI Code Reviewer & Auto-Patcher</h4>
+              <p>Line-level surgical unified git diffs</p>
             </div>
           </button>
 
-          <button class="chapter-item" onclick="seekVideo(148)">
-            <span class="chapter-time">2:28</span>
+          <button class="chapter-item" onclick="seekVideo(154)">
+            <span class="chapter-time">2:34</span>
             <div class="chapter-info">
-              <h4>Polygon Amoy Blockchain Anchor</h4>
-              <p>Immutable on-chain Merkle audit proof</p>
+              <h4>8. Ad-Hoc Live Code Analyzer</h4>
+              <p>Instant AST vulnerability check on custom code</p>
+            </div>
+          </button>
+
+          <button class="chapter-item" onclick="seekVideo(175)">
+            <span class="chapter-time">2:55</span>
+            <div class="chapter-info">
+              <h4>9. Universal Detonation Sandbox</h4>
+              <p>Zero-egress container halting C2 beaconing</p>
+            </div>
+          </button>
+
+          <button class="chapter-item" onclick="seekVideo(199)">
+            <span class="chapter-time">3:19</span>
+            <div class="chapter-info">
+              <h4>10. vs. Dependabot Benchmark</h4>
+              <p>35 nested submodules & 6 repo GHSAs</p>
+            </div>
+          </button>
+
+          <button class="chapter-item" onclick="seekVideo(220)">
+            <span class="chapter-time">3:40</span>
+            <div class="chapter-info">
+              <h4>11. Polygon Amoy Blockchain Anchor</h4>
+              <p>Cryptographic on-chain Merkle audit proof</p>
             </div>
           </button>
         </div>
@@ -467,35 +501,71 @@
       </p>
 
       <div class="copy-box" id="formText">Live Prototype: https://supplygraph-five.vercel.app/
+Demo Player: https://supplygraph-five.vercel.app/demo.html
 GitHub: https://github.com/hemanthreddydaram-007/supplygraph
-Video Demo: [UPLOAD SupplyGraph_Hackathon_Demo_1080p.webm TO GOOGLE DRIVE / YOUTUBE & PASTE LINK HERE]
+Direct Video: https://github.com/hemanthreddydaram-007/supplygraph/raw/main/frontend/public/SupplyGraph_Hackathon_Demo_1080p_Voiceover.mp4
 
-SupplyGraph is an Application Security Posture Management (ASPM) platform featuring multi-hop DAG attack reachability, AST-guided AI code remediation diffs, first-party GHSA auditing, CycloneDX v1.5 SBOM attestation, and zero-egress runtime detonation.</div>
+SupplyGraph is an ASPM platform featuring multi-hop DAG attack reachability, AST AI code diffs, GHSA auditing, and zero-egress sandboxing.</div>
       <button class="copy-btn" onclick="copyFormText()">Copy Text</button>
     </div>
 
-    <!-- Pitch Script -->
+    <!-- Narration Script Transcript -->
     <div class="script-section" style="margin-top: 32px;">
-      <h3>🎤 Word-for-Word Hackathon Judge Presentation Script (2 Minutes)</h3>
+      <h3>🎙️ Complete English Voiceover Narration Transcript (Synchronized)</h3>
       <div class="script-content">
         <p>
-          <span class="timestamp-badge">[0:00 - 0:20] The Problem:</span><br>
-          "Respected judges, software supply-chain attacks like Log4j and malicious npm lifecycle hooks have surged by over 600%. Existing scanners like Snyk and GitHub Dependabot only analyze flat, direct manifests—creating overwhelming false-positive alerts while completely missing multi-hop transitive call chains and CI/CD runner attacks."
+          <span class="timestamp-badge">[0:00 - 0:20] Scene 1: Introduction & Evaluator Fast Pass:</span><br>
+          "Welcome to SupplyGraph—an advanced Application Security Posture Management, or ASPM platform, engineered to defend modern software supply chains. We are kicking off this walkthrough using our Evaluator Fast Pass, granting hackathon judges immediate, one-click access to an authenticated zero-trust security session."
         </p>
 
         <p>
-          <span class="timestamp-badge">[0:20 - 0:50] The Solution & Attack Graph DAG:</span><br>
-          "To solve this, we built <strong>SupplyGraph</strong>—a unified ASPM platform deployed live at <code>supplygraph-five.vercel.app</code>. In Scenario A, our NetworkX reverse-BFS engine maps the complete attack graph from application entrypoint <code>server.js</code> down to vulnerable <code>log4j-core:2.14.1</code>. Unlike flat scanners, SupplyGraph proves actual runtime reachability, computing a quantified mathematical Blast Radius score of 85.0/100 and generating an autonomous Executive AI Briefing."
+          <span class="timestamp-badge">[0:20 - 0:41] Scene 2: ASPM Dashboard & Telemetry HUD:</span><br>
+          "Here on the main ASPM dashboard, SupplyGraph continuously monitors security posture across multiple package managers, lockfiles, and CI-CD pipelines. Rather than presenting flat, disconnected vulnerability lists, our engine correlates direct and transitive dependencies into unified posture analytics and live exploit matrices."
         </p>
 
         <p>
-          <span class="timestamp-badge">[0:50 - 1:25] AI Code Reviewer & Auto-Patcher:</span><br>
-          "Rather than breaking dependencies with blunt version upgrades, our <strong>AI Code Reviewer</strong> generates surgical, line-level unified git diffs for Python, JS/TS, and YAML workflows. Furthermore, our <strong>Fix with AI</strong> prompt generator equips AI coding agents like Antigravity, Cursor, and Copilot with non-breaking constraints and 3-tier modification boundaries."
+          <span class="timestamp-badge">[0:41 - 1:10] Scene 3: Multi-Hop Attack Graph (Log4j RCE DAG):</span><br>
+          "Now exploring Scenario A: a critical Log4j remote code execution chain. Powered by our deterministic NetworkX reverse-BFS engine, SupplyGraph builds an interactive attack DAG. Notice how it traces the multi-hop call path from public API entrypoints down to deeply nested log4j-core. It calculates a quantified Blast Radius of 85 out of 100, proving true runtime reachability."
         </p>
 
         <p>
-          <span class="timestamp-badge">[1:25 - 2:00] Detonation Sandbox & Benchmark:</span><br>
-          "Finally, our <strong>Universal Detonation Sandbox</strong> detonates untrusted lifecycle hooks inside isolated gVisor containers, instantly intercepting unauthorized network egress, filesystem destruction, and credential probes with exit code 137. In head-to-head benchmarking against GitHub Dependabot, SupplyGraph indexes 35 nested monorepo submodules and surfaces 6 published repository GHSAs completely missed by native tools, with immutable attestation anchored on the Polygon Amoy blockchain. Thank you!"
+          <span class="timestamp-badge">[1:10 - 1:28] Scene 4: Autonomous Executive AI Briefing:</span><br>
+          "Switching to the Executive AI tab, SupplyGraph autonomously translates raw graph topology into an actionable security briefing. It delivers a plain-English exploit breakdown, verified call path proofs, and prioritized containment protocols, giving security leads immediate decision clarity."
+        </p>
+
+        <p>
+          <span class="timestamp-badge">[1:28 - 1:49] Scene 5: Fix with AI Master Remediation Generator:</span><br>
+          "Our Fix with AI engine eliminates the biggest frustration in automated security: broken builds. Instead of blunt version bumps, it generates evidence-grounded remediation prompts tailored for AI coding agents like Antigravity, Cursor, and Copilot—enforcing non-breaking version constraints and strict modification boundaries."
+        </p>
+
+        <p>
+          <span class="timestamp-badge">[1:49 - 2:12] Scene 6: CycloneDX v1.5 SBOM & Deterministic Hash:</span><br>
+          "SupplyGraph generates enterprise-grade CycloneDX version 1.5 Software Bill of Materials. Using client-side Web Crypto, it computes a deterministic SHA-256 cryptographic digest on the fly. This ensures every exported inventory has tamper-evident attestation, ready for regulatory compliance and audit trails."
+        </p>
+
+        <p>
+          <span class="timestamp-badge">[2:12 - 2:34] Scene 7: AI Code Reviewer & Line-Level Unified Diffs:</span><br>
+          "Navigating to the AI Code Reviewer workspace, SupplyGraph provides line-level surgical code patches. Here we inspect real AST vulnerability analyses for prototype pollution, insecure pickle deserialization, and cross-site scripting. Developers can toggle between Unified Git Diffs and Stacked Views to verify fixes before applying them."
+        </p>
+
+        <p>
+          <span class="timestamp-badge">[2:34 - 2:55] Scene 8: Ad-Hoc Live Code Analyzer:</span><br>
+          "For uncommitted code or custom scripts, the Ad-Hoc Live Analyzer offers instant AST auditing. Pasting a command-execution snippet in Python, we trigger live review. Within seconds, SupplyGraph flags the insecure subprocess execution and generates a production-ready, sanitized replacement."
+        </p>
+
+        <p>
+          <span class="timestamp-badge">[2:55 - 3:19] Scene 9: Universal Detonation Sandbox:</span><br>
+          "To neutralize untrusted packages before deployment, SupplyGraph features an ephemeral Detonation Sandbox. When an npm postinstall script attempts outbound command-and-control communication, our zero-egress sandbox intercepts the socket and halts the process with exit code 137. Testing a Python credential probe similarly blocks unauthorized token scraping."
+        </p>
+
+        <p>
+          <span class="timestamp-badge">[3:19 - 3:40] Scene 10: Head-to-Head Benchmark vs. GitHub Dependabot:</span><br>
+          "In our live head-to-head benchmark across real-world open-source repositories like listmonk, SupplyGraph dramatically outperforms native tools. While Dependabot only parses top-level manifests, SupplyGraph indexes 35 nested submodules and detects 6 first-party repository security advisories that native scanners miss."
+        </p>
+
+        <p>
+          <span class="timestamp-badge">[3:40 - 3:58] Scene 11: Polygon Amoy Cryptographic Anchor & Conclusion:</span><br>
+          "Finally, every audit result can be cryptographically anchored to the Polygon Amoy blockchain, producing verifiable on-chain Merkle proofs. From multi-hop attack graphs to runtime container sandboxing, SupplyGraph delivers true end-to-end supply-chain defense. Thank you for evaluating SupplyGraph!"
         </p>
       </div>
     </div>
