@@ -150,6 +150,7 @@ temp/
 .env
 backend/.env
 
+# Temporary scripts & test artifacts
 *.pptx
 check_*.py
 fix_*.py
@@ -160,3 +161,28 @@ remove_watermark.py
 scratch/
 backend/debug_*.py
 backend/test_*.py
+
+# Video, Audio & Subtitles (Exempt from GitHub code files)
+*.mp4
+*.webm
+*.mp3
+*.wav
+*.srt
+*.vtt
+*.jsonl
+videos/
+frontend/videos/
+verification_frames/
+frontend/verification_frames/
+record_*.ts
+frontend/record_*.ts
+mux_*.py
+snap.js
+frontend/snap.js
+frontend/selectors_test.js
+four_part_voiceover_timings.json
+frontend/public/*.mp4
+frontend/public/*.webm
+frontend/public/*.mp3
+frontend/public/*.srt
+frontend/public/*.vtt

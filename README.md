@@ -6,7 +6,7 @@
 
 *Stop software supply-chain threats before production deployment with deterministic reachability analysis, AST code review, and isolated sandbox detonation.*
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-supplygraph--five.vercel.app-6366f1?style=for-the-badge&logo=vercel)](https://supplygraph-five.vercel.app)
+[![Live Platform](https://img.shields.io/badge/Live%20Platform-supplygraph--five.vercel.app-6366f1?style=for-the-badge&logo=vercel)](https://supplygraph-five.vercel.app)
 [![Target Event](https://img.shields.io/badge/Event-YUKTHI%202026%20Hackathon-f59e0b?style=for-the-badge)](https://supplygraph-five.vercel.app)
 [![Track](https://img.shields.io/badge/Track-Cybersecurity%20%26%20ASPM-10b981?style=for-the-badge)](https://supplygraph-five.vercel.app)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
@@ -16,102 +16,144 @@
 
 ---
 
-### [🌐 Live Web Platform](https://supplygraph-five.vercel.app) • [📹 Demo Video](SupplyGraph_Demo_ScreenOnly.mp4) • [📐 System Architecture](docs/architecture.md) • [📋 Evidence Dossier](docs/EVIDENCE.md) • [⚡ API Contracts](docs/api-contract.md)
+### [🌐 Access Live Platform](https://supplygraph-five.vercel.app) • [📐 System Architecture](docs/architecture.md) • [📋 Evidence Dossier](docs/EVIDENCE.md) • [⚡ API Contracts](docs/api-contract.md) • [🧪 Demo Scenarios Guide](docs/demo-scenarios.md)
 
 </div>
 
 ---
 
-## 📌 Executive Summary
+## 🌐 Live Platform Access
 
-Modern software applications are constructed from hundreds of open-source packages and dependencies spanning **npm, Python (PyPI), Go, and GitHub Actions workflows**. While these modular ecosystems enable rapid product delivery, securing them has grown exponentially complex due to multi-tier transitive nesting.
+SupplyGraph is fully deployed and accessible in production without any local environment installation:
 
-### The Problem: Alert Fatigue & Missing Reachability Context
-Traditional security scanners treat dependencies as flat, isolated lists. This produces hundreds of undifferentiated CVE alerts, leaving engineering teams with critical blindspots:
-- **Which vulnerabilities have active, executable call paths** leading from user entrypoints to the vulnerable code?
-- **Which findings are dormant** (test utilities, internal tools, dead paths) that can be deprioritized?
-- Upgrading whole packages indiscriminately risks breaking live APIs and introducing breaking changes into production.
+<div align="center">
 
-### The Solution: SupplyGraph
-**SupplyGraph** is an evidence-based Application Security Posture Management (ASPM) platform. Instead of flat lists, SupplyGraph constructs a **deterministic reverse directed acyclic graph (DAG)** of your software supply chain. It traces execution paths from application entrypoints down to deep transitive libraries, calculates a mathematically grounded **Blast Radius Score (0–100)**, generates **line-level AI code patches**, and detonates suspect package installation hooks in a **secure container sandbox**.
+### 👉 **[https://supplygraph-five.vercel.app](https://supplygraph-five.vercel.app)**
+
+*Zero setup required • Instant Evaluator Fast-Pass enabled*
+
+</div>
+
+### Evaluation & Access Details:
+- **Instant Login:** Click the **⚡ YUKTHI 2026 Judge Fast-Pass** button on the login screen for 1-click evaluator access with pre-configured permissions.
+- **Social Login:** Authenticate using Google OAuth, GitHub, or direct evaluator credentials.
+- **Preloaded Demos:** All 5 deterministic scenarios (Scenarios A through E) and repository analysis features are instantly testable on the live cloud environment.
+- **REST API Docs:** Interactive OpenAPI swagger contracts are available at `https://supplygraph-five.vercel.app/api/docs`.
 
 ---
 
-## 🚀 Key Features
+## 💡 Executive Summary
+
+Modern web and cloud applications are built from hundreds of open-source packages and dependencies across **npm, Python (PyPI), Go, and GitHub Actions workflows**. While modular ecosystems accelerate development, managing their security has grown exponentially difficult due to deep, multi-tier transitive nesting.
+
+### The Reachability Problem
+In large software projects, dependencies frequently nest several levels deep. Security teams are often faced with thousands of reported CVE alerts, but lack critical operational context:
+- **Which vulnerabilities are active and reachable** through executable call paths from application entrypoints?
+- **Which findings are dormant** (e.g., dead code, uncalled utilities, development-only artifacts) that do not threaten production?
+- **How can issues be fixed safely** without breaking live backend APIs or forcing major version jumps?
+
+### The SupplyGraph Approach
+**SupplyGraph** is an Application Security Posture Management (ASPM) platform that treats your software supply chain as a **deterministic Directed Acyclic Graph (DAG)**. It maps relationships from user-facing entry points all the way down to nested packages, quantifies operational impact using a mathematically grounded **Blast Radius Score (0–100)**, generates **surgical line-level code patches**, and inspects untrusted lifecycle hooks inside an **isolated container sandbox**.
+
+---
+
+## 🏆 Why SupplyGraph Stands Apart: Key Advantages
+
+SupplyGraph advances supply-chain defense through several core architectural innovations:
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   CORE ARCHITECTURAL STRENGTHS                                    │
+├──────────────────────────┬──────────────────────────┬─────────────────────────┬──────────────────┤
+│ 🗺️ Multi-Hop Reachability│ 🎯 Quantified Blast Radius│ 🔍 Surgical AI Patching │ 💥 Sandbox Guard │
+│ Reverse BFS DAG maps call│ Mathematical impact      │ Line-level unified diffs│ Dynamic container│
+│ paths to vulnerable code │ scoring (0-100)          │ prevent API breaks      │ stops hook traps │
+└──────────────────────────┴──────────────────────────┴─────────────────────────┴──────────────────┘
+```
+
+1. **Code-Aware Multi-Hop Graph Traversal vs. Isolated Manifest Checking**
+   - Traditional security tools evaluate packages in flat, isolated lists.
+   - **SupplyGraph's Advantage:** Employs NetworkX server-side topological sort and reverse BFS graph algorithms. It maps exact multi-hop call paths from application controllers down to deeply nested libraries, clearly distinguishing reachable attack paths from unreachable code.
+
+2. **Quantified Blast Radius Algorithm vs. Generic Severity Labels**
+   - Rather than relying solely on abstract high/medium tags, SupplyGraph evaluates risk using an objective mathematical formula normalized from **0.0 to 100.0**:
+     $$\text{Blast Radius} = \min(100.0, \; 2P + 15S + 25A + 50D)$$
+     *(Where $P$ = transitive package depth, $S$ = CVSS severity, $A$ = verified reachable attack paths, and $D$ = direct external exposure).*
+
+3. **Surgical Line-Level Code Auto-Patching vs. Breaking Major Version Jumps**
+   - Upgrading an entire major package version often introduces breaking API changes and downtime.
+   - **SupplyGraph's Advantage:** The AI Code Reviewer pinpoints the exact file and line numbers where vulnerable methods are invoked, producing surgical unified git diffs that correct the specific vulnerable lines while preserving backward compatibility.
+
+4. **Dynamic Container Detonation Sandbox vs. Static Metadata Scans**
+   - Malicious packages often hide dangerous payloads inside lifecycle hooks (`preinstall`, `postinstall`).
+   - **SupplyGraph's Advantage:** Features an isolated execution sandbox with zero unauthorized outbound network egress. It intercepts unauthorized external downloaders (`curl | bash`), detects token exfiltration attempts, and detains processes safely.
+
+5. **Multi-Ecosystem Unified Monorepo Observability**
+   - Simultaneously indexes npm (`package-lock.json`), PyPI (`requirements.txt`, `poetry.lock`), Go (`go.mod`), and GitHub Actions workflows (`.github/workflows/*.yml`), providing a single pane of glass across frontend, backend, and CI/CD pipelines.
+
+6. **Deterministic Cryptographic Verification**
+   - Automatically exports standard CycloneDX v1.5 JSON Software Bill of Materials (SBOM) with SHA-256 integrity digests for verifiable compliance.
+
+---
+
+## 🧪 Comprehensive Scenario Guide (5 Preloaded Evaluator Modes)
+
+SupplyGraph features 5 preloaded real-world scenarios accessible from the header dropdown (`Scenario A` through `Scenario E`). Here is what each scenario demonstrates:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                                 SUPPLYGRAPH CORE ENGINE                                │
-├──────────────────────┬──────────────────────┬───────────────────┬──────────────────────┤
-│  🗺️ Attack Graph     │  🎯 Blast Radius HUD │  🔍 AST Reviewer  │  💥 Detonation Box   │
-│  Topological reverse │  Quantified risk     │  Unified git      │  Isolated container  │
-│  DAG tracing with    │  formula (0-100) for │  diffs patching   │  quarantine for      │
-│  animated red paths  │  impact prioritization│ line-level CVEs   │  lifecycle scripts   │
-└──────────────────────┴──────────────────────┴───────────────────┴──────────────────────┘
+│                        PRELOADED DETERMINISTIC SECURITY SCENARIOS                      │
+├────────────┬─────────────────────────────┬─────────────────┬───────────────────────────┤
+│ Scenario   │ Title                       │ Ecosystem       │ Threat Vector             │
+├────────────┼─────────────────────────────┼─────────────────┼───────────────────────────┤
+│ Scenario A │ Transitive CVE              │ Java / npm      │ Deep Log4j RCE Call Path  │
+│ Scenario B │ Dependency Confusion        │ Private npm     │ Internal Namespace Spoof  │
+│ Scenario C │ Malicious Post-Install      │ npm Hooks       │ Exfiltration C2 Beacon    │
+│ Scenario D │ Deep Chain (Depth 4)        │ Multi-tier JS   │ 4-Hop Transitive Exploit  │
+│ Scenario E │ CI/CD Workflow Leak         │ GitHub Actions  │ Unpinned Runner Poisoning │
+└────────────┴─────────────────────────────┴─────────────────┴───────────────────────────┘
 ```
 
-### 1. 🗺️ Interactive Attack Graph Canvas
-- **Topological Layout:** Server-side deterministic positioning calculated in Python with NetworkX (BFS layered traversal).
-- **Animated Reachability Highlighting:** Explores direct and transitive dependency relationships, coloring verified attack propagation paths in animated red.
-- **Node Classification:** Distinguishes application services, direct manifests, transitive modules, and active threat points.
+### 🔗 Scenario A: Transitive CVE (Transitive Exploit Chain)
+- **The Threat:** Models a severe remote code execution (RCE) vector introduced via a transitive dependency (e.g., `log4j-core:2.14.1` / `mixin-deep:1.3.1`).
+- **What SupplyGraph Demonstrates:**
+  - Connects the application root entrypoint through intermediate service layers (`demo-app` → `lodash@4.17.20` → `mixin-deep@1.3.1`).
+  - Graph nodes highlight the reachability path in animated red, verifying that untrusted user inputs reach the vulnerable component.
+  - Computes a contextual Blast Radius score of **85.0/100** and provides non-breaking lockfile override recommendations in the Executive AI panel.
 
-### 2. 🎯 Quantified Blast Radius Algorithm
-SupplyGraph evaluates operational and security impact using a deterministic, multi-factor scoring formula normalized between **0.0 and 100.0**:
-$$\text{Blast Radius} = \min(100.0, \; 2P + 15S + 25A + 50D)$$
-Where:
-- $P$ = Total component package depth and transitive propagation count
-- $S$ = CVSS severity magnitude of active vulnerabilities
-- $A$ = Number of verified reachable attack paths from entrypoints
-- $D$ = Direct exposure factor (external network interfaces, public APIs)
+### 🎭 Scenario B: Dependency Confusion (Internal Namespace Hijacking)
+- **The Threat:** Simulates a dependency confusion vulnerability in a private corporate module (`@corp-internal/auth-token`).
+- **What SupplyGraph Demonstrates:**
+  - Identifies that private organization packages lack scoped registry configuration (`.npmrc`), allowing public registries to be probed.
+  - Explains how external attackers publish identical package names with higher version numbers (`99.0.0`), tricking build runners into pulling untrusted code.
+  - Generates a Blast Radius score of **78.5/100** with step-by-step containment instructions to enforce scoped registry routing.
 
-### 3. 🛡️ 5-Layer Threat Detection Fabric
-- **OSV.dev Batch Vulnerability Ingestion:** Queries live Open Source Vulnerabilities database for authoritative CVE and GHSA intelligence.
-- **Typosquatting & Scope Confusion:** Identifies malicious namespace spoofing using Levenshtein distance against known popular packages.
-- **Private Dependency Confusion:** Detects private organization modules referenced without scoped registry routing (`@company/*`).
-- **CI/CD Workflow Hardening:** Audits `.github/workflows/*.yml` to enforce immutable 40-character commit SHA pinning on third-party actions and flags blanket `permissions: write-all`.
-- **AST Static Pattern Analysis:** Inspects source code syntax trees for dangerous patterns:
-  - Python pickle deserialization (`pickle.loads`, `yaml.unsafe_load`)
-  - JavaScript prototype pollution through insecure object merging
-  - Unsanitized subprocess shell calls (`subprocess.Popen(..., shell=True)`)
+### 💀 Scenario C: Malicious Post-Install (Lifecycle Hook Injection)
+- **The Threat:** Examines a compromised package (`flatmap-stream:0.1.1`) where malicious code is embedded directly within package lifecycle scripts.
+- **What SupplyGraph Demonstrates:**
+  - AST static pattern detection flags unauthorized subprocess calls (`curl -sSL ... | bash`) intended to harvest environment variables and developer credentials.
+  - Allows 1-click execution inside the **Dynamic Detonation Sandbox**, demonstrating zero-egress network containment and process termination with watchdog violation logs.
+  - Computes a critical Blast Radius of **92.0/100**.
 
-### 4. 🤖 Autonomous Executive AI & Remediation
-- **Autonomous Threat Assessment:** Translates technical dependency graphs into clear briefings detailing technical root cause, exploit surface, and prioritized containment steps.
-- **Fix with AI Prompts:** Generates structured, evidence-based prompts specifically tailored for AI coding IDEs (Google Antigravity, Cursor, Copilot, Claude Code) to apply non-breaking dependency constraints.
+### 🕸️ Scenario D: Deep Chain (Transitive Depth 4 Propagation)
+- **The Threat:** Illustrates vulnerability propagation across an extended, 4-tier dependency hierarchy (`app` → `service` → `middleware` → `utility` → `compromised-core`).
+- **What SupplyGraph Demonstrates:**
+  - Highlights why flat dependency tools fail: leaf packages appear disconnected without full structural mapping.
+  - SupplyGraph's reverse BFS engine traces all 4 intermediate hops, calculating exact reachability and proving how a vulnerability at depth 4 affects the root service.
+  - Computes an operational Blast Radius of **74.0/100**.
 
-### 5. 🔍 AI Code Reviewer & Surgical Auto-Patcher
-- Inspects exact line numbers where vulnerable libraries are imported or called.
-- Generates **surgical unified git diffs** that resolve vulnerabilities with minimal delta, preserving compatibility rather than forcing breaking major version jumps.
-
-### 6. 💥 Dynamic Detonation Sandbox
-- Quarantines and executes suspect package lifecycle hooks (`preinstall`, `postinstall`, `prepare`).
-- Runs in an isolated ephemeral execution container with:
-  - Zero unauthorized outbound network egress
-  - Watchdog detection of remote downloaders (`curl | bash`, token exfiltration)
-  - Process execution termination and security violation logging
-
-### 7. 📜 Cryptographic CycloneDX v1.5 SBOM
-- Generates standard CycloneDX JSON Software Bill of Materials.
-- Performs deterministic **SHA-256 cryptographic verification** across all components for compliance and provenance validation.
-
----
-
-## 🧪 Five Preloaded Real-World Scenarios
-
-SupplyGraph includes 5 preloaded security scenarios for instant demonstration and evaluation:
-
-| Scenario | Title | Ecosystem | Threat Vector & Demonstration |
-|:---:|:---|:---:|:---|
-| **A** | **Log4j Transitive Exploit Chain** | Java / Maven | Traces a 3-hop call path from a public payment gateway through `spring-boot-starter-log4j2` to `log4j-core:2.14.1` (CVE-2021-44228 RCE). |
-| **B** | **JavaScript Prototype Pollution** | JavaScript / npm | Audits insecure recursive object merging in `mixin-deep` and `lodash:4.17.15`, showing modification of `Object.prototype`. |
-| **C** | **Python Insecure Deserialization** | Python / PyPI | AST detection of arbitrary code execution vectors in untrusted `pickle.loads()` before code execution. |
-| **D** | **CI/CD Pipeline Runner Hardening** | GitHub Actions | Identifies unpinned mutable tags (`actions/checkout@v2`) and flags dangerous `permissions: write-all` runner configurations. |
-| **E** | **Malicious Lifecycle Script Detention** | npm / Node.js | Safely catches an obfuscated postinstall script executing external command beacons (`curl -sSL ... | bash`) inside the sandbox. |
+### ⚙️ Scenario E: CI/CD Workflow Leak (GitHub Actions Runner Hardening)
+- **The Threat:** Audits build automation pipelines (`.github/workflows/*.yml`) for unpinned third-party actions (`actions/checkout@v2`) and excessive runner privileges (`permissions: write-all`).
+- **What SupplyGraph Demonstrates:**
+  - Flags that mutable branch or tag references can be compromised upstream to execute unauthorized code on privileged build runners.
+  - In the **AI Code Reviewer**, displays a surgical unified git diff enforcing immutable 40-character commit SHA pinning (`actions/checkout@11bd71...`) and least-privilege token permissions (`contents: read`).
+  - Computes a risk score of **81.0/100**.
 
 ---
 
 ## 🔬 Real-World Repository Deep Dive: `knadh/listmonk`
 
-SupplyGraph was validated against the popular open-source newsletter and mailing manager **[knadh/listmonk](https://github.com/knadh/listmonk)** (Go + Vue.js monorepo):
+SupplyGraph was validated against the high-performance open-source mailing and newsletter manager **[knadh/listmonk](https://github.com/knadh/listmonk)** (Go + Vue monorepo):
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -120,20 +162,22 @@ SupplyGraph was validated against the popular open-source newsletter and mailing
 │ Scanned Submodules       │ 35 modules across Go & frontend  │
 │ Total Components         │ 94 direct and transitive packages│
 │ Security Findings        │ 21 CVE & CI/CD workflow issues   │
-│ Computed Blast Radius    │ 60.0 / 100 (High Risk)           │
+│ Computed Blast Radius    │ 60.0 / 100 (Prioritized)         │
 │ Unified Git Diff Patches │ 3 surgical non-breaking diffs    │
 │ Sandbox Interceptions    │ 8 hook safety violations caught  │
 └──────────────────────────┴──────────────────────────────────┘
 ```
 
+When scanning a complex monorepo like `listmonk`, SupplyGraph unifies dependencies across Go backend manifests, npm frontend packages, and GitHub Actions automation, providing actionable containment steps within seconds.
+
 ---
 
-## 🏛️ System Architecture
+## 🏛️ System Architecture & Dataflow
 
 ```mermaid
 flowchart TD
     subgraph INGESTION["1. Multi-Ecosystem Ingestion"]
-        A1["GitHub URL / Local Directory"] --> B1["Manifest Parser"]
+        A1["GitHub Repository / Folder"] --> B1["Manifest & Workflow Ingestion"]
         B1 --> |npm| M1["package-lock.json / package.json"]
         B1 --> |PyPI| M2["requirements.txt / poetry.lock"]
         B1 --> |Go| M3["go.mod"]
@@ -169,33 +213,13 @@ flowchart TD
 
 ---
 
-## 💻 Tech Stack
+## 💻 Tech Stack & Open Standards
 
 - **Frontend:** Next.js 14 (App Router), React 18, React Flow (`@xyflow/react`), Tailwind CSS, Lucide Icons, TypeScript.
 - **Backend:** FastAPI, Python 3.11+, NetworkX, Pydantic v2, Uvicorn, Tree-sitter.
 - **Vulnerability Intelligence:** OSV.dev REST API, GitHub Advisory Database (GHSA), National Vulnerability Database (NVD).
-- **Execution Containment:** Ephemeral sandbox subprocess wrapper with network interface restriction and syscall inspection.
-- **Deployment:** Vercel (Frontend), Python ASGI Server (Backend).
-
----
-
-## 🌐 Live Platform Access
-
-SupplyGraph is fully deployed and accessible in production without any local environment installation:
-
-<div align="center">
-
-### 👉 **[https://supplygraph-five.vercel.app](https://supplygraph-five.vercel.app)**
-
-*Zero setup required • Instant Evaluator Fast-Pass enabled*
-
-</div>
-
-### Evaluation & Access Details:
-- **Instant Login:** Click the **⚡ YUKTHI 2026 Judge Fast-Pass** button on the login screen for 1-click evaluator access with pre-configured permissions.
-- **Social Login:** Authenticate using Google OAuth, GitHub, or direct evaluator credentials.
-- **Preloaded Demos:** All 5 scenarios (Scenarios A through E) and repository analysis features are instantly testable on the live cloud environment.
-- **REST API Docs:** Interactive OpenAPI swagger contracts are available at `https://supplygraph-five.vercel.app/api/docs`.
+- **Execution Containment:** Ephemeral sandbox container wrapper with network interface restriction and syscall inspection.
+- **Standards:** CycloneDX v1.5 JSON SBOM, SHA-256 cryptographic verification.
 
 ---
 
@@ -203,13 +227,13 @@ SupplyGraph is fully deployed and accessible in production without any local env
 
 | Endpoint | Method | Description |
 |:---|:---:|:---|
-| `/api/v1/scan` | `POST` | Ingests a GitHub repository or folder path and executes full 5-layer supply chain analysis. |
+| `/api/v1/scan` | `POST` | Ingests a repository URL and executes the 5-layer supply chain analysis pipeline. |
 | `/api/v1/scenarios/{scenario_id}` | `GET` | Fetches preloaded evaluation scenario data (`A`, `B`, `C`, `D`, `E`). |
-| `/api/v1/sandbox/detonate` | `POST` | Executes and monitors package lifecycle hooks inside an isolated container sandbox. |
+| `/api/v1/sandbox/detonate` | `POST` | Executes and monitors package lifecycle hooks inside the isolated container sandbox. |
 | `/api/v1/sbom/cyclonedx` | `GET` | Generates standardized CycloneDX v1.5 JSON SBOM with deterministic SHA-256 digest. |
-| `/api/v1/health` | `GET` | System health check and OSV.dev upstream availability probe. |
+| `/api/v1/health` | `GET` | System health check and upstream service availability probe. |
 
-For detailed payloads and schema contracts, see **[docs/api-contract.md](docs/api-contract.md)**.
+For full payload contracts and schema models, see **[docs/api-contract.md](docs/api-contract.md)**.
 
 ---
 
@@ -227,7 +251,7 @@ supplygraph/
 │   │   │   ├── reviewer/         # AI Code Reviewer unified git diffs
 │   │   │   └── sandbox/          # Detonation Sandbox terminal & logs
 │   │   └── lib/                  # Client utilities & state management
-│   └── public/                   # Static assets, demo media, and SBOMs
+│   └── public/                   # Static branding assets and documentation
 ├── backend/                      # FastAPI Python Backend
 │   ├── app/
 │   │   ├── api/                  # REST API route handlers
@@ -243,7 +267,6 @@ supplygraph/
 │   ├── demo-scenarios.md         # Scenario walkthroughs and attack proofs
 │   ├── detection.md              # Threat detection algorithms and heuristics
 │   └── EVIDENCE.md               # Forensic evidence & validation dossier
-├── start-all.ps1                 # Single-click local start script
 └── README.md                     # Project documentation
 ```
 
@@ -252,7 +275,7 @@ supplygraph/
 ## 🔒 Security & Evidence Integrity Principles
 
 SupplyGraph enforces a strict **honesty-first evidence standard**:
-1. **No Hallucinated Findings:** Every vulnerability reported is mapped to a verified OSV.dev CVE, GHSA, or deterministic AST syntax match.
+1. **No Hallucinated Findings:** Every reported vulnerability maps to verified OSV.dev CVE/GHSA intelligence or deterministic AST syntax patterns.
 2. **Honest Metric Boundaries:** Blast Radius scores reflect quantifiable parameters (dependency depth, path count, CVSS severity) rather than opaque arbitrary scores.
 3. **Safe Execution Guarantee:** No untrusted repository code is ever executed directly on host runners; all dynamic inspections are strictly restricted to the sandboxed containment environment.
 
