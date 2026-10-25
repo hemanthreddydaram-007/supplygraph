@@ -1,6 +1,6 @@
 {
-  "total_duration": 313.13,
-  "voice": "User Actual Spoken Audio (5 Parts)",
+  "total_duration": 309.24,
+  "voice": "User Actual Spoken Audio (5 Parts, Accurately Synced)",
   "section_count": 5,
   "sections": [
     {
@@ -11,46 +11,69 @@
       "title": "Modern Software Supply Chains & Reachability Context",
       "start_time": 0.0,
       "audio_duration": 54.38,
-      "total_section_duration": 54.98,
+      "total_section_duration": 54.38,
       "subtitles": [
         {
-          "sub_index": 1,
-          "text": "Hello everyone, and respected judges! Today, modern applications are built using hundreds of open-source packages across npm, Python, Go, and GitHub workflows.",
+          "id": 1,
+          "part": 1,
+          "section_tag": "THE CHALLENGE",
+          "section_num": "1/5",
+          "title": "Modern Software Supply Chains & Reachability Context",
           "start": 0.0,
-          "end": 9.06
+          "end": 14.0,
+          "text": "Hello everyone, and respected judges! Today, modern applications are built using hundreds of open-source packages across npm, Python, Go, and GitHub workflows."
         },
         {
-          "sub_index": 2,
-          "text": "While open-source libraries help us build products faster, managing their security has become extremely complex.",
-          "start": 9.06,
-          "end": 18.13
+          "id": 2,
+          "part": 1,
+          "section_tag": "THE CHALLENGE",
+          "section_num": "1/5",
+          "title": "Modern Software Supply Chains & Reachability Context",
+          "start": 14.0,
+          "end": 22.0,
+          "text": "While open-source libraries help us build products faster, managing their security has become extremely complex."
         },
         {
-          "sub_index": 3,
-          "text": "In large codebases, applications often contain multiple levels of nested dependencies.",
-          "start": 18.13,
-          "end": 27.19
+          "id": 3,
+          "part": 1,
+          "section_tag": "THE CHALLENGE",
+          "section_num": "1/5",
+          "title": "Modern Software Supply Chains & Reachability Context",
+          "start": 22.0,
+          "end": 28.5,
+          "text": "In large codebases, applications often contain multiple levels of nested dependencies."
         },
         {
-          "sub_index": 4,
-          "text": "The real challenge for engineering teams is knowing: Which vulnerabilities are actually reachable in production code, and which ones are never called?",
-          "start": 27.19,
-          "end": 36.25
+          "id": 4,
+          "part": 1,
+          "section_tag": "THE CHALLENGE",
+          "section_num": "1/5",
+          "title": "Modern Software Supply Chains & Reachability Context",
+          "start": 28.5,
+          "end": 36.0,
+          "text": "The real challenge for engineering teams is knowing: Which vulnerabilities are actually reachable in production code, and which ones are never called?"
         },
         {
-          "sub_index": 5,
-          "text": "Without this reachability context, developers spend weeks investigating alerts or risk breaking live backend APIs during package upgrades.",
-          "start": 36.25,
-          "end": 45.32
+          "id": 5,
+          "part": 1,
+          "section_tag": "THE CHALLENGE",
+          "section_num": "1/5",
+          "title": "Modern Software Supply Chains & Reachability Context",
+          "start": 36.0,
+          "end": 48.0,
+          "text": "Without this reachability context, developers can spend weeks investigating alerts or risk breaking live backend APIs during package upgrades."
         },
         {
-          "sub_index": 6,
-          "text": "This is why modern software security requires a deeper, code-aware approach.",
-          "start": 45.32,
-          "end": 54.38
+          "id": 6,
+          "part": 1,
+          "section_tag": "THE CHALLENGE",
+          "section_num": "1/5",
+          "title": "Modern Software Supply Chains & Reachability Context",
+          "start": 48.0,
+          "end": 54.38,
+          "text": "This is why modern software security requires a deeper, code-aware approach."
         }
-      ],
-      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\.gemini\\antigravity\\brain\\8e77a058-88dc-4f96-867e-2a14e12ca8ba\\.user_uploaded\\uploaded_media_0_1792929503934.mp3"
+      ]
     },
     {
       "index": 2,
@@ -58,48 +81,71 @@
       "section_num": "2/5",
       "section_tag": "PROPOSED SOLUTION",
       "title": "Introducing SupplyGraph: Unified ASPM Platform",
-      "start_time": 54.98,
+      "start_time": 54.38,
       "audio_duration": 54.19,
-      "total_section_duration": 54.79,
+      "total_section_duration": 54.19,
       "subtitles": [
         {
-          "sub_index": 1,
-          "text": "To address this challenge, we created SupplyGraph.",
-          "start": 54.98,
-          "end": 64.01
+          "id": 7,
+          "part": 2,
+          "section_tag": "PROPOSED SOLUTION",
+          "section_num": "2/5",
+          "title": "Introducing SupplyGraph: Unified ASPM Platform",
+          "start": 54.38,
+          "end": 62.0,
+          "text": "To address this challenge, we created SupplyGraph."
         },
         {
-          "sub_index": 2,
-          "text": "SupplyGraph is an Application Security Posture Management platform designed to give developers complete visibility into their software supply chain.",
-          "start": 64.01,
-          "end": 73.04
+          "id": 8,
+          "part": 2,
+          "section_tag": "PROPOSED SOLUTION",
+          "section_num": "2/5",
+          "title": "Introducing SupplyGraph: Unified ASPM Platform",
+          "start": 62.0,
+          "end": 72.0,
+          "text": "SupplyGraph is an Application Security Posture Management platform designed to give developers complete visibility into their software supply chain."
         },
         {
-          "sub_index": 3,
-          "text": "Instead of treating dependencies as flat isolated lists, SupplyGraph analyzes project call paths and builds an interactive visual attack graph.",
-          "start": 73.04,
-          "end": 82.08
+          "id": 9,
+          "part": 2,
+          "section_tag": "PROPOSED SOLUTION",
+          "section_num": "2/5",
+          "title": "Introducing SupplyGraph: Unified ASPM Platform",
+          "start": 72.0,
+          "end": 82.0,
+          "text": "Instead of treating dependencies as flat isolated lists, SupplyGraph analyzes project call paths and builds an interactive visual attack graph."
         },
         {
-          "sub_index": 4,
-          "text": "It connects your code from user-facing entry points all the way down to deeply nested libraries.",
-          "start": 82.08,
-          "end": 91.11
+          "id": 10,
+          "part": 2,
+          "section_tag": "PROPOSED SOLUTION",
+          "section_num": "2/5",
+          "title": "Introducing SupplyGraph: Unified ASPM Platform",
+          "start": 82.0,
+          "end": 90.0,
+          "text": "It connects your code from user-facing entry points all the way down to deeply nested libraries."
         },
         {
-          "sub_index": 5,
-          "text": "It clearly verifies whether an execution path actually reaches a vulnerable component.",
-          "start": 91.11,
-          "end": 100.14
+          "id": 11,
+          "part": 2,
+          "section_tag": "PROPOSED SOLUTION",
+          "section_num": "2/5",
+          "title": "Introducing SupplyGraph: Unified ASPM Platform",
+          "start": 90.0,
+          "end": 98.0,
+          "text": "It clearly verifies whether an execution path actually reaches a vulnerable component."
         },
         {
-          "sub_index": 6,
-          "text": "When an issue is identified, SupplyGraph provides safe, line-by-line code patches that preserve application functionality, while testing untrusted packages inside an isolated sandbox.",
-          "start": 100.14,
-          "end": 109.17
+          "id": 12,
+          "part": 2,
+          "section_tag": "PROPOSED SOLUTION",
+          "section_num": "2/5",
+          "title": "Introducing SupplyGraph: Unified ASPM Platform",
+          "start": 98.0,
+          "end": 108.58,
+          "text": "When an issue is identified, SupplyGraph provides safe, line-by-line code patches that preserve application functionality, while testing untrusted packages inside an isolated sandbox."
         }
-      ],
-      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\.gemini\\antigravity\\brain\\8e77a058-88dc-4f96-867e-2a14e12ca8ba\\.user_uploaded\\uploaded_media_1_1792929503934.mp3"
+      ]
     },
     {
       "index": 3,
@@ -107,42 +153,61 @@
       "section_num": "3/5",
       "section_tag": "CORE FEATURES",
       "title": "Four Breakthrough Capabilities: DAG, Blast Radius, AI Briefing & SBOM",
-      "start_time": 109.77,
+      "start_time": 108.58,
       "audio_duration": 60.96,
-      "total_section_duration": 61.56,
+      "total_section_duration": 60.96,
       "subtitles": [
         {
-          "sub_index": 1,
-          "text": "Let us look at four core capabilities of SupplyGraph:",
-          "start": 109.77,
-          "end": 121.96
+          "id": 13,
+          "part": 3,
+          "section_tag": "CORE FEATURES",
+          "section_num": "3/5",
+          "title": "Four Breakthrough Capabilities: DAG, Blast Radius, AI Briefing & SBOM",
+          "start": 108.58,
+          "end": 114.0,
+          "text": "Let us look at four core capabilities of SupplyGraph:"
         },
         {
-          "sub_index": 2,
-          "text": "First is the Attack Graph. Powered by graph traversal algorithms, it visually maps the relationship between code and libraries, showing exact reachability paths.",
-          "start": 121.96,
-          "end": 134.15
+          "id": 14,
+          "part": 3,
+          "section_tag": "CORE FEATURES",
+          "section_num": "3/5",
+          "title": "Four Breakthrough Capabilities: DAG, Blast Radius, AI Briefing & SBOM",
+          "start": 114.0,
+          "end": 127.0,
+          "text": "First is the Attack Graph. Powered by graph traversal algorithms, it visually maps the relationship between code and libraries, showing exact reachability paths."
         },
         {
-          "sub_index": 3,
-          "text": "Second is the Blast Radius Score. It calculates a clear risk metric from 0 to 100, helping teams understand potential operational impact.",
-          "start": 134.15,
-          "end": 146.35
+          "id": 15,
+          "part": 3,
+          "section_tag": "CORE FEATURES",
+          "section_num": "3/5",
+          "title": "Four Breakthrough Capabilities: DAG, Blast Radius, AI Briefing & SBOM",
+          "start": 127.0,
+          "end": 139.0,
+          "text": "Second is the Blast Radius Score. It calculates a clear risk metric from 0 to 100, helping teams understand potential operational impact."
         },
         {
-          "sub_index": 4,
-          "text": "Third is the Autonomous Executive AI. It summarizes technical vulnerability data into actionable briefings and prioritized containment steps.",
-          "start": 146.35,
-          "end": 158.54
+          "id": 16,
+          "part": 3,
+          "section_tag": "CORE FEATURES",
+          "section_num": "3/5",
+          "title": "Four Breakthrough Capabilities: DAG, Blast Radius, AI Briefing & SBOM",
+          "start": 139.0,
+          "end": 153.5,
+          "text": "Third is the Autonomous Executive AI. It summarizes technical vulnerability data into actionable briefings and prioritized containment steps."
         },
         {
-          "sub_index": 5,
-          "text": "And fourth is the CycloneDX SBOM. It generates standard Software Bill of Materials documents with deterministic SHA-256 cryptographic verification for compliance.",
-          "start": 158.54,
-          "end": 170.73
+          "id": 17,
+          "part": 3,
+          "section_tag": "CORE FEATURES",
+          "section_num": "3/5",
+          "title": "Four Breakthrough Capabilities: DAG, Blast Radius, AI Briefing & SBOM",
+          "start": 153.5,
+          "end": 169.54,
+          "text": "And fourth is the CycloneDX SBOM. It generates standard Software Bill of Materials documents with deterministic SHA-256 cryptographic verification for compliance."
         }
-      ],
-      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\.gemini\\antigravity\\brain\\8e77a058-88dc-4f96-867e-2a14e12ca8ba\\.user_uploaded\\uploaded_media_2_1792929503934.mp3"
+      ]
     },
     {
       "index": 4,
@@ -150,48 +215,71 @@
       "section_num": "4/5",
       "section_tag": "DEMO SCENARIOS",
       "title": "Five Preloaded Exploit Scenarios (Scenarios A through E)",
-      "start_time": 171.33,
+      "start_time": 169.54,
       "audio_duration": 62.64,
-      "total_section_duration": 63.24,
+      "total_section_duration": 62.64,
       "subtitles": [
         {
-          "sub_index": 1,
-          "text": "To demonstrate these capabilities, SupplyGraph includes five preloaded real-world scenarios:",
-          "start": 171.33,
-          "end": 181.77
+          "id": 18,
+          "part": 4,
+          "section_tag": "DEMO SCENARIOS",
+          "section_num": "4/5",
+          "title": "Five Preloaded Exploit Scenarios (Scenarios A through E)",
+          "start": 169.54,
+          "end": 177.0,
+          "text": "To demonstrate these capabilities, SupplyGraph includes five preloaded real-world scenarios:"
         },
         {
-          "sub_index": 2,
-          "text": "Scenario A illustrates a transitive Log4j call path, mapping how an incoming request travels through service layers to a vulnerable logging library.",
-          "start": 181.77,
-          "end": 192.21
+          "id": 19,
+          "part": 4,
+          "section_tag": "DEMO SCENARIOS",
+          "section_num": "4/5",
+          "title": "Five Preloaded Exploit Scenarios (Scenarios A through E)",
+          "start": 177.0,
+          "end": 188.0,
+          "text": "Scenario A illustrates a transitive Log4j call path, mapping how an incoming request travels through service layers to a vulnerable logging library."
         },
         {
-          "sub_index": 3,
-          "text": "Scenario B examines Prototype Pollution, showing how improper object merging can be safely identified and corrected.",
-          "start": 192.21,
-          "end": 202.65
+          "id": 20,
+          "part": 4,
+          "section_tag": "DEMO SCENARIOS",
+          "section_num": "4/5",
+          "title": "Five Preloaded Exploit Scenarios (Scenarios A through E)",
+          "start": 188.0,
+          "end": 198.0,
+          "text": "Scenario B examines Prototype Pollution, showing how improper object merging can be safely identified and corrected."
         },
         {
-          "sub_index": 4,
-          "text": "Scenario C analyzes insecure Python pickle deserialization, demonstrating AST-level detection before code execution.",
-          "start": 202.65,
-          "end": 213.09
+          "id": 21,
+          "part": 4,
+          "section_tag": "DEMO SCENARIOS",
+          "section_num": "4/5",
+          "title": "Five Preloaded Exploit Scenarios (Scenarios A through E)",
+          "start": 198.0,
+          "end": 208.0,
+          "text": "Scenario C analyzes insecure Python pickle deserialization, demonstrating AST-level detection before code execution."
         },
         {
-          "sub_index": 5,
-          "text": "Scenario D audits GitHub Actions workflows, ensuring runners and third-party actions use immutable commit hashes.",
-          "start": 213.09,
-          "end": 223.53
+          "id": 22,
+          "part": 4,
+          "section_tag": "DEMO SCENARIOS",
+          "section_num": "4/5",
+          "title": "Five Preloaded Exploit Scenarios (Scenarios A through E)",
+          "start": 208.0,
+          "end": 219.0,
+          "text": "Scenario D audits GitHub Actions workflows, ensuring runners and third-party actions use immutable commit hashes."
         },
         {
-          "sub_index": 6,
-          "text": "And Scenario E tests lifecycle scripts, demonstrating how package installation hooks are monitored and controlled.",
-          "start": 223.53,
-          "end": 233.97
+          "id": 23,
+          "part": 4,
+          "section_tag": "DEMO SCENARIOS",
+          "section_num": "4/5",
+          "title": "Five Preloaded Exploit Scenarios (Scenarios A through E)",
+          "start": 219.0,
+          "end": 232.18,
+          "text": "And Scenario E tests lifecycle scripts, demonstrating how package installation hooks are monitored and controlled."
         }
-      ],
-      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\.gemini\\antigravity\\brain\\8e77a058-88dc-4f96-867e-2a14e12ca8ba\\.user_uploaded\\uploaded_media_3_1792929503934.mp3"
+      ]
     },
     {
       "index": 5,
@@ -199,48 +287,71 @@
       "section_num": "5/5",
       "section_tag": "REAL PROJECT WALKTHROUGH",
       "title": "Real-World Audit of knadh/listmonk & Full Platform Feature Tour",
-      "start_time": 234.57,
+      "start_time": 232.18,
       "audio_duration": 77.06,
-      "total_section_duration": 78.56,
+      "total_section_duration": 77.06,
       "subtitles": [
         {
-          "sub_index": 1,
-          "text": "Now let us examine a real-world open-source repository: listmonk by Kailash Nadh.",
-          "start": 234.57,
-          "end": 247.41
+          "id": 24,
+          "part": 5,
+          "section_tag": "REAL PROJECT WALKTHROUGH",
+          "section_num": "5/5",
+          "title": "Real-World Audit of knadh/listmonk & Full Platform Feature Tour",
+          "start": 232.18,
+          "end": 242.0,
+          "text": "Now let us examine a real-world open-source repository: listmonk by Kailash Nadh."
         },
         {
-          "sub_index": 2,
-          "text": "When scanning a multi-module repository like this, SupplyGraph indexes all 35 submodules and manifests, providing a unified inventory across frontend, backend, and workflows.",
-          "start": 247.41,
-          "end": 260.26
+          "id": 25,
+          "part": 5,
+          "section_tag": "REAL PROJECT WALKTHROUGH",
+          "section_num": "5/5",
+          "title": "Real-World Audit of knadh/listmonk & Full Platform Feature Tour",
+          "start": 242.0,
+          "end": 253.5,
+          "text": "When scanning a multi-module repository like this, SupplyGraph indexes all 35 submodules and manifests, providing a unified inventory across frontend, backend, and workflows."
         },
         {
-          "sub_index": 3,
-          "text": "It identifies 21 findings across direct and transitive dependencies, computing a contextual Blast Radius score of 60 out of 100.",
-          "start": 260.26,
-          "end": 273.1
+          "id": 26,
+          "part": 5,
+          "section_tag": "REAL PROJECT WALKTHROUGH",
+          "section_num": "5/5",
+          "title": "Real-World Audit of knadh/listmonk & Full Platform Feature Tour",
+          "start": 253.5,
+          "end": 267.0,
+          "text": "It identifies 21 findings across direct and transitive dependencies, computing a contextual Blast Radius score of 60 out of 100."
         },
         {
-          "sub_index": 4,
-          "text": "With the 'Fix with AI' feature, SupplyGraph generates evidence-based, non-breaking remediation prompts specifically structured for AI coding agents like Antigravity, Cursor, and Copilot.",
-          "start": 273.1,
-          "end": 285.94
+          "id": 27,
+          "part": 5,
+          "section_tag": "REAL PROJECT WALKTHROUGH",
+          "section_num": "5/5",
+          "title": "Real-World Audit of knadh/listmonk & Full Platform Feature Tour",
+          "start": 267.0,
+          "end": 281.0,
+          "text": "With the 'Fix with AI' feature, SupplyGraph generates evidence-based, non-breaking remediation prompts specifically structured for AI coding agents like Antigravity, Cursor, and Copilot."
         },
         {
-          "sub_index": 5,
-          "text": "In the AI Code Reviewer, developers inspect surgical unified git diffs that correct specific vulnerable lines rather than forcing broad version jumps.",
-          "start": 285.94,
-          "end": 298.79
+          "id": 28,
+          "part": 5,
+          "section_tag": "REAL PROJECT WALKTHROUGH",
+          "section_num": "5/5",
+          "title": "Real-World Audit of knadh/listmonk & Full Platform Feature Tour",
+          "start": 281.0,
+          "end": 295.0,
+          "text": "In the AI Code Reviewer, developers inspect surgical unified git diffs that correct specific vulnerable lines rather than forcing broad version jumps."
         },
         {
-          "sub_index": 6,
-          "text": "And in our Detonation Sandbox, lifecycle scripts run within an isolated container where unauthorized network connections and file modifications are safely contained.",
-          "start": 298.79,
-          "end": 311.63
+          "id": 29,
+          "part": 5,
+          "section_tag": "REAL PROJECT WALKTHROUGH",
+          "section_num": "5/5",
+          "title": "Real-World Audit of knadh/listmonk & Full Platform Feature Tour",
+          "start": 295.0,
+          "end": 309.24,
+          "text": "And in our Detonation Sandbox, lifecycle scripts run within an isolated container where unauthorized network connections and file modifications are safely contained."
         }
-      ],
-      "file": "C:\\Users\\DARAM  HEMANTH REDDY\\.gemini\\antigravity\\brain\\8e77a058-88dc-4f96-867e-2a14e12ca8ba\\.user_uploaded\\uploaded_media_4_1792929503934.mp3"
+      ]
     }
   ]
 }

@@ -101,6 +101,18 @@ def main():
         os.path.join(frontend_public, "demo.html")
     )
 
+    # Artifact directory
+    artifact_dir = r"C:\Users\DARAM  HEMANTH REDDY\.gemini\antigravity\brain\8e77a058-88dc-4f96-867e-2a14e12ca8ba"
+    if os.path.exists(artifact_dir):
+        print(f"[Artifact] Copying assets to {artifact_dir}...")
+        try:
+            shutil.copyfile(out_mp4, os.path.join(artifact_dir, "SupplyGraph_Hackathon_Demo_UserVoice.mp4"))
+            shutil.copyfile(out_webm, os.path.join(artifact_dir, "SupplyGraph_Hackathon_Demo_UserVoice.webm"))
+            shutil.copyfile(os.path.join(root_dir, "supplygraph_demo_subtitles.vtt"), os.path.join(artifact_dir, "supplygraph_demo_subtitles.vtt"))
+            shutil.copyfile(os.path.join(root_dir, "supplygraph_demo_subtitles.srt"), os.path.join(artifact_dir, "supplygraph_demo_subtitles.srt"))
+        except Exception as e:
+            print(f"[Notice] Artifact copy notice: {e}")
+
     print("==================================================================")
     print("SUCCESS: 1080p Video with User Voiceover & Subtitles Fully Ready!")
     print("==================================================================")

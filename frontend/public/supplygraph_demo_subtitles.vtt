@@ -1,88 +1,117 @@
 WEBVTT
 
-00:00:00.000 --> 00:00:09.063
-[THE CHALLENGE] Hello everyone, and respected judges! Today, modern applications are built using hundreds of open-source packages across npm, Python, Go, and GitHub workflows.
+1
+00:00:00.000 --> 00:00:14.000
+[1/5 THE CHALLENGE] Hello everyone, and respected judges! Today, modern applications are built using hundreds of open-source packages across npm, Python, Go, and GitHub workflows.
 
-00:00:09.063 --> 00:00:18.126
-[THE CHALLENGE] While open-source libraries help us build products faster, managing their security has become extremely complex.
+2
+00:00:14.000 --> 00:00:22.000
+[1/5 THE CHALLENGE] While open-source libraries help us build products faster, managing their security has become extremely complex.
 
-00:00:18.126 --> 00:00:27.190
-[THE CHALLENGE] In large codebases, applications often contain multiple levels of nested dependencies.
+3
+00:00:22.000 --> 00:00:28.500
+[1/5 THE CHALLENGE] In large codebases, applications often contain multiple levels of nested dependencies.
 
-00:00:27.190 --> 00:00:36.253
-[THE CHALLENGE] The real challenge for engineering teams is knowing: Which vulnerabilities are actually reachable in production code, and which ones are never called?
+4
+00:00:28.500 --> 00:00:36.000
+[1/5 THE CHALLENGE] The real challenge for engineering teams is knowing: Which vulnerabilities are actually reachable in production code, and which ones are never called?
 
-00:00:36.253 --> 00:00:45.316
-[THE CHALLENGE] Without this reachability context, developers spend weeks investigating alerts or risk breaking live backend APIs during package upgrades.
+5
+00:00:36.000 --> 00:00:48.000
+[1/5 THE CHALLENGE] Without this reachability context, developers can spend weeks investigating alerts or risk breaking live backend APIs during package upgrades.
 
-00:00:45.316 --> 00:00:54.380
-[THE CHALLENGE] This is why modern software security requires a deeper, code-aware approach.
+6
+00:00:48.000 --> 00:00:54.380
+[1/5 THE CHALLENGE] This is why modern software security requires a deeper, code-aware approach.
 
-00:00:54.980 --> 00:01:04.011
-[PROPOSED SOLUTION] To address this challenge, we created SupplyGraph.
+7
+00:00:54.380 --> 00:01:02.000
+[2/5 PROPOSED SOLUTION] To address this challenge, we created SupplyGraph.
 
-00:01:04.011 --> 00:01:13.043
-[PROPOSED SOLUTION] SupplyGraph is an Application Security Posture Management platform designed to give developers complete visibility into their software supply chain.
+8
+00:01:02.000 --> 00:01:12.000
+[2/5 PROPOSED SOLUTION] SupplyGraph is an Application Security Posture Management platform designed to give developers complete visibility into their software supply chain.
 
-00:01:13.043 --> 00:01:22.075
-[PROPOSED SOLUTION] Instead of treating dependencies as flat isolated lists, SupplyGraph analyzes project call paths and builds an interactive visual attack graph.
+9
+00:01:12.000 --> 00:01:22.000
+[2/5 PROPOSED SOLUTION] Instead of treating dependencies as flat isolated lists, SupplyGraph analyzes project call paths and builds an interactive visual attack graph.
 
-00:01:22.075 --> 00:01:31.106
-[PROPOSED SOLUTION] It connects your code from user-facing entry points all the way down to deeply nested libraries.
+10
+00:01:22.000 --> 00:01:30.000
+[2/5 PROPOSED SOLUTION] It connects your code from user-facing entry points all the way down to deeply nested libraries.
 
-00:01:31.106 --> 00:01:40.138
-[PROPOSED SOLUTION] It clearly verifies whether an execution path actually reaches a vulnerable component.
+11
+00:01:30.000 --> 00:01:38.000
+[2/5 PROPOSED SOLUTION] It clearly verifies whether an execution path actually reaches a vulnerable component.
 
-00:01:40.138 --> 00:01:49.170
-[PROPOSED SOLUTION] When an issue is identified, SupplyGraph provides safe, line-by-line code patches that preserve application functionality, while testing untrusted packages inside an isolated sandbox.
+12
+00:01:38.000 --> 00:01:48.580
+[2/5 PROPOSED SOLUTION] When an issue is identified, SupplyGraph provides safe, line-by-line code patches that preserve application functionality, while testing untrusted packages inside an isolated sandbox.
 
-00:01:49.770 --> 00:02:01.962
-[CORE FEATURES] Let us look at four core capabilities of SupplyGraph:
+13
+00:01:48.580 --> 00:01:54.000
+[3/5 CORE FEATURES] Let us look at four core capabilities of SupplyGraph:
 
-00:02:01.962 --> 00:02:14.154
-[CORE FEATURES] First is the Attack Graph. Powered by graph traversal algorithms, it visually maps the relationship between code and libraries, showing exact reachability paths.
+14
+00:01:54.000 --> 00:02:07.000
+[3/5 CORE FEATURES] First is the Attack Graph. Powered by graph traversal algorithms, it visually maps the relationship between code and libraries, showing exact reachability paths.
 
-00:02:14.153 --> 00:02:26.346
-[CORE FEATURES] Second is the Blast Radius Score. It calculates a clear risk metric from 0 to 100, helping teams understand potential operational impact.
+15
+00:02:07.000 --> 00:02:19.000
+[3/5 CORE FEATURES] Second is the Blast Radius Score. It calculates a clear risk metric from 0 to 100, helping teams understand potential operational impact.
 
-00:02:26.346 --> 00:02:38.538
-[CORE FEATURES] Third is the Autonomous Executive AI. It summarizes technical vulnerability data into actionable briefings and prioritized containment steps.
+16
+00:02:19.000 --> 00:02:33.500
+[3/5 CORE FEATURES] Third is the Autonomous Executive AI. It summarizes technical vulnerability data into actionable briefings and prioritized containment steps.
 
-00:02:38.538 --> 00:02:50.730
-[CORE FEATURES] And fourth is the CycloneDX SBOM. It generates standard Software Bill of Materials documents with deterministic SHA-256 cryptographic verification for compliance.
+17
+00:02:33.500 --> 00:02:49.540
+[3/5 CORE FEATURES] And fourth is the CycloneDX SBOM. It generates standard Software Bill of Materials documents with deterministic SHA-256 cryptographic verification for compliance.
 
-00:02:51.330 --> 00:03:01.770
-[DEMO SCENARIOS] To demonstrate these capabilities, SupplyGraph includes five preloaded real-world scenarios:
+18
+00:02:49.540 --> 00:02:57.000
+[4/5 DEMO SCENARIOS] To demonstrate these capabilities, SupplyGraph includes five preloaded real-world scenarios:
 
-00:03:01.770 --> 00:03:12.210
-[DEMO SCENARIOS] Scenario A illustrates a transitive Log4j call path, mapping how an incoming request travels through service layers to a vulnerable logging library.
+19
+00:02:57.000 --> 00:03:08.000
+[4/5 DEMO SCENARIOS] Scenario A illustrates a transitive Log4j call path, mapping how an incoming request travels through service layers to a vulnerable logging library.
 
-00:03:12.210 --> 00:03:22.650
-[DEMO SCENARIOS] Scenario B examines Prototype Pollution, showing how improper object merging can be safely identified and corrected.
+20
+00:03:08.000 --> 00:03:18.000
+[4/5 DEMO SCENARIOS] Scenario B examines Prototype Pollution, showing how improper object merging can be safely identified and corrected.
 
-00:03:22.650 --> 00:03:33.090
-[DEMO SCENARIOS] Scenario C analyzes insecure Python pickle deserialization, demonstrating AST-level detection before code execution.
+21
+00:03:18.000 --> 00:03:28.000
+[4/5 DEMO SCENARIOS] Scenario C analyzes insecure Python pickle deserialization, demonstrating AST-level detection before code execution.
 
-00:03:33.090 --> 00:03:43.530
-[DEMO SCENARIOS] Scenario D audits GitHub Actions workflows, ensuring runners and third-party actions use immutable commit hashes.
+22
+00:03:28.000 --> 00:03:39.000
+[4/5 DEMO SCENARIOS] Scenario D audits GitHub Actions workflows, ensuring runners and third-party actions use immutable commit hashes.
 
-00:03:43.530 --> 00:03:53.969
-[DEMO SCENARIOS] And Scenario E tests lifecycle scripts, demonstrating how package installation hooks are monitored and controlled.
+23
+00:03:39.000 --> 00:03:52.180
+[4/5 DEMO SCENARIOS] And Scenario E tests lifecycle scripts, demonstrating how package installation hooks are monitored and controlled.
 
-00:03:54.570 --> 00:04:07.413
-[REAL PROJECT WALKTHROUGH] Now let us examine a real-world open-source repository: listmonk by Kailash Nadh.
+24
+00:03:52.180 --> 00:04:02.000
+[5/5 REAL PROJECT WALKTHROUGH] Now let us examine a real-world open-source repository: listmonk by Kailash Nadh.
 
-00:04:07.413 --> 00:04:20.256
-[REAL PROJECT WALKTHROUGH] When scanning a multi-module repository like this, SupplyGraph indexes all 35 submodules and manifests, providing a unified inventory across frontend, backend, and workflows.
+25
+00:04:02.000 --> 00:04:13.500
+[5/5 REAL PROJECT WALKTHROUGH] When scanning a multi-module repository like this, SupplyGraph indexes all 35 submodules and manifests, providing a unified inventory across frontend, backend, and workflows.
 
-00:04:20.256 --> 00:04:33.100
-[REAL PROJECT WALKTHROUGH] It identifies 21 findings across direct and transitive dependencies, computing a contextual Blast Radius score of 60 out of 100.
+26
+00:04:13.500 --> 00:04:27.000
+[5/5 REAL PROJECT WALKTHROUGH] It identifies 21 findings across direct and transitive dependencies, computing a contextual Blast Radius score of 60 out of 100.
 
-00:04:33.100 --> 00:04:45.943
-[REAL PROJECT WALKTHROUGH] With the 'Fix with AI' feature, SupplyGraph generates evidence-based, non-breaking remediation prompts specifically structured for AI coding agents like Antigravity, Cursor, and Copilot.
+27
+00:04:27.000 --> 00:04:41.000
+[5/5 REAL PROJECT WALKTHROUGH] With the 'Fix with AI' feature, SupplyGraph generates evidence-based, non-breaking remediation prompts specifically structured for AI coding agents like Antigravity, Cursor, and Copilot.
 
-00:04:45.943 --> 00:04:58.786
-[REAL PROJECT WALKTHROUGH] In the AI Code Reviewer, developers inspect surgical unified git diffs that correct specific vulnerable lines rather than forcing broad version jumps.
+28
+00:04:41.000 --> 00:04:55.000
+[5/5 REAL PROJECT WALKTHROUGH] In the AI Code Reviewer, developers inspect surgical unified git diffs that correct specific vulnerable lines rather than forcing broad version jumps.
 
-00:04:58.786 --> 00:05:11.629
-[REAL PROJECT WALKTHROUGH] And in our Detonation Sandbox, lifecycle scripts run within an isolated container where unauthorized network connections and file modifications are safely contained.
+29
+00:04:55.000 --> 00:05:09.240
+[5/5 REAL PROJECT WALKTHROUGH] And in our Detonation Sandbox, lifecycle scripts run within an isolated container where unauthorized network connections and file modifications are safely contained.
