@@ -701,6 +701,33 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
   const cicdFindings = findings.filter((f: any) => f.finding_type === "CICD_RISK" || f.title?.includes("CI/CD"));
   const astFindings = findings.filter((f: any) => f.finding_type === "AST" || f.title?.includes("AST") || f.finding_type === "SUSPICIOUS");
 
+  // Separate backend source code reviews from CI/CD workflow reviews
+  const backendCodeReviews = codeReviews.filter((cr: any) =>
+    !cr.file_path?.endsWith('.yml') &&
+    !cr.file_path?.endsWith('.yaml') &&
+    !cr.title?.includes('CI/CD') &&
+    !cr.file_path?.includes('.github/workflows')
+  );
+
+  const cicdCodeReviews = codeReviews.filter((cr: any) =>
+    cr.file_path?.endsWith('.yml') ||
+    cr.file_path?.endsWith('.yaml') ||
+    cr.title?.includes('CI/CD') ||
+    cr.file_path?.includes('.github/workflows')
+  );
+
+  function getLanguageFromPath(filePath: string): string {
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    if (ext === 'py') return 'python';
+    if (ext === 'ts' || ext === 'tsx') return 'typescript';
+    if (ext === 'js' || ext === 'jsx') return 'javascript';
+    if (ext === 'go') return 'go';
+    if (ext === 'rs') return 'rust';
+    if (ext === 'json') return 'json';
+    if (ext === 'yml' || ext === 'yaml') return 'yaml';
+    return 'text';
+  }
+
   let p = "";
 
   // 1. Role and Objective
@@ -948,11 +975,30 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
     stepNum++;
   }
 
+  // Backend & Application Source Code Fixes
+  if (backendCodeReviews.length > 0) {
+    p += `### 3.${stepNum} Backend & Application Source Code Vulnerability Fixes (AST & Static Code Review)\n`;
+    p += `> **CRITICAL**: The following source code vulnerabilities and bugs were discovered inside the project's application files. You MUST apply these surgical code patches to prevent runtime crashes, remote code execution, and data leakage:\n\n`;
+
+    backendCodeReviews.forEach((cr: any, idx: number) => {
+      const lang = getLanguageFromPath(cr.file_path);
+      p += `#### Backend Patch #${idx + 1}: ${cr.title} [${cr.severity}] (${cr.category || "Security Vulnerability"})\n`;
+      p += `- **Target File**: \`${cr.file_path}\` (around line ${cr.line_number})\n`;
+      p += `- **Issue Explanation**: ${cr.error_explanation}\n`;
+      if (cr.unified_diff) {
+        p += `\`\`\`diff\n${cr.unified_diff}\n\`\`\`\n\n`;
+      } else if (cr.corrected_code) {
+        p += `Replace:\n\`\`\`${lang}\n${cr.buggy_code}\n\`\`\`\nWith:\n\`\`\`${lang}\n${cr.corrected_code}\n\`\`\`\n\n`;
+      }
+    });
+    stepNum++;
+  }
+
   // CI/CD Workflows Section
   p += `### 3.${stepNum} CI/CD Pipeline Security Hardening (\`.github/workflows/\`)\n`;
-  if (codeReviews.length > 0) {
-    codeReviews.forEach((cr: any, idx: number) => {
-      p += `#### Patch #${idx + 1}: ${cr.title} [${cr.severity}]\n`;
+  if (cicdCodeReviews.length > 0) {
+    cicdCodeReviews.forEach((cr: any, idx: number) => {
+      p += `#### CI/CD Patch #${idx + 1}: ${cr.title} [${cr.severity}]\n`;
       p += `- **File**: \`${cr.file_path}\` (around line ${cr.line_number})\n`;
       p += `- **Security Rule**: ${cr.error_explanation}\n`;
       if (cr.unified_diff) {
@@ -980,9 +1026,29 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
   }
   stepNum++;
 
+  // Call-Site Dependency Compatibility & Refactoring Audit
+  p += `### 3.${stepNum} Call-Site Dependency Audit & API Compatibility Refactoring\n`;
+  p += `> ⚠️ **WHY BACKENDS BREAK ON DEPENDENCY UPDATES**:\n`;
+  p += `> Bumping package versions in manifests (\`package.json\`, \`requirements.txt\`, \`go.mod\`) changes the installed library, but **DOES NOT update the application code calling it**. If the new version deprecates or removes an API, the backend will crash at startup with \`ImportError\`, \`AttributeError\`, or \`TypeError\`.\n`;
+  p += `>\n`;
+  p += `> **MANDATORY CALL-SITE AUDIT INSTRUCTIONS FOR AI**:\n`;
+  p += `> You MUST search every source file in the project for calls to the upgraded dependencies:\n`;
+  p += `> 1. **Scan Imports in Project Code**:\n`;
+  p += `>    - Python: Run \`grep -rn "import <package>" .\` and \`grep -rn "from <package>" .\`\n`;
+  p += `>    - Node.js: Run \`grep -rn "require('<package>')" .\` and \`grep -rn "from '<package>'" .\`\n`;
+  p += `> 2. **Check for Common High-Risk Breaking Change Signatures**:\n`;
+  p += `>    - **Pillow (v10+ / v13+)**: \`Image.ANTIALIAS\` was removed. Replace with \`Image.Resampling.LANCZOS\`.\n`;
+  p += `>    - **Pydantic (v1 -> v2)**: \`from pydantic import BaseSettings\` raises \`ImportError\`. Use \`from pydantic_settings import BaseSettings\`. Replace \`.dict()\` with \`.model_dump()\`. Replace \`@validator\` with \`@field_validator\`.\n`;
+  p += `>    - **SQLAlchemy (v1.4 -> v2.0)**: Raw SQL strings in \`session.execute()\` must be wrapped with \`text("...")\` from \`sqlalchemy import text\`.\n`;
+  p += `>    - **Requests & Urllib3**: Ensure \`verify=False\` is removed, and custom adapter connection pools match current syntax.\n`;
+  p += `>    - **Next.js (v14 -> v15/v16)**: \`params\` and \`searchParams\` in Route Handlers and Pages must be awaited (\`const { id } = await params\`).\n`;
+  p += `>    - **PyJWT / JSONWebToken**: Explicitly declare verification algorithms: \`jwt.decode(token, secret, algorithms=["HS256"])\`.\n`;
+  p += `> 3. **Refactor Call-Sites Immediately**: Update all backend files referencing these packages to ensure zero runtime \`ImportError\` or \`AttributeError\` exceptions when the backend server boots.\n\n`;
+  stepNum++;
+
   // AST / Application Code Section
   if (astFindings.length > 0) {
-    p += `### 3.${stepNum} Application Source Code Hardening (AST Findings)\n`;
+    p += `### 3.${stepNum} Additional AST Pattern Refactoring\n`;
     astFindings.forEach((af: any, idx: number) => {
       p += `#### Code Signal #${idx + 1}: ${af.title} [${af.severity}]\n`;
       p += `- **Finding Description**: ${af.description}\n`;
@@ -999,10 +1065,15 @@ export function generateMasterAIFixPrompt(scanData: any, options: PromptGenerato
   p += `Complete all verification gates before reporting completion:\n`;
   p += `1. **Syntax Validation**: Manifest files (\`package.json\`, \`requirements.txt\`, \`go.mod\`) must parse cleanly without syntax errors.\n`;
   p += `2. **Dependency Resolution**: Run package manager installation commands. Confirm that resolution completes with 0 dependency conflicts.\n`;
-  p += `3. **Test Suite Execution**: Run project test suites (\`npm test\`, \`pytest\`, \`go test\`). Compare results against the Phase A baseline.\n`;
-  p += `4. **Build Verification**: Run production build (\`npm run build\`, etc.) to confirm bundling and static analysis pass.\n`;
-  p += `5. **CI/CD Action SHAs**: Verify that no unpinned mutable tags (\`@v...\` or \`@main\`) remain in \`.github/workflows/\`.\n`;
-  p += `6. **Git Diff Hygiene**: Inspect \`git diff\` to confirm changes are strictly limited to the security issues identified above.\n\n`;
+  p += `3. **Backend Compilation & Syntax Gate**:\n`;
+  p += `   - Python: Run \`python -m py_compile <modified_python_files>\` to guarantee zero syntax or indentation errors.\n`;
+  p += `   - TypeScript / Node: Run \`npx tsc --noEmit\` or \`npm run build\` to confirm type safety and module resolution.\n`;
+  p += `4. **Application Import & Boot Smoke-Test**:\n`;
+  p += `   - Python: Run \`python -c "import <main_entrypoint>"\` (e.g. \`python -c "import main"\` or \`python -c "import app"\`) to confirm all backend modules load without \`ImportError\`, \`ModuleNotFoundError\`, or \`AttributeError\`.\n`;
+  p += `   - Node.js: Run \`node -c <server_file>\` to verify syntax.\n`;
+  p += `5. **Test Suite Execution**: Run project test suites (\`npm test\`, \`pytest\`, \`go test\`). Compare results against the Phase A baseline.\n`;
+  p += `6. **CI/CD Action SHAs**: Verify that no unpinned mutable tags (\`@v...\` or \`@main\`) remain in \`.github/workflows/\`.\n`;
+  p += `7. **Git Diff Hygiene**: Inspect \`git diff\` to confirm changes are strictly limited to the security issues identified above.\n\n`;
 
   // 7. Acceptance Criteria
   p += `## 5. ACCEPTANCE CRITERIA\n`;
@@ -1129,8 +1200,9 @@ export function generateSingleAIFixPrompt(
     p += `1. Update the dependency manifest with safe minimum version.\n`;
   }
 
-  p += `5. Run project tests to confirm application functions cleanly without regressions.\n`;
-  p += `6. Present the updated file diff and verification test results.\n`;
+  p += `5. **Call-Site Compatibility Audit**: Search the codebase for all occurrences of \`import ${pkgName}\` or \`require('${pkgName}')\`. Verify that no deprecated methods or altered function signatures are called.\n`;
+  p += `6. Run project tests and backend smoke-tests to confirm application functions cleanly without regressions.\n`;
+  p += `7. Present the updated file diff and verification test results.\n`;
 
   return p.trim();
 }

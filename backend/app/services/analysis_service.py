@@ -500,20 +500,35 @@ class AnalysisService:
         # --- STEP 13.5: AI Code Reviewer for Source Code ---
         code_reviews: List[CodeReviewItem] = []
         try:
-            source_candidates = [
+            def _source_priority(f: str) -> int:
+                fl = f.lower()
+                if any(fl.endswith(ep) for ep in ['main.py', 'app.py', 'server.py', 'server.js', 'index.ts', 'index.js', 'settings.py', 'routes.py']):
+                    return 0
+                if any(dir_kw in fl for dir_kw in ['backend/', 'server/', 'api/', 'app/', 'controllers/', 'services/', 'models/', 'routes/']):
+                    return 1
+                if '.github/workflows/' in fl:
+                    return 2
+                if any(fl.endswith(ext) for ext in ['.py', '.ts', '.js']):
+                    return 3
+                return 4
+
+            all_candidates = [
                 f for f in all_repo_files
-                if any(f.endswith(ext) for ext in ['.py', '.js', '.ts', '.tsx', '.jsx', '.yml'])
-                and not any(ign in f for ign in ['node_modules/', '.git/', 'venv/', '__pycache__/', '.next/'])
-            ][:10]
+                if any(f.endswith(ext) for ext in ['.py', '.js', '.ts', '.tsx', '.jsx', '.yml', '.yaml'])
+                and not any(ign in f.lower() for ign in ['node_modules/', '.git/', 'venv/', '__pycache__/', '.next/', 'dist/', 'build/'])
+            ]
+            all_candidates.sort(key=_source_priority)
+            source_candidates = all_candidates[:40]
+
             if source_candidates:
                 source_files_dict = await self._fetch_files_concurrently(
-                    request.github_url, source_candidates, request.branch, max_concurrency=8, timeout=4.0
+                    request.github_url, source_candidates, request.branch, max_concurrency=10, timeout=8.0
                 )
                 source_files_bounded = {
                     k: v for k, v in source_files_dict.items() if v and len(v) < 50_000
                 }
                 if source_files_bounded:
-                    code_reviews = self.code_reviewer.review_files(source_files_bounded, max_files=10)
+                    code_reviews = self.code_reviewer.review_files(source_files_bounded, max_files=40)
         except Exception as cre:
             logger.warning(f"Code reviewer failed in run_analysis: {cre}")
 
@@ -984,7 +999,7 @@ class AnalysisService:
         code_reviews: List[CodeReviewItem] = []
         if request.enable_code_review:
             try:
-                code_reviews = self.code_reviewer.review_files(files_map, max_files=20)
+                code_reviews = self.code_reviewer.review_files(files_map, max_files=100)
             except Exception as e:
                 logger.warning(f"Folder code review failed: {e}")
 

@@ -546,4 +546,69 @@ console.log("Running Test 15: Reference Scenario (kisan-ai-core - 55 findings)..
   assert(prompt.includes("minimizing regressions"));
 }
 
-console.log("\n🎯 ALL 15 ACCEPTANCE AND REGRESSION TEST SUITES PASSED FLAWLESSLY!\n");
+// TEST 16: Backend Source Code Patches & Call-Site Audit Verification
+console.log("Running Test 16: Backend Code Patches & Call-Site Audit Verification...");
+{
+  const scanWithCodeReviews = {
+    scan: { repository_url: "https://github.com/org/fullstack-app" },
+    findings: [],
+    code_reviews: [
+      {
+        id: "CR-1",
+        title: "Remote Code Execution via Insecure pickle.loads()",
+        severity: "CRITICAL",
+        category: "Security Vulnerability",
+        file_path: "backend/data_loader.py",
+        line_number: 48,
+        error_explanation: "Using pickle.loads() on network input allows remote code execution.",
+        buggy_code: "user_obj = pickle.loads(raw_payload)",
+        corrected_code: "user_obj = json.loads(raw_payload.decode('utf-8'))"
+      },
+      {
+        id: "CR-2",
+        title: "Cross-Site Scripting (XSS) via dangerouslySetInnerHTML",
+        severity: "HIGH",
+        category: "Security Vulnerability",
+        file_path: "src/components/UserProfile.tsx",
+        line_number: 31,
+        error_explanation: "Rendering unescaped user bio allows script injection.",
+        buggy_code: "<div dangerouslySetInnerHTML={{ __html: user.bio }} />",
+        corrected_code: "<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(user.bio) }} />"
+      },
+      {
+        id: "CR-3",
+        title: "Unpinned GitHub Action in Deployment Workflow",
+        severity: "HIGH",
+        category: "CI/CD Security",
+        file_path: ".github/workflows/deploy.yml",
+        line_number: 19,
+        error_explanation: "Action references mutable @v2 branch tag.",
+        buggy_code: "uses: actions/upload-artifact@v2",
+        corrected_code: "uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb99ba5ed1 # v4.1.4"
+      }
+    ]
+  };
+
+  const prompt = generateMasterAIFixPrompt(scanWithCodeReviews);
+
+  // Must separate Backend Code Fixes from CI/CD Workflow Fixes
+  assert(prompt.includes("Backend & Application Source Code Vulnerability Fixes (AST & Static Code Review)"));
+  assert(prompt.includes("backend/data_loader.py"));
+  assert(prompt.includes("```python\nuser_obj = pickle.loads(raw_payload)"));
+  assert(!prompt.includes("```yaml\nuser_obj = pickle.loads(raw_payload)")); // Must NOT use yaml for Python!
+
+  assert(prompt.includes("src/components/UserProfile.tsx"));
+  assert(prompt.includes("```typescript\n<div dangerouslySetInnerHTML"));
+
+  // CI/CD section must contain workflow items
+  assert(prompt.includes(".github/workflows/deploy.yml"));
+  assert(prompt.includes("```yaml\nuses: actions/upload-artifact@v2"));
+
+  // Must include Call-Site Dependency Audit and Backend Integrity Smoke Tests
+  assert(prompt.includes("Call-Site Dependency Audit & API Compatibility Refactoring"));
+  assert(prompt.includes("WHY BACKENDS BREAK ON DEPENDENCY UPDATES"));
+  assert(prompt.includes("python -m py_compile"));
+  assert(prompt.includes("python -c \"import <main_entrypoint>\""));
+}
+
+console.log("\n🎯 ALL 16 ACCEPTANCE AND REGRESSION TEST SUITES PASSED FLAWLESSLY!\n");

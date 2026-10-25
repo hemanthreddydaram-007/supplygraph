@@ -164,3 +164,41 @@ jobs:
         assert "VERIFY_40_CHAR_COMMIT_SHA" in item.corrected_code
         assert "https://github.com/some-random-org/arbitrary-action/releases" in item.error_explanation
 
+    def test_python_pickle_insecure_deserialization(self):
+        code = "import pickle\ndef load_data(raw_payload):\n    return pickle.loads(raw_payload)\n"
+        results = self.reviewer.review_snippet(code, language="python", file_path="backend/loader.py")
+        assert len(results) >= 1
+        found = any("pickle.loads" in r.title or "Insecure pickle" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "pickle.loads" in r.title or "Insecure pickle" in r.title)
+        assert item.severity == "CRITICAL"
+        assert "json.loads" in item.corrected_code
+
+    def test_python_requests_verify_false(self):
+        code = "import requests\ndef fetch_data(url):\n    return requests.get(url, verify=False)\n"
+        results = self.reviewer.review_snippet(code, language="python", file_path="backend/client.py")
+        assert len(results) >= 1
+        found = any("verify=False" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "verify=False" in r.title)
+        assert "verify=True" in item.corrected_code
+
+    def test_python_deprecated_pillow_antialias(self):
+        code = "from PIL import Image\ndef resize(im, w, h):\n    return im.resize((w, h), Image.ANTIALIAS)\n"
+        results = self.reviewer.review_snippet(code, language="python", file_path="backend/images.py")
+        assert len(results) >= 1
+        found = any("ANTIALIAS" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "ANTIALIAS" in r.title)
+        assert item.severity == "CRITICAL"
+        assert "Image.Resampling.LANCZOS" in item.corrected_code
+
+    def test_javascript_prototype_pollution(self):
+        code = "for (let key in source) {\n    target[key] = source[key];\n}\n"
+        results = self.reviewer.review_snippet(code, language="javascript", file_path="src/merge.js")
+        assert len(results) >= 1
+        found = any("Prototype Pollution" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "Prototype Pollution" in r.title)
+        assert "__proto__" in item.corrected_code
+

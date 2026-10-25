@@ -177,7 +177,7 @@ class CodeReviewerService:
     def __init__(self):
         pass
 
-    def review_files(self, files: Dict[str, str], max_files: int = 10) -> List[CodeReviewItem]:
+    def review_files(self, files: Dict[str, str], max_files: int = 50) -> List[CodeReviewItem]:
         """Review multiple files, prioritizing production source files over test suites."""
         all_reviews: List[CodeReviewItem] = []
         
@@ -317,6 +317,55 @@ class CodeReviewerService:
                         "algo": func_name
                     })
 
+                # Check for insecure deserialization via pickle
+                if func_name in ["loads", "load"]:
+                    is_pickle = False
+                    if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+                        if node.func.value.id in ["pickle", "_pickle", "cPickle"]:
+                            is_pickle = True
+                    if is_pickle:
+                        self.findings.append({
+                            "type": "INSECURE_PICKLE",
+                            "node": node,
+                            "line": node.lineno
+                        })
+
+                # Check for requests/httpx with verify=False
+                for kw in node.keywords:
+                    if kw.arg == "verify" and isinstance(kw.value, ast.Constant) and kw.value.value is False:
+                        self.findings.append({
+                            "type": "INSECURE_REQUESTS_NO_VERIFY",
+                            "node": node,
+                            "line": node.lineno
+                        })
+
+                self.generic_visit(node)
+
+            def visit_Attribute(self, node):
+                # Check for deprecated Pillow Image.ANTIALIAS (removed in Pillow 10+)
+                if node.attr == "ANTIALIAS":
+                    self.findings.append({
+                        "type": "DEPRECATED_PILLOW_ANTIALIAS",
+                        "node": node,
+                        "line": node.lineno
+                    })
+                self.generic_visit(node)
+
+            def visit_ImportFrom(self, node):
+                # Check for deprecated Pydantic v1 BaseSettings
+                if node.module == "pydantic" and any(getattr(a, "name", "") == "BaseSettings" for a in node.names):
+                    self.findings.append({
+                        "type": "DEPRECATED_PYDANTIC_BASESETTINGS",
+                        "node": node,
+                        "line": node.lineno
+                    })
+                # Check for deprecated SQLAlchemy declarative_base
+                elif node.module == "sqlalchemy.ext.declarative" and any(getattr(a, "name", "") == "declarative_base" for a in node.names):
+                    self.findings.append({
+                        "type": "DEPRECATED_SQLALCHEMY_DECLARATIVE",
+                        "node": node,
+                        "line": node.lineno
+                    })
                 self.generic_visit(node)
 
         visitor = PythonASTVisitor()
@@ -441,6 +490,114 @@ class CodeReviewerService:
                     )
                 )
 
+            elif finding["type"] == "INSECURE_PICKLE":
+                new_lines = [
+                    f"{indent}# Corrected: Avoid pickle.loads() on untrusted inputs; use json.loads() or safe serialization",
+                    f"{indent}import json",
+                    orig_line.replace("pickle.loads(", "json.loads(").replace("pickle.load(", "json.load(")
+                ]
+                diff = self._build_unified_diff(file_path, lines, line_no, orig_line, new_lines, context_count=2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=line_no,
+                        severity="CRITICAL",
+                        category="Security Vulnerability",
+                        title="Remote Code Execution via Insecure pickle.loads()",
+                        error_explanation="Using `pickle.loads()` on untrusted input allows attackers to execute arbitrary code via serialized `__reduce__` payloads. Use standardized serialization like JSON or Protocol Buffers.",
+                        buggy_code=orig_line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            elif finding["type"] == "INSECURE_REQUESTS_NO_VERIFY":
+                corrected_line = orig_line.replace("verify=False", "verify=True")
+                new_lines = [
+                    f"{indent}# Corrected: Enforce TLS certificate verification",
+                    corrected_line
+                ]
+                diff = self._build_unified_diff(file_path, lines, line_no, orig_line, new_lines, context_count=2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=line_no,
+                        severity="HIGH",
+                        category="Security Vulnerability",
+                        title="Disabled TLS Certificate Verification (`verify=False`)",
+                        error_explanation="Disabling SSL/TLS certificate validation (`verify=False`) allows attackers on the network to intercept, decrypt, or tamper with backend API traffic via Man-in-the-Middle (MitM) attacks.",
+                        buggy_code=orig_line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            elif finding["type"] == "DEPRECATED_PILLOW_ANTIALIAS":
+                corrected_line = orig_line.replace("Image.ANTIALIAS", "Image.Resampling.LANCZOS").replace(".ANTIALIAS", ".Resampling.LANCZOS")
+                new_lines = [
+                    f"{indent}# Fix for Pillow >= 10.0: Image.ANTIALIAS was removed; use Image.Resampling.LANCZOS",
+                    corrected_line
+                ]
+                diff = self._build_unified_diff(file_path, lines, line_no, orig_line, new_lines, context_count=2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=line_no,
+                        severity="CRITICAL",
+                        category="Bug / Logic Error",
+                        title="Removed Pillow API: `Image.ANTIALIAS` (AttributeError)",
+                        error_explanation="`Image.ANTIALIAS` was deprecated and removed in Pillow 10.0.0. When upgrading Pillow, code invoking `Image.ANTIALIAS` will crash with `AttributeError: module 'PIL.Image' has no attribute 'ANTIALIAS'`. Replace with `Image.Resampling.LANCZOS`.",
+                        buggy_code=orig_line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            elif finding["type"] == "DEPRECATED_PYDANTIC_BASESETTINGS":
+                new_lines = [
+                    f"{indent}# Fix for Pydantic v2: BaseSettings was moved to the pydantic_settings package",
+                    f"{indent}from pydantic_settings import BaseSettings"
+                ]
+                diff = self._build_unified_diff(file_path, lines, line_no, orig_line, new_lines, context_count=2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=line_no,
+                        severity="HIGH",
+                        category="Bug / Logic Error",
+                        title="Removed Pydantic API: `from pydantic import BaseSettings` (ImportError)",
+                        error_explanation="In Pydantic v2, `BaseSettings` was moved to the standalone `pydantic-settings` library. Importing it from `pydantic` raises `ImportError: cannot import name 'BaseSettings' from 'pydantic'`. Update import to `from pydantic_settings import BaseSettings`.",
+                        buggy_code=orig_line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            elif finding["type"] == "DEPRECATED_SQLALCHEMY_DECLARATIVE":
+                new_lines = [
+                    f"{indent}# Fix for SQLAlchemy 2.0: declarative_base was moved to sqlalchemy.orm",
+                    f"{indent}from sqlalchemy.orm import declarative_base"
+                ]
+                diff = self._build_unified_diff(file_path, lines, line_no, orig_line, new_lines, context_count=2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=line_no,
+                        severity="MEDIUM",
+                        category="Bug / Logic Error",
+                        title="Deprecated SQLAlchemy Module: `sqlalchemy.ext.declarative`",
+                        error_explanation="In SQLAlchemy 2.0, `declarative_base` should be imported from `sqlalchemy.orm`. Importing from `sqlalchemy.ext.declarative` triggers deprecation warnings and will be removed in future releases.",
+                        buggy_code=orig_line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
         # 3. Regex / Pattern-based checks in Python (with sanitized lines)
         for idx, line in enumerate(lines, start=1):
             raw_stripped = line.strip()
@@ -519,6 +676,52 @@ class CodeReviewerService:
                         category="Code Quality / Best Practice",
                         title="Unclosed File Resource Leak",
                         error_explanation="Opening files without a context manager (`with`) causes file descriptor leaks if an unhandled exception occurs.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            # 7. Prototype pollution via unfiltered property assignment
+            if re.search(r'target\[key\]\s*=\s*source\[key\]', raw_stripped) or re.search(r'obj\[key\]\s*=\s*val', raw_stripped):
+                new_lines = [
+                    f"{indent}// Corrected: Protect against prototype pollution",
+                    f"{indent}if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;",
+                    line
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="CRITICAL",
+                        category="Security Vulnerability",
+                        title="Prototype Pollution via Unfiltered Property Injection",
+                        error_explanation="Directly assigning object properties using dynamic keys without validating against '__proto__' or 'constructor' allows attackers to pollute global Object prototypes.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            # 8. Unsafe child_process.exec()
+            if re.search(r'child_process\.exec\s*\(', clean_code) or re.search(r'\bexec\s*\(\s*`', raw_stripped):
+                new_lines = [
+                    f"{indent}// Corrected: Use execFile or spawn with argument arrays instead of shell execution",
+                    f"{indent}const {{ execFile }} = require('child_process');",
+                    f"{indent}execFile('executable', [arg1, arg2], callback);"
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="CRITICAL",
+                        category="Security Vulnerability",
+                        title="Command Injection via `child_process.exec()`",
+                        error_explanation="The `exec()` function invokes a system shell, leaving the application vulnerable to command injection if arguments contain user input. Use `execFile` or `spawn` without shell.",
                         buggy_code=line,
                         corrected_code="\n".join(new_lines),
                         unified_diff=diff
@@ -683,6 +886,52 @@ class CodeReviewerService:
                         category="Security Vulnerability",
                         title="Cleartext HTTP Endpoint Transmission",
                         error_explanation="Transmitting sensitive data over unencrypted HTTP exposes traffic to Man-in-the-Middle (MitM) eavesdropping and tamper attacks.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            # 7. Prototype pollution via unfiltered property assignment
+            if re.search(r'target\[key\]\s*=\s*source\[key\]', raw_stripped) or re.search(r'obj\[key\]\s*=\s*val', raw_stripped):
+                new_lines = [
+                    f"{indent}// Corrected: Protect against prototype pollution",
+                    f"{indent}if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;",
+                    line
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="CRITICAL",
+                        category="Security Vulnerability",
+                        title="Prototype Pollution via Unfiltered Property Injection",
+                        error_explanation="Directly assigning object properties using dynamic keys without validating against '__proto__' or 'constructor' allows attackers to pollute global Object prototypes.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            # 8. Unsafe child_process.exec()
+            if re.search(r'child_process\.exec\s*\(', clean_code) or re.search(r'\bexec\s*\(\s*`', raw_stripped):
+                new_lines = [
+                    f"{indent}// Corrected: Use execFile or spawn with argument arrays instead of shell execution",
+                    f"{indent}const {{ execFile }} = require('child_process');",
+                    f"{indent}execFile('executable', [arg1, arg2], callback);"
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="CRITICAL",
+                        category="Security Vulnerability",
+                        title="Command Injection via `child_process.exec()`",
+                        error_explanation="The `exec()` function invokes a system shell, leaving the application vulnerable to command injection if arguments contain user input. Use `execFile` or `spawn` without shell.",
                         buggy_code=line,
                         corrected_code="\n".join(new_lines),
                         unified_diff=diff
