@@ -179,48 +179,23 @@ flowchart TD
 
 ---
 
-## ⚡ Quickstart & Local Setup
+## 🌐 Live Platform Access
 
-### Prerequisites
-- **Python 3.11+**
-- **Node.js 20+**
-- **Git**
+SupplyGraph is fully deployed and accessible in production without any local environment installation:
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/hemanthreddydaram-007/supplygraph.git
-cd supplygraph
-```
+<div align="center">
 
-### 2. Backend Setup
-```bash
-cd backend
-python -m venv venv
+### 👉 **[https://supplygraph-five.vercel.app](https://supplygraph-five.vercel.app)**
 
-# Windows
-.\venv\Scripts\activate
-# Linux / macOS
-source venv/bin/activate
+*Zero setup required • Instant Evaluator Fast-Pass enabled*
 
-pip install -r requirements.txt
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-The FastAPI interactive documentation will be available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+</div>
 
-### 3. Frontend Setup
-In a new terminal window:
-```bash
-cd frontend
-npm install
-npm run dev
-```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### 4. Single-Command Launch (Windows PowerShell)
-You can launch both the frontend and backend simultaneously using our root script:
-```powershell
-.\start-all.ps1
-```
+### Evaluation & Access Details:
+- **Instant Login:** Click the **⚡ YUKTHI 2026 Judge Fast-Pass** button on the login screen for 1-click evaluator access with pre-configured permissions.
+- **Social Login:** Authenticate using Google OAuth, GitHub, or direct evaluator credentials.
+- **Preloaded Demos:** All 5 scenarios (Scenarios A through E) and repository analysis features are instantly testable on the live cloud environment.
+- **REST API Docs:** Interactive OpenAPI swagger contracts are available at `https://supplygraph-five.vercel.app/api/docs`.
 
 ---
 
