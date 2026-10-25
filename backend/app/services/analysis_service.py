@@ -82,6 +82,18 @@ class AnalysisService:
         return out
 
     async def run_analysis(self, request: AnalysisRequest) -> AnalysisResponse:
+        import asyncio
+        try:
+            return await asyncio.wait_for(self._run_analysis_internal(request), timeout=35.0)
+        except asyncio.TimeoutError:
+            logger.warning(f"Scan analysis timed out after 35s for {request.github_url}")
+            raise TimeoutError(
+                f"Repository scan timed out after 35 seconds for {request.github_url}. "
+                f"GitHub API rate limits may be reached for this IP. "
+                f"Tip: Upload the project folder via '📂 Upload Folder' to analyze all dependencies instantly with zero rate limits."
+            )
+
+    async def _run_analysis_internal(self, request: AnalysisRequest) -> AnalysisResponse:
         scan_id = str(uuid.uuid4())
         scan_metadata = ScanMetadata(
             id=scan_id,
@@ -337,7 +349,7 @@ class AnalysisService:
                     f for f in all_repo_files
                     if any(f.lower().endswith(ext) for ext in ('.py', '.js', '.ts', '.jsx', '.tsx'))
                     and not any(ign in f.lower() for ign in source_ignore)
-                ][:40]
+                ][:12]
 
                 ast_evidence_all: List[EvidenceItem] = []
                 source_map = await self._fetch_files_concurrently(
@@ -518,17 +530,17 @@ class AnalysisService:
                 and not any(ign in f.lower() for ign in ['node_modules/', '.git/', 'venv/', '__pycache__/', '.next/', 'dist/', 'build/'])
             ]
             all_candidates.sort(key=_source_priority)
-            source_candidates = all_candidates[:40]
+            source_candidates = all_candidates[:12]
 
             if source_candidates:
                 source_files_dict = await self._fetch_files_concurrently(
-                    request.github_url, source_candidates, request.branch, max_concurrency=10, timeout=8.0
+                    request.github_url, source_candidates, request.branch, max_concurrency=10, timeout=4.0
                 )
                 source_files_bounded = {
                     k: v for k, v in source_files_dict.items() if v and len(v) < 50_000
                 }
                 if source_files_bounded:
-                    code_reviews = self.code_reviewer.review_files(source_files_bounded, max_files=40)
+                    code_reviews = self.code_reviewer.review_files(source_files_bounded, max_files=12)
         except Exception as cre:
             logger.warning(f"Code reviewer failed in run_analysis: {cre}")
 

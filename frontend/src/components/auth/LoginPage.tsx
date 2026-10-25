@@ -11,18 +11,49 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
+    setInfoMessage(null);
+
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail) {
+      setErrorMessage("Please enter your work email address.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setErrorMessage("Please enter a valid work email address (e.g., developer@company.com).");
+      return;
+    }
+
+    if (!trimmedPassword) {
+      setErrorMessage("Please enter your password.");
+      return;
+    }
+
+    if (trimmedPassword.length < 6) {
+      setErrorMessage("Password must be at least 6 characters long.");
+      return;
+    }
+
     setIsSubmitting(true);
     setTimeout(() => {
+      const rawName = trimmedEmail.split("@")[0];
+      const capitalized = rawName.charAt(0).toUpperCase() + rawName.slice(1);
       onLogin({
-        name: email.split("@")[0] || "Security Lead",
-        email: email || "admin@supplygraph.sec",
+        name: capitalized || "Security Lead",
+        email: trimmedEmail,
         role: "DevSecOps Engineer",
       });
       setIsSubmitting(false);
-    }, 400);
+    }, 350);
   };
 
   const handleOAuthLogin = (provider: "google" | "github") => {
@@ -179,15 +210,31 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
           {/* Standard Email / Password Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
+            {errorMessage && (
+              <div className="p-3 rounded-xl bg-red-950/70 border border-red-500/50 text-red-300 text-xs flex items-center space-x-2 animate-in fade-in">
+                <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {infoMessage && (
+              <div className="p-3 rounded-xl bg-indigo-950/70 border border-indigo-500/50 text-indigo-300 text-xs flex items-center space-x-2 animate-in fade-in">
+                <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
+                <span>{infoMessage}</span>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-mono font-medium text-zinc-300 mb-1.5">
                 Work Email Address
               </label>
               <input
                 type="email"
-                required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (errorMessage) setErrorMessage(null);
+                }}
                 placeholder="developer@company.com"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-zinc-200 placeholder:text-zinc-600 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:border-red-500/50 transition-all font-mono"
               />
@@ -198,15 +245,21 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 <label className="text-xs font-mono font-medium text-zinc-300">
                   Password
                 </label>
-                <span className="text-[11px] text-zinc-500 font-mono hover:text-zinc-400 cursor-pointer">
+                <button
+                  type="button"
+                  onClick={() => setInfoMessage("Single Sign-On (SSO) active. Use Judge Fast-Pass or OAuth for immediate evaluation access.")}
+                  className="text-[11px] text-zinc-500 font-mono hover:text-zinc-400"
+                >
                   Forgot?
-                </span>
+                </button>
               </div>
               <input
                 type="password"
-                required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (errorMessage) setErrorMessage(null);
+                }}
                 placeholder="••••••••••••"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-zinc-200 placeholder:text-zinc-600 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:border-red-500/50 transition-all font-mono"
               />
@@ -215,10 +268,19 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-semibold text-sm shadow-lg shadow-red-600/20 hover:shadow-red-600/30 transition-all active:scale-[0.98] flex items-center justify-center space-x-2"
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-semibold text-sm shadow-lg shadow-red-600/20 hover:shadow-red-600/30 transition-all active:scale-[0.98] flex items-center justify-center space-x-2 disabled:opacity-60"
             >
-              <span>Sign In to SupplyGraph</span>
-              <ArrowRight className="w-4 h-4" />
+              {isSubmitting ? (
+                <span className="flex items-center space-x-2">
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  <span>Authenticating...</span>
+                </span>
+              ) : (
+                <>
+                  <span>Sign In to SupplyGraph</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
 

@@ -76,6 +76,25 @@ class GitHubService:
         except GithubException as e:
             raise ValueError(self._format_github_error(full_name, e))
 
+    def _fetch_raw_github(self, full_name: str, file_path: str, ref: Optional[str] = None) -> Optional[str]:
+        """Fetch raw content directly from raw.githubusercontent.com without exhausting API rate limits."""
+        import urllib.request
+        branches = [ref] if ref else ["main", "master", "HEAD"]
+        clean_path = file_path.lstrip('/')
+        for b in branches:
+            url = f"https://raw.githubusercontent.com/{full_name}/{b}/{clean_path}"
+            try:
+                req = urllib.request.Request(
+                    url,
+                    headers={"User-Agent": "SupplyGraph-Scanner/3.0"}
+                )
+                with urllib.request.urlopen(req, timeout=3.0) as resp:
+                    if resp.status == 200:
+                        return resp.read().decode('utf-8', errors='replace')
+            except Exception:
+                continue
+        return None
+
     def get_file_content(self, repo_url: str, file_path: str, ref: str = None) -> Optional[str]:
         cache_key = f"{repo_url}:{file_path}:{ref or ''}"
         now = time.time()
@@ -85,6 +104,14 @@ class GitHubService:
                 return cached_val
 
         full_name = self._extract_repo_name(repo_url)
+
+        # 1. Fast raw fetch via raw.githubusercontent.com (zero rate limit penalty & instantaneous)
+        raw_val = self._fetch_raw_github(full_name, file_path, ref)
+        if raw_val is not None:
+            _FILE_CACHE[cache_key] = (now, raw_val)
+            return raw_val
+
+        # 2. Fallback to authenticated PyGithub
         try:
             repo = self.github.get_repo(full_name)
             kwargs = {}
@@ -104,7 +131,7 @@ class GitHubService:
             if isinstance(content_file, list):
                 raise ValueError(f"Path {file_path} is a directory, not a file.")
             
-            res_content = content_file.decoded_content.decode('utf-8')
+            res_content = content_file.decoded_content.decode('utf-8', errors='replace')
             _FILE_CACHE[cache_key] = (now, res_content)
             return res_content
         except GithubException as e:
@@ -124,29 +151,65 @@ class GitHubService:
         except Exception:
             return None
 
-    async def get_files_batch(self, repo_url: str, file_paths: List[str], ref: str = None, max_concurrency: int = 8, timeout: float = 4.0) -> dict:
-        """Fetch multiple files concurrently using an asyncio Semaphore and strict per-request timeout."""
+    async def get_files_batch(self, repo_url: str, file_paths: List[str], ref: str = None, max_concurrency: int = 8, timeout: float = 8.0) -> dict:
+        """Fetch multiple files concurrently using httpx async client and fallback to get_file_content."""
         import asyncio
+        import httpx
+        full_name = self._extract_repo_name(repo_url)
         sem = asyncio.Semaphore(max_concurrency)
+        branches = [ref] if ref else ["main", "master", "HEAD"]
 
-        async def _fetch(path: str):
-            async with sem:
-                try:
-                    content = await asyncio.wait_for(
-                        asyncio.to_thread(self.get_file_content, repo_url, path, ref),
-                        timeout=timeout
-                    )
-                    return path, content
-                except Exception:
-                    return path, None
+        try:
+            async with httpx.AsyncClient(timeout=timeout, headers={"User-Agent": "SupplyGraph-Scanner/3.0"}) as client:
+                async def _fetch(path: str):
+                    cache_key = f"{repo_url}:{path}:{ref or ''}"
+                    now = time.time()
+                    if cache_key in _FILE_CACHE:
+                        ts, cached_val = _FILE_CACHE[cache_key]
+                        if now - ts < _CACHE_TTL_SECONDS and cached_val is not None:
+                            return path, cached_val
 
-        tasks = [_fetch(p) for p in file_paths]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        out = {}
-        for res in results:
-            if isinstance(res, tuple) and res[1] is not None:
-                out[res[0]] = res[1]
-        return out
+                    clean_path = path.lstrip('/')
+                    async with sem:
+                        # 1. Try raw github first across branches concurrently
+                        try:
+                            tasks = [
+                                client.get(f"https://raw.githubusercontent.com/{full_name}/{b}/{clean_path}")
+                                for b in branches
+                            ]
+                            responses = await asyncio.gather(*tasks, return_exceptions=True)
+                            for resp in responses:
+                                if hasattr(resp, "status_code") and resp.status_code == 200:
+                                    val = resp.text
+                                    _FILE_CACHE[cache_key] = (now, val)
+                                    return path, val
+                        except Exception:
+                            pass
+
+                        # 2. Fallback to get_file_content via thread
+                        try:
+                            content = await asyncio.to_thread(self.get_file_content, repo_url, path, ref)
+                            if content:
+                                return path, content
+                        except Exception:
+                            pass
+                        return path, None
+
+                fetch_tasks = [_fetch(p) for p in file_paths]
+                results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+                out = {}
+                for res in results:
+                    if isinstance(res, tuple) and res[1] is not None:
+                        out[res[0]] = res[1]
+                return out
+        except Exception:
+            # Complete fallback to synchronous retrieval
+            out = {}
+            for p in file_paths:
+                c = self.get_file_content(repo_url, p, ref)
+                if c is not None:
+                    out[p] = c
+            return out
 
     def list_files(self, repo_url: str, path: str = "", ref: str = None) -> List[str]:
         cache_key = f"{repo_url}:{path}:{ref or ''}"

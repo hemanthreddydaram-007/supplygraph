@@ -21,30 +21,59 @@ export async function fetchDemoAnalysis(scenarioId: string): Promise<AnalysisRes
 export async function fetchRepositoryAnalysis(
   githubUrl: string,
   productionOnly?: boolean,
-  maxTransitiveDepth?: number
+  maxTransitiveDepth?: number,
+  signal?: AbortSignal
 ): Promise<AnalysisResponse> {
-  const response = await fetch(`${API_BASE}/api/v1/analyze`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      github_url: githubUrl,
-      production_only: Boolean(productionOnly),
-      max_transitive_depth: maxTransitiveDepth ?? 10,
-    }),
-  });
-
-  if (!response.ok) {
-    let errorDetail = response.statusText;
-    try {
-      const errorBody = await response.json();
-      if (errorBody.detail) errorDetail = errorBody.detail;
-    } catch (e) {}
-    throw new Error(`API error: ${errorDetail}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 40000);
+  
+  const onExternalAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort();
+    } else {
+      signal.addEventListener("abort", onExternalAbort);
+    }
   }
 
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/analyze`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        github_url: githubUrl,
+        production_only: Boolean(productionOnly),
+        max_transitive_depth: maxTransitiveDepth ?? 10,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      let errorDetail = response.statusText;
+      try {
+        const errorBody = await response.json();
+        if (errorBody.detail) errorDetail = errorBody.detail;
+      } catch (e) {}
+      throw new Error(`API error: ${errorDetail}`);
+    }
+
+    return response.json();
+  } catch (err: any) {
+    if (err.name === "AbortError" && !signal?.aborted) {
+      throw new Error(
+        "Repository analysis request timed out after 40 seconds. " +
+        "Tip: Upload the repository folder via '📂 Upload Folder' to analyze all dependencies locally with zero rate limits."
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+    if (signal) {
+      signal.removeEventListener("abort", onExternalAbort);
+    }
+  }
 }
 
 export async function fetchFolderAnalysis(

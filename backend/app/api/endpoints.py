@@ -1,5 +1,5 @@
 # SupplyGraph - API Endpoints v3.0
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Body
 from pydantic import BaseModel
 from app.models.core import (
     AnalysisRequest, DemoRequest, AnalysisResponse,
@@ -14,7 +14,7 @@ from app.execution.detonation import DetonationService
 import json
 import os
 import uuid
-from typing import List, Dict
+from typing import List, Dict, Any, Optional
 
 router = APIRouter(prefix="/api/v1")
 
@@ -233,6 +233,46 @@ async def analyze_folder(request: FolderAnalysisRequest):
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/lockfile/parse")
+async def parse_lockfile_endpoint(request: Dict[str, Any] = Body(...)):
+    """
+    Dedicated endpoint to fetch and parse lockfiles for a repository or raw content.
+    Prevents scan hangs by providing targeted, direct lockfile parsing.
+    """
+    service = AnalysisService()
+    github_url = request.get("github_url")
+    content = request.get("content")
+    filename = request.get("filename", "package.json")
+    
+    try:
+        if content:
+            components = service.lockfile_parser.parse_lockfile(content, filename)
+            return {
+                "filename": filename,
+                "total_components": len(components),
+                "components": [c.model_dump() for c in components]
+            }
+        elif github_url:
+            repo_files = service.github_service.list_files(github_url)
+            supported = ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "package.json", "requirements.txt", "poetry.lock", "go.mod", "Cargo.lock"]
+            target = next((f for f in repo_files if any(f.endswith(s) for s in supported)), "package.json")
+            file_content = service.github_service.get_file_content(github_url, target)
+            if not file_content:
+                raise HTTPException(status_code=404, detail=f"No supported lockfile content could be retrieved from {github_url}")
+            components = service.lockfile_parser.parse_lockfile(file_content, target)
+            return {
+                "filename": target,
+                "total_components": len(components),
+                "components": [c.model_dump() for c in components]
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Must provide github_url or content")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to parse lockfile: {str(e)}")
 
 
 @router.post("/analyze/demo", response_model=AnalysisResponse)
