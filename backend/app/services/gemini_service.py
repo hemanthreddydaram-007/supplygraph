@@ -72,11 +72,12 @@ class GeminiService:
         # Try Gemini
         if self.gemini_available:
             try:
-                result = await self._query_gemini(prompt)
+                import asyncio
+                result = await asyncio.wait_for(self._query_gemini(prompt), timeout=10.0)
                 if result:
                     return result
             except Exception as e:
-                logger.warning(f"Gemini query failed, using deterministic fallback: {e}")
+                logger.warning(f"Gemini query failed or timed out, using deterministic fallback: {e}")
 
         # Deterministic fallback
         return self._deterministic_summary(analysis_response)

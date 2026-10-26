@@ -140,11 +140,16 @@ class OSVClient:
         if not components:
             return results
 
-        CHUNK_SIZE = 150
-        sem = asyncio.Semaphore(12)
+        CHUNK_SIZE = 300
+        sem = asyncio.Semaphore(25)
         async with httpx.AsyncClient(timeout=15.0) as client:
-            for chunk_start in range(0, len(components), CHUNK_SIZE):
-                chunk_components = components[chunk_start:chunk_start + CHUNK_SIZE]
+            chunks = [
+                components[i:i + CHUNK_SIZE]
+                for i in range(0, len(components), CHUNK_SIZE)
+            ]
+
+            async def _process_chunk(chunk_components):
+                chunk_res: Dict[str, List[VulnerabilityModel]] = {}
                 queries = []
                 for c in chunk_components:
                     # Map PURL ecosystems to exact OSV API schema ecosystems
@@ -210,12 +215,19 @@ class OSVClient:
                                     pass
 
                         if vuln_models:
-                            if purl_str not in results:
-                                results[purl_str] = []
-                            results[purl_str].extend(vuln_models)
+                            chunk_res[purl_str] = vuln_models
                 except Exception as e:
                     print(f"OSV Client batch error: {e}")
-                    pass
+
+                return chunk_res
+
+            chunk_outputs = await asyncio.gather(*[_process_chunk(chunk) for chunk in chunks], return_exceptions=True)
+            for co in chunk_outputs:
+                if isinstance(co, dict):
+                    for purl_str, vulns in co.items():
+                        if purl_str not in results:
+                            results[purl_str] = []
+                        results[purl_str].extend(vulns)
 
         return results
 

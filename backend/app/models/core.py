@@ -519,7 +519,7 @@ class SecurityGraph(BaseModel):
 
 class AttackPath(BaseModel):
     id: UUID = Field(default_factory=uuid4)
-    scan_id: UUID
+    scan_id: Union[UUID, str]
     finding_id: Optional[UUID] = None
     origin_node_id: str
     target_node_id: str
@@ -543,7 +543,7 @@ class AssetModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID = Field(default_factory=uuid4)
-    scan_id: UUID
+    scan_id: Union[UUID, str]
     name: str
     asset_type: AssetType
     criticality: Literal["critical", "high", "medium", "low"] = "medium"

@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 _FILE_CACHE: Dict[str, Tuple[float, Optional[str]]] = {}
 _LIST_CACHE: Dict[str, Tuple[float, List[str]]] = {}
+_REPO_BRANCH_CACHE: Dict[str, str] = {}
 _CACHE_TTL_SECONDS = 300.0  # 5 minutes in-memory cache to prevent GitHub rate limits
 
 
@@ -79,21 +80,55 @@ class GitHubService:
     def _fetch_raw_github(self, full_name: str, file_path: str, ref: Optional[str] = None) -> Optional[str]:
         """Fetch raw content directly from raw.githubusercontent.com without exhausting API rate limits."""
         import urllib.request
-        branches = [ref] if ref else ["main", "master", "HEAD"]
+        cached_branch = _REPO_BRANCH_CACHE.get(full_name)
+        if ref:
+            branches = [ref]
+        elif cached_branch:
+            branches = [cached_branch] + [b for b in ["main", "master", "HEAD"] if b != cached_branch]
+        else:
+            branches = ["main", "master", "HEAD"]
+
         clean_path = file_path.lstrip('/')
+        settings = get_settings()
+        req_headers = {"User-Agent": "SupplyGraph-Scanner/3.0"}
+        if settings.github_token:
+            req_headers["Authorization"] = f"token {settings.github_token}"
+
         for b in branches:
             url = f"https://raw.githubusercontent.com/{full_name}/{b}/{clean_path}"
             try:
                 req = urllib.request.Request(
                     url,
-                    headers={"User-Agent": "SupplyGraph-Scanner/3.0"}
+                    headers=req_headers
                 )
                 with urllib.request.urlopen(req, timeout=3.0) as resp:
                     if resp.status == 200:
+                        _REPO_BRANCH_CACHE[full_name] = b
                         return resp.read().decode('utf-8', errors='replace')
             except Exception:
                 continue
         return None
+
+    def _fetch_pygithub_content(self, full_name: str, file_path: str, ref: Optional[str] = None) -> Optional[str]:
+        try:
+            repo = self.github.get_repo(full_name)
+            kwargs = {}
+            if ref:
+                kwargs['ref'] = ref
+            try:
+                cf = repo.get_contents(file_path, **kwargs)
+            except GithubException as ge:
+                if ge.status == 404 and ref and repo.default_branch and ref != repo.default_branch:
+                    cf = repo.get_contents(file_path, ref=repo.default_branch)
+                elif ge.status == 404 and ref:
+                    cf = repo.get_contents(file_path)
+                else:
+                    return None
+            if isinstance(cf, list):
+                return None
+            return cf.decoded_content.decode('utf-8', errors='replace')
+        except Exception:
+            return None
 
     def get_file_content(self, repo_url: str, file_path: str, ref: str = None) -> Optional[str]:
         cache_key = f"{repo_url}:{file_path}:{ref or ''}"
@@ -151,16 +186,27 @@ class GitHubService:
         except Exception:
             return None
 
-    async def get_files_batch(self, repo_url: str, file_paths: List[str], ref: str = None, max_concurrency: int = 8, timeout: float = 8.0) -> dict:
+    async def get_files_batch(self, repo_url: str, file_paths: List[str], ref: str = None, max_concurrency: int = 15, timeout: float = 8.0) -> dict:
         """Fetch multiple files concurrently using httpx async client and fallback to get_file_content."""
         import asyncio
         import httpx
         full_name = self._extract_repo_name(repo_url)
         sem = asyncio.Semaphore(max_concurrency)
-        branches = [ref] if ref else ["main", "master", "HEAD"]
+        cached_branch = _REPO_BRANCH_CACHE.get(full_name)
+        if ref:
+            branches = [ref]
+        elif cached_branch:
+            branches = [cached_branch] + [b for b in ["main", "master", "HEAD"] if b != cached_branch]
+        else:
+            branches = ["main", "master", "HEAD"]
+
+        settings = get_settings()
+        client_headers = {"User-Agent": "SupplyGraph-Scanner/3.0"}
+        if settings.github_token:
+            client_headers["Authorization"] = f"token {settings.github_token}"
 
         try:
-            async with httpx.AsyncClient(timeout=timeout, headers={"User-Agent": "SupplyGraph-Scanner/3.0"}) as client:
+            async with httpx.AsyncClient(timeout=timeout, headers=client_headers) as client:
                 async def _fetch(path: str):
                     cache_key = f"{repo_url}:{path}:{ref or ''}"
                     now = time.time()
@@ -178,18 +224,20 @@ class GitHubService:
                                 for b in branches
                             ]
                             responses = await asyncio.gather(*tasks, return_exceptions=True)
-                            for resp in responses:
+                            for i, resp in enumerate(responses):
                                 if hasattr(resp, "status_code") and resp.status_code == 200:
                                     val = resp.text
+                                    _REPO_BRANCH_CACHE[full_name] = branches[i]
                                     _FILE_CACHE[cache_key] = (now, val)
                                     return path, val
                         except Exception:
                             pass
 
-                        # 2. Fallback to get_file_content via thread
+                        # 2. Fallback to authenticated PyGithub
                         try:
-                            content = await asyncio.to_thread(self.get_file_content, repo_url, path, ref)
+                            content = await asyncio.to_thread(self._fetch_pygithub_content, full_name, clean_path, ref)
                             if content:
+                                _FILE_CACHE[cache_key] = (now, content)
                                 return path, content
                         except Exception:
                             pass

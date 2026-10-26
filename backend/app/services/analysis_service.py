@@ -28,12 +28,14 @@ from app.detectors.typosquatting import TyposquattingDetector
 from app.detectors.ast_analyzer import ASTAnalyzer
 from app.detectors.cicd_analyzer import CICDAnalyzer
 from app.detectors.confusion_detector import DependencyConfusionDetector
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 
 class AnalysisService:
     def __init__(self):
+        self.settings = get_settings()
         self.github_service = GitHubService()
         self.lockfile_parser = LockfileParser()
         self.sbom_engine = SBOMEngine()
@@ -84,13 +86,14 @@ class AnalysisService:
 
     async def run_analysis(self, request: AnalysisRequest) -> AnalysisResponse:
         import asyncio
+        timeout_val = float(getattr(self.settings, "analysis_timeout_seconds", 120))
+        effective_timeout = max(timeout_val, 90.0)
         try:
-            return await asyncio.wait_for(self._run_analysis_internal(request), timeout=35.0)
+            return await asyncio.wait_for(self._run_analysis_internal(request), timeout=effective_timeout)
         except asyncio.TimeoutError:
-            logger.warning(f"Scan analysis timed out after 35s for {request.github_url}")
+            logger.warning(f"Scan analysis timed out after {effective_timeout}s for {request.github_url}")
             raise TimeoutError(
-                f"Repository scan timed out after 35 seconds for {request.github_url}. "
-                f"GitHub API rate limits may be reached for this IP. "
+                f"Repository scan timed out after {int(effective_timeout)} seconds for {request.github_url}. "
                 f"Tip: Upload the project folder via '📂 Upload Folder' to analyze all dependencies instantly with zero rate limits."
             )
 
@@ -209,7 +212,7 @@ class AnalysisService:
         # Compute SBOM attestation fields
         sbom_sha256 = self.sbom_engine.compute_sbom_sha256(sbom)
 
-        # --- STEP 3: OSV Batch Query (chunked to <= 150) ---
+        # --- STEP 3: High-Speed Concurrent Fetching (OSV Batch + Sources/Workflows + First-Party GHSAs) ---
         purls = []
         for comp in sbom.components:
             try:
@@ -217,7 +220,66 @@ class AnalysisService:
             except Exception:
                 pass
 
-        vulnerability_dict = await self.osv_client.query_batch(purls)
+        # Identify AST source files to inspect
+        source_ignore = [
+            'node_modules/', 'dist/', 'test/', 'tests/', 'vendor/',
+            '.git/', '.next/', 'venv/', '__pycache__/', 'build/'
+        ]
+        app_source_files = [
+            f for f in all_repo_files
+            if any(f.lower().endswith(ext) for ext in ('.py', '.js', '.ts', '.jsx', '.tsx'))
+            and not any(ign in f.lower() for ign in source_ignore)
+        ][:12] if request.enable_ast_analysis else []
+
+        # Identify CI/CD workflow files to inspect
+        workflow_files = [
+            f for f in all_repo_files
+            if ('.github/workflows/' in f or f.startswith('.github/workflows/')) and (f.endswith('.yml') or f.endswith('.yaml'))
+        ][:8] if request.enable_cicd_analysis else []
+
+        # Identify top code review files
+        def _source_priority(f: str) -> int:
+            fl = f.lower()
+            if any(fl.endswith(ep) for ep in ['main.py', 'app.py', 'server.py', 'server.js', 'index.ts', 'index.js', 'settings.py', 'routes.py']):
+                return 0
+            if any(dir_kw in fl for dir_kw in ['backend/', 'server/', 'api/', 'app/', 'controllers/', 'services/', 'models/', 'routes/']):
+                return 1
+            if '.github/workflows/' in fl:
+                return 2
+            if any(fl.endswith(ext) for ext in ['.py', '.ts', '.js']):
+                return 3
+            return 4
+
+        all_candidates = [
+            f for f in all_repo_files
+            if any(f.endswith(ext) for ext in ['.py', '.js', '.ts', '.tsx', '.jsx', '.yml', '.yaml'])
+            and not any(ign in f.lower() for ign in ['node_modules/', '.git/', 'venv/', '__pycache__/', '.next/', 'dist/', 'build/'])
+        ]
+        all_candidates.sort(key=_source_priority)
+        source_candidates = all_candidates[:12]
+
+        # Combine all files needed into a single deduplicated list
+        unique_files_to_fetch = list(dict.fromkeys(app_source_files + workflow_files + source_candidates))
+
+        async def _fetch_ghsas_and_dependabot_async():
+            try:
+                ghsas = await asyncio.to_thread(self.github_service.get_repo_security_advisories, request.github_url)
+                dep = await asyncio.to_thread(self.github_service.get_dependabot_info, request.github_url, all_repo_files)
+                return ghsas, dep
+            except Exception as d_err:
+                logger.warning(f"Failed to fetch dependabot info or first party GHSAs: {d_err}")
+                return [], {"configured": False, "file_path": None, "open_prs": 0}
+
+        # Concurrently execute OSV batch, all file fetching, and GHSA/Dependabot lookup
+        (
+            vulnerability_dict,
+            downloaded_files_map,
+            (first_party_ghsas_raw, dependabot_meta)
+        ) = await asyncio.gather(
+            self.osv_client.query_batch(purls),
+            self._fetch_files_concurrently(request.github_url, unique_files_to_fetch, request.branch, max_concurrency=15, timeout=6.0),
+            _fetch_ghsas_and_dependabot_async()
+        )
         scan_metadata.osv_queried = True
 
         # --- STEP 4: Generate OSV findings (deduplicated) ---
@@ -343,23 +405,10 @@ class AnalysisService:
 
         # --- STEP 7: Static AST Analysis (Application Code Files: Python, JS, TS, JSX, TSX) ---
         ast_count = 0
-        if request.enable_ast_analysis:
+        if request.enable_ast_analysis and app_source_files:
             try:
-                # Exclude node_modules, dist, test, vendor, build, and internal caches
-                source_ignore = [
-                    'node_modules/', 'dist/', 'test/', 'tests/', 'vendor/',
-                    '.git/', '.next/', 'venv/', '__pycache__/', 'build/'
-                ]
-                app_source_files = [
-                    f for f in all_repo_files
-                    if any(f.lower().endswith(ext) for ext in ('.py', '.js', '.ts', '.jsx', '.tsx'))
-                    and not any(ign in f.lower() for ign in source_ignore)
-                ][:12]
-
                 ast_evidence_all: List[EvidenceItem] = []
-                source_map = await self._fetch_files_concurrently(
-                    request.github_url, app_source_files, request.branch, max_concurrency=12, timeout=4.0
-                )
+                source_map = {f: downloaded_files_map[f] for f in app_source_files if f in downloaded_files_map}
                 for src_file, content in source_map.items():
                     if content and len(content) < 80_000:
                         try:
@@ -399,16 +448,9 @@ class AnalysisService:
 
         # --- STEP 8: CI/CD Workflow Scanning (.github/workflows/*.yml) ---
         cicd_count = 0
-        if request.enable_cicd_analysis:
+        if request.enable_cicd_analysis and workflow_files:
             try:
-                workflow_files = [
-                    f for f in all_repo_files
-                    if ('.github/workflows/' in f or f.startswith('.github/workflows/')) and (f.endswith('.yml') or f.endswith('.yaml'))
-                ][:8]
-
-                wf_map = await self._fetch_files_concurrently(
-                    request.github_url, workflow_files, request.branch, max_concurrency=8, timeout=4.0
-                )
+                wf_map = {f: downloaded_files_map[f] for f in workflow_files if f in downloaded_files_map}
                 for wf_file, wf_content in wf_map.items():
                     if wf_content:
                         try:
@@ -517,30 +559,8 @@ class AnalysisService:
         # --- STEP 13.5: AI Code Reviewer for Source Code ---
         code_reviews: List[CodeReviewItem] = []
         try:
-            def _source_priority(f: str) -> int:
-                fl = f.lower()
-                if any(fl.endswith(ep) for ep in ['main.py', 'app.py', 'server.py', 'server.js', 'index.ts', 'index.js', 'settings.py', 'routes.py']):
-                    return 0
-                if any(dir_kw in fl for dir_kw in ['backend/', 'server/', 'api/', 'app/', 'controllers/', 'services/', 'models/', 'routes/']):
-                    return 1
-                if '.github/workflows/' in fl:
-                    return 2
-                if any(fl.endswith(ext) for ext in ['.py', '.ts', '.js']):
-                    return 3
-                return 4
-
-            all_candidates = [
-                f for f in all_repo_files
-                if any(f.endswith(ext) for ext in ['.py', '.js', '.ts', '.tsx', '.jsx', '.yml', '.yaml'])
-                and not any(ign in f.lower() for ign in ['node_modules/', '.git/', 'venv/', '__pycache__/', '.next/', 'dist/', 'build/'])
-            ]
-            all_candidates.sort(key=_source_priority)
-            source_candidates = all_candidates[:12]
-
             if source_candidates:
-                source_files_dict = await self._fetch_files_concurrently(
-                    request.github_url, source_candidates, request.branch, max_concurrency=10, timeout=4.0
-                )
+                source_files_dict = {f: downloaded_files_map[f] for f in source_candidates if f in downloaded_files_map}
                 source_files_bounded = {
                     k: v for k, v in source_files_dict.items() if v and len(v) < 50_000
                 }
@@ -550,14 +570,7 @@ class AnalysisService:
             logger.warning(f"Code reviewer failed in run_analysis: {cre}")
 
         # --- STEP 13.6: First-Party Repository GHSAs & Dependabot Benchmark ---
-        first_party_ghsas_raw = []
-        dependabot_meta = {"configured": False, "file_path": None, "open_prs": 0}
-        try:
-            first_party_ghsas_raw = self.github_service.get_repo_security_advisories(request.github_url)
-            dependabot_meta = self.github_service.get_dependabot_info(request.github_url, all_repo_files)
-        except Exception as d_err:
-            logger.warning(f"Failed to fetch dependabot info or first party GHSAs: {d_err}")
-
+        # (Fetched concurrently in Step 3 for zero latency penalty)
         repo_ghsa_findings: List[FindingModel] = []
         for adv in first_party_ghsas_raw:
             ghsa_id = adv.get("ghsa_id") or adv.get("id") or "GHSA-UNKNOWN"

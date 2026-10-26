@@ -25,7 +25,8 @@ export async function fetchRepositoryAnalysis(
   signal?: AbortSignal
 ): Promise<AnalysisResponse> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 40000);
+  // 120-second client timeout to accommodate larger repositories without premature cutoff
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
   
   const onExternalAbort = () => controller.abort();
   if (signal) {
@@ -63,7 +64,7 @@ export async function fetchRepositoryAnalysis(
   } catch (err: any) {
     if (err.name === "AbortError" && !signal?.aborted) {
       throw new Error(
-        "Repository analysis request timed out after 40 seconds. " +
+        "Repository analysis request timed out. " +
         "Tip: Upload the repository folder via '📂 Upload Folder' to analyze all dependencies locally with zero rate limits."
       );
     }
