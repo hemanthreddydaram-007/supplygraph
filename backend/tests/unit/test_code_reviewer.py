@@ -202,3 +202,86 @@ jobs:
         item = next(r for r in results if "Prototype Pollution" in r.title)
         assert "__proto__" in item.corrected_code
 
+    def test_python_none_comparison_eq_detected(self):
+        code = "def check_status(val):\n    if val == None:\n        return False\n    return True\n"
+        results = self.reviewer.review_snippet(code, language="python", file_path="status.py")
+        assert len(results) >= 1
+        found = any("Comparison to None" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "Comparison to None" in r.title)
+        assert "is None" in item.corrected_code
+
+    def test_python_literal_is_comparison_detected(self):
+        code = "def check_code(status):\n    if status is 200:\n        return 'OK'\n    return 'Error'\n"
+        results = self.reviewer.review_snippet(code, language="python", file_path="response.py")
+        assert len(results) >= 1
+        found = any("Identity Comparison" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "Identity Comparison" in r.title)
+        assert "== 200" in item.corrected_code
+
+    def test_python_insecure_yaml_load_detected(self):
+        code = "import yaml\ndef parse_config(data):\n    return yaml.load(data)\n"
+        results = self.reviewer.review_snippet(code, language="python", file_path="config_loader.py")
+        assert len(results) >= 1
+        found = any("yaml.load" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "yaml.load" in r.title)
+        assert item.severity == "CRITICAL"
+        assert "yaml.safe_load" in item.corrected_code
+
+    def test_python_insecure_mktemp_detected(self):
+        code = "import tempfile\ndef create_file():\n    return tempfile.mktemp()\n"
+        results = self.reviewer.review_snippet(code, language="python", file_path="temp_utils.py")
+        assert len(results) >= 1
+        found = any("tempfile.mktemp" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "tempfile.mktemp" in r.title)
+        assert "NamedTemporaryFile" in item.corrected_code
+
+    def test_javascript_document_write_detected(self):
+        code = "function render(str) {\n    document.write(str);\n}\n"
+        results = self.reviewer.review_snippet(code, language="javascript", file_path="dom.js")
+        assert len(results) >= 1
+        found = any("document.write" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "document.write" in r.title)
+        assert "textContent" in item.corrected_code
+
+    def test_javascript_reject_unauthorized_false_detected(self):
+        code = "const agent = new https.Agent({ rejectUnauthorized: false });\n"
+        results = self.reviewer.review_snippet(code, language="javascript", file_path="client.js")
+        assert len(results) >= 1
+        found = any("rejectUnauthorized" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "rejectUnauthorized" in r.title)
+        assert "rejectUnauthorized: true" in item.corrected_code
+
+    def test_go_insecure_tls_detected(self):
+        code = "config := &tls.Config{InsecureSkipVerify: true}\n"
+        results = self.reviewer.review_snippet(code, language="go", file_path="network/client.go")
+        assert len(results) >= 1
+        found = any("InsecureSkipVerify" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "InsecureSkipVerify" in r.title)
+        assert "InsecureSkipVerify: false" in item.corrected_code
+
+    def test_dockerfile_missing_user_detected(self):
+        code = "FROM python:3.11-slim\nWORKDIR /app\nCOPY . .\nCMD [\"python\", \"app.py\"]\n"
+        results = self.reviewer.review_snippet(code, language="dockerfile", file_path="Dockerfile")
+        assert len(results) >= 1
+        found = any("USER Directive" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "USER Directive" in r.title)
+        assert "USER nonroot:nonroot" in item.corrected_code
+
+    def test_generate_markdown_report_comprehensive(self):
+        code = "def test(x=[]):\n    pass\n"
+        reviews = self.reviewer.review_snippet(code, language="python", file_path="test.py")
+        report = self.reviewer.generate_markdown_report(reviews, repo_name="demo-org/test-repo")
+        assert "# SupplyGraph Autonomous Code Review & Patch Report" in report
+        assert "demo-org/test-repo" in report
+        assert "Executive Issue Summary" in report
+        assert "test.py" in report
+        assert "Mutable Default Argument" in report
+

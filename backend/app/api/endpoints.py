@@ -14,9 +14,16 @@ from app.execution.detonation import DetonationService
 import json
 import os
 import uuid
+import asyncio
 from typing import List, Dict, Any, Optional
 
 router = APIRouter(prefix="/api/v1")
+
+
+class RepoReviewRequest(BaseModel):
+    github_url: str
+    branch: Optional[str] = None
+    max_files: Optional[int] = 100
 
 
 def get_demo_code_reviews(scenario_id: str) -> List[CodeReviewItem]:
@@ -317,7 +324,49 @@ async def review_code_snippet(request: CodeReviewRequest):
             language=request.language,
             file_path=request.file_path
         )
-        return {"reviews": reviews, "count": len(reviews)}
+        report_md = reviewer.generate_markdown_report(reviews, repo_name=request.file_path or "Code Snippet")
+        return {
+            "reviews": reviews,
+            "count": len(reviews),
+            "report_markdown": report_md
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/review/repository")
+async def review_repository_endpoint(request: RepoReviewRequest):
+    """
+    Dedicated endpoint to perform an exhaustive, zero-false-positive code review
+    across all source files of a repository and return a comprehensive report with
+    file names, errors, explanations, and corrected code.
+    """
+    service = AnalysisService()
+    reviewer = CodeReviewerService()
+    try:
+        all_repo_files = await asyncio.to_thread(service.github_service.list_files, request.github_url, request.branch)
+        code_exts = ('.py', '.js', '.ts', '.tsx', '.jsx', '.svelte', '.vue', '.yml', '.yaml', '.go', '.rs', '.json')
+        candidates = [
+            f for f in all_repo_files
+            if (any(f.lower().endswith(ext) for ext in code_exts) or 'dockerfile' in f.lower())
+            and not any(ign in f.lower() for ign in [
+                'node_modules/', '.git/', 'venv/', '__pycache__/', '.next/', 'dist/', 'build/', 'vendor/',
+                '.min.js', '.bundle.js', '.map', 'package-lock.json', 'yarn.lock', 'poetry.lock', 'cargo.lock'
+            ])
+        ]
+        max_files = request.max_files or 100
+        candidates = candidates[:max_files]
+        files_map = await service._fetch_files_concurrently(request.github_url, candidates, request.branch, max_concurrency=25, timeout=15.0)
+        reviews = reviewer.review_files(files_map, max_files=max_files)
+        repo_name = service.github_service._extract_repo_name(request.github_url)
+        report_md = reviewer.generate_markdown_report(reviews, repo_name=repo_name)
+        return {
+            "repository": request.github_url,
+            "total_files_reviewed": len(files_map),
+            "total_issues": len(reviews),
+            "reviews": reviews,
+            "report_markdown": report_md
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

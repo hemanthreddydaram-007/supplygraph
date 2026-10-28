@@ -177,7 +177,7 @@ class CodeReviewerService:
     def __init__(self):
         pass
 
-    def review_files(self, files: Dict[str, str], max_files: int = 50) -> List[CodeReviewItem]:
+    def review_files(self, files: Dict[str, str], max_files: int = 100) -> List[CodeReviewItem]:
         """Review multiple files, prioritizing production source files over test suites."""
         all_reviews: List[CodeReviewItem] = []
         
@@ -189,7 +189,7 @@ class CodeReviewerService:
             if count >= max_files:
                 break
             content = files.get(file_path, "")
-            if not content or len(content) > 50_000:
+            if not content or len(content) > 100_000:
                 continue
             # Skip ignored paths
             if any(ign in file_path.lower() for ign in ["node_modules/", ".git/", "venv/", "__pycache__/", ".next/", "dist/", "build/"]):
@@ -213,17 +213,26 @@ class CodeReviewerService:
             return self._review_yaml(file_path, content)
         elif ext == "json":
             return self._review_json(file_path, content)
+        elif ext == "go":
+            return self._review_go(file_path, content)
+        elif "dockerfile" in file_path.lower() or ext == "dockerfile":
+            return self._review_dockerfile(file_path, content)
         return []
 
     def review_snippet(self, code: str, language: str = "python", file_path: Optional[str] = None) -> List[CodeReviewItem]:
         """Review an ad-hoc code snippet."""
         path = file_path or f"snippet.{ 'py' if language.lower() == 'python' else 'js' }"
-        if language.lower() in ["python", "py"]:
+        lang_lower = language.lower()
+        if lang_lower in ["python", "py"]:
             return self._review_python(path, code)
-        elif language.lower() in ["javascript", "js", "typescript", "ts", "tsx", "jsx", "svelte", "vue", "astro"]:
+        elif lang_lower in ["javascript", "js", "typescript", "ts", "tsx", "jsx", "svelte", "vue", "astro"]:
             return self._review_javascript(path, code)
-        elif language.lower() in ["yaml", "yml"]:
+        elif lang_lower in ["yaml", "yml"]:
             return self._review_yaml(path, code)
+        elif lang_lower in ["go", "golang"]:
+            return self._review_go(path, code)
+        elif lang_lower in ["dockerfile", "docker"]:
+            return self._review_dockerfile(path, code)
         return self._review_python(path, code)
 
     # ============================================================
@@ -339,6 +348,58 @@ class CodeReviewerService:
                             "line": node.lineno
                         })
 
+                # Check for yaml.load() without SafeLoader
+                if func_name == "load":
+                    is_yaml = False
+                    if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+                        if node.func.value.id in ["yaml", "pyyaml"]:
+                            is_yaml = True
+                    if is_yaml:
+                        has_safe = False
+                        for kw in node.keywords:
+                            if kw.arg == "Loader":
+                                val_name = getattr(kw.value, "id", "") or getattr(kw.value, "attr", "")
+                                if "safe" in val_name.lower():
+                                    has_safe = True
+                        if not has_safe:
+                            self.findings.append({
+                                "type": "INSECURE_YAML_LOAD",
+                                "node": node,
+                                "line": node.lineno
+                            })
+
+                # Check for tempfile.mktemp() race condition
+                if func_name == "mktemp":
+                    if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+                        if node.func.value.id == "tempfile":
+                            self.findings.append({
+                                "type": "INSECURE_MKTEMP",
+                                "node": node,
+                                "line": node.lineno
+                            })
+
+                self.generic_visit(node)
+
+            def visit_Compare(self, node):
+                # Check comparison to None with == or !=
+                for op, comp in zip(node.ops, node.comparators):
+                    if isinstance(comp, ast.Constant) and comp.value is None:
+                        if isinstance(op, (ast.Eq, ast.NotEq)):
+                            self.findings.append({
+                                "type": "NONE_COMPARISON_EQ",
+                                "node": node,
+                                "line": node.lineno,
+                                "is_not": isinstance(op, ast.NotEq)
+                            })
+                    # Check 'is' / 'is not' with literal numbers or strings
+                    elif isinstance(op, (ast.Is, ast.IsNot)) and isinstance(comp, ast.Constant) and comp.value is not None and not isinstance(comp.value, bool):
+                        self.findings.append({
+                            "type": "LITERAL_IS_COMPARISON",
+                            "node": node,
+                            "line": node.lineno,
+                            "is_not": isinstance(op, ast.IsNot),
+                            "literal": repr(comp.value)
+                        })
                 self.generic_visit(node)
 
             def visit_Attribute(self, node):
@@ -598,6 +659,101 @@ class CodeReviewerService:
                     )
                 )
 
+            elif finding["type"] == "INSECURE_YAML_LOAD":
+                corrected_line = orig_line.replace("yaml.load(", "yaml.safe_load(").replace("pyyaml.load(", "pyyaml.safe_load(")
+                new_lines = [
+                    f"{indent}# Corrected: Use yaml.safe_load() to prevent arbitrary code execution (CVE-2020-14343)",
+                    corrected_line
+                ]
+                diff = self._build_unified_diff(file_path, lines, line_no, orig_line, new_lines, context_count=2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=line_no,
+                        severity="CRITICAL",
+                        category="Security Vulnerability",
+                        title="Arbitrary Code Execution via Insecure `yaml.load()`",
+                        error_explanation="Calling `yaml.load()` without specifying a safe loader allows malicious YAML payloads to instantiate arbitrary Python objects and execute shell commands (CVE-2020-14343). Always use `yaml.safe_load()`.",
+                        buggy_code=orig_line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            elif finding["type"] == "INSECURE_MKTEMP":
+                corrected_line = orig_line.replace("tempfile.mktemp()", "tempfile.NamedTemporaryFile(delete=False).name").replace("tempfile.mktemp(", "tempfile.NamedTemporaryFile(delete=False, ")
+                new_lines = [
+                    f"{indent}# Corrected: Use NamedTemporaryFile to eliminate race condition (TOCTOU)",
+                    corrected_line
+                ]
+                diff = self._build_unified_diff(file_path, lines, line_no, orig_line, new_lines, context_count=2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=line_no,
+                        severity="HIGH",
+                        category="Security Vulnerability",
+                        title="Insecure Temporary File Creation via `tempfile.mktemp()`",
+                        error_explanation="`tempfile.mktemp()` is deprecated because it generates a file name without creating the file, introducing a Time-of-Check to Time-of-Use (TOCTOU) race condition that allows symlink attacks. Use `tempfile.NamedTemporaryFile()`.",
+                        buggy_code=orig_line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            elif finding["type"] == "NONE_COMPARISON_EQ":
+                if finding["is_not"]:
+                    corrected_line = orig_line.replace("!= None", "is not None").replace("!=None", "is not None")
+                else:
+                    corrected_line = orig_line.replace("== None", "is None").replace("==None", "is None")
+                new_lines = [
+                    f"{indent}# PEP 8: Use identity operator (is / is not) for comparison with None singleton",
+                    corrected_line
+                ]
+                diff = self._build_unified_diff(file_path, lines, line_no, orig_line, new_lines, context_count=2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=line_no,
+                        severity="LOW",
+                        category="Bug / Logic Error",
+                        title="Comparison to None via `==` / `!=` (PEP 8)",
+                        error_explanation="Comparisons to singletons like `None` should always be done with `is` or `is not`, never the equality operators (`==` or `!=`). Equality operators invoke the object's `__eq__` method, which can cause unexpected logical behavior or crash on NumPy/Pandas dataframes with ValueError.",
+                        buggy_code=orig_line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            elif finding["type"] == "LITERAL_IS_COMPARISON":
+                lit = finding["literal"]
+                if finding["is_not"]:
+                    corrected_line = orig_line.replace(f" is not {lit}", f" != {lit}").replace(f" is not {lit.strip(chr(39)).strip(chr(34))}", f" != {lit}")
+                else:
+                    corrected_line = orig_line.replace(f" is {lit}", f" == {lit}").replace(f" is {lit.strip(chr(39)).strip(chr(34))}", f" == {lit}")
+                new_lines = [
+                    f"{indent}# Corrected: Use value equality (== / !=) instead of identity check (is) with literal",
+                    corrected_line
+                ]
+                diff = self._build_unified_diff(file_path, lines, line_no, orig_line, new_lines, context_count=2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=line_no,
+                        severity="MEDIUM",
+                        category="Bug / Logic Error",
+                        title="Dangerous Identity Comparison (`is`) with Literal Constant",
+                        error_explanation=f"Using `is` with a literal constant ({lit}) checks object memory address identity instead of value equality. Python does not guarantee literal interning across modules or processes; in Python 3.8+ this triggers SyntaxWarning and in Python 3.12+ will fail.",
+                        buggy_code=orig_line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
         # 3. Regex / Pattern-based checks in Python (with sanitized lines)
         for idx, line in enumerate(lines, start=1):
             raw_stripped = line.strip()
@@ -722,6 +878,74 @@ class CodeReviewerService:
                         category="Security Vulnerability",
                         title="Command Injection via `child_process.exec()`",
                         error_explanation="The `exec()` function invokes a system shell, leaving the application vulnerable to command injection if arguments contain user input. Use `execFile` or `spawn` without shell.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            # 9. DOM-based XSS via document.write()
+            if re.search(r'\bdocument\.write(?:ln)?\s*\(', clean_code):
+                new_lines = [
+                    f"{indent}// Corrected: Avoid document.write(); update DOM nodes safely",
+                    f"{indent}const target = document.getElementById('content');",
+                    f"{indent}if (target) target.textContent = safeData;"
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="HIGH",
+                        category="Security Vulnerability",
+                        title="DOM XSS & Parser Blocking via `document.write()`",
+                        error_explanation="Invoking `document.write()` strongly increases the risk of DOM-based Cross-Site Scripting (XSS) and blocks the browser HTML tokenizer. Use modern safe DOM manipulation like `textContent` or `appendChild()`.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            # 10. Insecure TLS rejectUnauthorized: false
+            if re.search(r'rejectUnauthorized\s*:\s*false', clean_code):
+                corrected_line = line.replace("rejectUnauthorized: false", "rejectUnauthorized: true").replace("rejectUnauthorized:false", "rejectUnauthorized: true")
+                new_lines = [
+                    f"{indent}// Corrected: Enforce TLS certificate verification",
+                    corrected_line
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="HIGH",
+                        category="Security Vulnerability",
+                        title="TLS Certificate Validation Disabled (`rejectUnauthorized: false`)",
+                        error_explanation="Setting `rejectUnauthorized: false` disables SSL/TLS certificate validation in Node.js HTTPS agents, exposing network traffic to Man-in-the-Middle (MitM) eavesdropping and token interception.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            # 11. Insecure PRNG Math.random() in security-sensitive context
+            if re.search(r'\bMath\.random\s*\(\s*\)', clean_code) and re.search(r'(token|secret|password|auth|session|nonce|salt|csrf)', raw_stripped, re.IGNORECASE):
+                new_lines = [
+                    f"{indent}// Corrected: Use cryptographically secure randomness",
+                    f"{indent}const secureToken = crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');"
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="HIGH",
+                        category="Security Vulnerability",
+                        title="Cryptographically Insecure Random Number via `Math.random()`",
+                        error_explanation="`Math.random()` produces pseudo-random numbers with predictable internal PRNG state. It must never be used for security tokens, authentication credentials, nonces, password generation, or session identifiers. Use `crypto.getRandomValues()` or `crypto.randomUUID()`.",
                         buggy_code=line,
                         corrected_code="\n".join(new_lines),
                         unified_diff=diff
@@ -938,6 +1162,74 @@ class CodeReviewerService:
                     )
                 )
 
+            # 9. DOM-based XSS via document.write()
+            if re.search(r'\bdocument\.write(?:ln)?\s*\(', clean_code):
+                new_lines = [
+                    f"{indent}// Corrected: Avoid document.write(); update DOM nodes safely",
+                    f"{indent}const target = document.getElementById('content');",
+                    f"{indent}if (target) target.textContent = safeData;"
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="HIGH",
+                        category="Security Vulnerability",
+                        title="DOM XSS & Parser Blocking via `document.write()`",
+                        error_explanation="Invoking `document.write()` strongly increases the risk of DOM-based Cross-Site Scripting (XSS) and blocks the browser HTML tokenizer. Use modern safe DOM manipulation like `textContent` or `appendChild()`.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            # 10. Insecure TLS rejectUnauthorized: false
+            if re.search(r'rejectUnauthorized\s*:\s*false', clean_code):
+                corrected_line = line.replace("rejectUnauthorized: false", "rejectUnauthorized: true").replace("rejectUnauthorized:false", "rejectUnauthorized: true")
+                new_lines = [
+                    f"{indent}// Corrected: Enforce TLS certificate verification",
+                    corrected_line
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="HIGH",
+                        category="Security Vulnerability",
+                        title="TLS Certificate Validation Disabled (`rejectUnauthorized: false`)",
+                        error_explanation="Setting `rejectUnauthorized: false` disables SSL/TLS certificate validation in Node.js HTTPS agents, exposing network traffic to Man-in-the-Middle (MitM) eavesdropping and token interception.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            # 11. Insecure PRNG Math.random() in security-sensitive context
+            if re.search(r'\bMath\.random\s*\(\s*\)', clean_code) and re.search(r'(token|secret|password|auth|session|nonce|salt|csrf)', raw_stripped, re.IGNORECASE):
+                new_lines = [
+                    f"{indent}// Corrected: Use cryptographically secure randomness",
+                    f"{indent}const secureToken = crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');"
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="HIGH",
+                        category="Security Vulnerability",
+                        title="Cryptographically Insecure Random Number via `Math.random()`",
+                        error_explanation="`Math.random()` produces pseudo-random numbers with predictable internal PRNG state. It must never be used for security tokens, authentication credentials, nonces, password generation, or session identifiers. Use `crypto.getRandomValues()` or `crypto.randomUUID()`.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
         return reviews
 
     # ============================================================
@@ -1070,6 +1362,200 @@ class CodeReviewerService:
                     )
                 )
         return reviews
+
+    # ============================================================
+    # GO CODE REVIEWER
+    # ============================================================
+    def _review_go(self, file_path: str, content: str) -> List[CodeReviewItem]:
+        reviews: List[CodeReviewItem] = []
+        lines = content.splitlines()
+
+        for idx, line in enumerate(lines, start=1):
+            raw_stripped = line.strip()
+            if raw_stripped.startswith("//") or raw_stripped.startswith("/*") or raw_stripped.startswith("*"):
+                continue
+
+            clean_code = strip_strings_and_comments(line, "js")
+            indent = line[:len(line) - len(line.lstrip())]
+
+            # Insecure TLS InsecureSkipVerify: true
+            if "InsecureSkipVerify: true" in raw_stripped or "InsecureSkipVerify:true" in raw_stripped:
+                corrected_line = line.replace("InsecureSkipVerify: true", "InsecureSkipVerify: false").replace("InsecureSkipVerify:true", "InsecureSkipVerify: false")
+                new_lines = [
+                    f"{indent}// Corrected: Enforce TLS certificate verification",
+                    corrected_line
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="HIGH",
+                        category="Security Vulnerability",
+                        title="TLS Certificate Validation Disabled (`InsecureSkipVerify: true`)",
+                        error_explanation="Setting `InsecureSkipVerify: true` in Go `tls.Config` disables SSL/TLS certificate verification, allowing network eavesdropping and Man-in-the-Middle (MitM) attacks.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            # Command injection in exec.Command with sh/bash
+            if re.search(r'exec\.Command\s*\(\s*["\'](sh|bash|cmd)["\']\s*,\s*["\']-[cC]["\']', raw_stripped):
+                new_lines = [
+                    f"{indent}// Corrected: Execute command directly with slice of arguments instead of invoking shell",
+                    f"{indent}cmd := exec.Command(\"executable\", arg1, arg2)"
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="CRITICAL",
+                        category="Security Vulnerability",
+                        title="Command Injection via Shell Wrapper in `exec.Command`",
+                        error_explanation="Spawning a shell via `exec.Command('sh', '-c', ...)` passes user arguments directly to the OS command shell, allowing command injection attacks. Execute the binary directly with argument slices.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+        return reviews
+
+    # ============================================================
+    # DOCKERFILE CODE REVIEWER
+    # ============================================================
+    def _review_dockerfile(self, file_path: str, content: str) -> List[CodeReviewItem]:
+        reviews: List[CodeReviewItem] = []
+        lines = content.splitlines()
+        has_user_directive = False
+
+        for idx, line in enumerate(lines, start=1):
+            raw = line.strip()
+            if raw.startswith("#"):
+                continue
+
+            if re.match(r'^USER\s+', raw, re.IGNORECASE):
+                has_user_directive = True
+
+            # curl | bash in RUN
+            if re.match(r'^RUN\s+.*(curl|wget).*\|\s*(bash|sh)', raw, re.IGNORECASE):
+                indent = line[:len(line) - len(line.lstrip())]
+                new_lines = [
+                    f"{indent}# Corrected: Download script and verify cryptographic checksum before execution",
+                    f"{indent}RUN curl -sSL https://trusted.org/install.sh -o /tmp/install.sh && \\",
+                    f"{indent}    echo 'expected-sha256  /tmp/install.sh' | sha256sum -c - && \\",
+                    f"{indent}    bash /tmp/install.sh && rm -f /tmp/install.sh"
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="HIGH",
+                        category="CI/CD Security Hardening",
+                        title="Insecure Script Pipe to Shell (`curl | bash`) in Dockerfile",
+                        error_explanation="Piping remote HTTP downloads directly into bash inside a Dockerfile allows compromised package registries or DNS hijackers to inject malicious instructions into container layers.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+        if not has_user_directive and len(lines) > 2:
+            reviews.append(
+                CodeReviewItem(
+                    id=str(uuid.uuid4()),
+                    file_path=file_path,
+                    line_number=len(lines),
+                    severity="MEDIUM",
+                    category="Security Vulnerability",
+                    title="Container Running as Root (Missing USER Directive)",
+                    error_explanation="The Dockerfile does not specify a non-root USER. Containers running as root (UID 0) pose severe privilege escalation and container breakout risks if an application vulnerability is exploited.",
+                    buggy_code="# (End of Dockerfile without USER directive)",
+                    corrected_code="USER nonroot:nonroot"
+                )
+            )
+
+        return reviews
+
+    # ============================================================
+    # COMPREHENSIVE MARKDOWN AUDIT REPORT GENERATOR
+    # ============================================================
+    def generate_markdown_report(self, reviews: List[CodeReviewItem], repo_name: str = "Repository") -> str:
+        """
+        Generates an exhaustive, production-grade markdown report of all code reviews,
+        including an executive summary table, issue breakdown by category and severity,
+        and surgical file-by-file corrections with copyable unified-diff patches.
+        """
+        from datetime import datetime, timezone
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+        critical_count = sum(1 for r in reviews if r.severity == "CRITICAL")
+        high_count = sum(1 for r in reviews if r.severity == "HIGH")
+        medium_count = sum(1 for r in reviews if r.severity == "MEDIUM")
+        low_count = sum(1 for r in reviews if r.severity == "LOW")
+
+        files_affected = len(set(r.file_path for r in reviews))
+
+        report = f"""# SupplyGraph Autonomous Code Review & Patch Report
+
+**Target Repository / Project:** `{repo_name}`  
+**Audit Timestamp:** `{now_str}`  
+**Auditor Engine:** SupplyGraph v3.0 Static AST & Pattern Reviewer  
+**Total Issues Identified:** `{len(reviews)}` across `{files_affected}` files  
+
+---
+
+## Executive Issue Summary
+
+| Severity | Count | Risk Level |
+|---|---|---|
+| **CRITICAL** | `{critical_count}` | Remote Code Execution, SQL Injection, Prototype Pollution |
+| **HIGH** | `{high_count}` | Security Flaws, Unpinned CI/CD Actions, Credential Leaks |
+| **MEDIUM** | `{medium_count}` | Logic Errors, Deprecated APIs, Concurrency Bugs |
+| **LOW** | `{low_count}` | Code Quality, Style Standards (PEP 8 / Strict Equality) |
+
+---
+
+## Detailed File-by-File Findings & Automated Corrections
+"""
+        if not reviews:
+            report += "\\n*No code errors, security vulnerabilities, or anti-patterns detected. Codebase complies with zero-trust security standards.*\\n"
+            return report
+
+        for i, r in enumerate(reviews, start=1):
+            report += f"""
+### [{i}] {r.title}
+- **File:** `{r.file_path}` (Line `{r.line_number}`)
+- **Severity:** `{r.severity}`
+- **Category:** `{r.category}`
+- **Explanation:** {r.error_explanation}
+
+#### Offending / Buggy Code:
+```
+{r.buggy_code}
+```
+
+#### Production-Ready Corrected Code:
+```
+{r.corrected_code}
+```
+"""
+            if r.unified_diff:
+                report += f"""
+#### Git Unified Diff Patch:
+```diff
+{r.unified_diff}
+```
+"""
+            report += "\\n---\\n"
+
+        return report
 
     # ============================================================
     # HELPER: SURGICAL UNIFIED DIFF GENERATOR

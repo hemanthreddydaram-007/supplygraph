@@ -223,40 +223,45 @@ class AnalysisService:
         # Identify AST source files to inspect
         source_ignore = [
             'node_modules/', 'dist/', 'test/', 'tests/', 'vendor/',
-            '.git/', '.next/', 'venv/', '__pycache__/', 'build/'
+            '.git/', '.next/', 'venv/', '__pycache__/', 'build/',
+            '.min.js', '.bundle.js', '.map'
         ]
         app_source_files = [
             f for f in all_repo_files
-            if any(f.lower().endswith(ext) for ext in ('.py', '.js', '.ts', '.jsx', '.tsx'))
+            if any(f.lower().endswith(ext) for ext in ('.py', '.js', '.ts', '.jsx', '.tsx', '.svelte', '.vue', '.go', '.rs'))
             and not any(ign in f.lower() for ign in source_ignore)
-        ][:12] if request.enable_ast_analysis else []
+        ][:60] if request.enable_ast_analysis else []
 
         # Identify CI/CD workflow files to inspect
         workflow_files = [
             f for f in all_repo_files
             if ('.github/workflows/' in f or f.startswith('.github/workflows/')) and (f.endswith('.yml') or f.endswith('.yaml'))
-        ][:8] if request.enable_cicd_analysis else []
+        ][:25] if request.enable_cicd_analysis else []
 
-        # Identify top code review files
+        # Identify all code review candidate files across the entire codebase
         def _source_priority(f: str) -> int:
             fl = f.lower()
             if any(fl.endswith(ep) for ep in ['main.py', 'app.py', 'server.py', 'server.js', 'index.ts', 'index.js', 'settings.py', 'routes.py']):
                 return 0
             if any(dir_kw in fl for dir_kw in ['backend/', 'server/', 'api/', 'app/', 'controllers/', 'services/', 'models/', 'routes/']):
                 return 1
-            if '.github/workflows/' in fl:
+            if '.github/workflows/' in fl or 'dockerfile' in fl:
                 return 2
-            if any(fl.endswith(ext) for ext in ['.py', '.ts', '.js']):
+            if any(fl.endswith(ext) for ext in ['.py', '.ts', '.js', '.tsx', '.jsx', '.go', '.rs']):
                 return 3
             return 4
 
+        code_exts = ('.py', '.js', '.ts', '.tsx', '.jsx', '.svelte', '.vue', '.yml', '.yaml', '.go', '.rs', '.json')
         all_candidates = [
             f for f in all_repo_files
-            if any(f.endswith(ext) for ext in ['.py', '.js', '.ts', '.tsx', '.jsx', '.yml', '.yaml'])
-            and not any(ign in f.lower() for ign in ['node_modules/', '.git/', 'venv/', '__pycache__/', '.next/', 'dist/', 'build/'])
+            if (any(f.lower().endswith(ext) for ext in code_exts) or 'dockerfile' in f.lower())
+            and not any(ign in f.lower() for ign in [
+                'node_modules/', '.git/', 'venv/', '__pycache__/', '.next/', 'dist/', 'build/', 'vendor/',
+                '.min.js', '.bundle.js', '.map', 'package-lock.json', 'yarn.lock', 'poetry.lock', 'cargo.lock'
+            ])
         ]
         all_candidates.sort(key=_source_priority)
-        source_candidates = all_candidates[:12]
+        source_candidates = all_candidates[:100]
 
         # Combine all files needed into a single deduplicated list
         unique_files_to_fetch = list(dict.fromkeys(app_source_files + workflow_files + source_candidates))
@@ -277,7 +282,7 @@ class AnalysisService:
             (first_party_ghsas_raw, dependabot_meta)
         ) = await asyncio.gather(
             self.osv_client.query_batch(purls),
-            self._fetch_files_concurrently(request.github_url, unique_files_to_fetch, request.branch, max_concurrency=15, timeout=4.0),
+            self._fetch_files_concurrently(request.github_url, unique_files_to_fetch, request.branch, max_concurrency=25, timeout=12.0),
             _fetch_ghsas_and_dependabot_async()
         )
         scan_metadata.osv_queried = True
@@ -562,10 +567,10 @@ class AnalysisService:
             if source_candidates:
                 source_files_dict = {f: downloaded_files_map[f] for f in source_candidates if f in downloaded_files_map}
                 source_files_bounded = {
-                    k: v for k, v in source_files_dict.items() if v and len(v) < 50_000
+                    k: v for k, v in source_files_dict.items() if v and len(v) < 100_000
                 }
                 if source_files_bounded:
-                    code_reviews = self.code_reviewer.review_files(source_files_bounded, max_files=12)
+                    code_reviews = self.code_reviewer.review_files(source_files_bounded, max_files=100)
         except Exception as cre:
             logger.warning(f"Code reviewer failed in run_analysis: {cre}")
 

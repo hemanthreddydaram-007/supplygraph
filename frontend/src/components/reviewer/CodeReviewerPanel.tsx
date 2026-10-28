@@ -404,6 +404,42 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
     handleCopy(text.trim(), `${item.id}-review`);
   };
 
+  const handleDownloadReport = () => {
+    let report = `# SupplyGraph Autonomous Code Review & Patch Report\n\n`;
+    report += `**Generated:** ${new Date().toISOString()}\n`;
+    report += `**Auditor Engine:** SupplyGraph v3.0 Static AST & Pattern Reviewer\n`;
+    report += `**Total Issues Identified:** ${allDisplayReviews.length}\n\n`;
+    report += `---\n\n## Executive Summary\n\n`;
+    report += `| Severity | Count | Category Focus |\n|---|---|---|\n`;
+    report += `| **CRITICAL** | ${allDisplayReviews.filter((r) => r.severity === "CRITICAL").length} | Remote Code Execution, SQL Injection, Prototype Pollution |\n`;
+    report += `| **HIGH** | ${allDisplayReviews.filter((r) => r.severity === "HIGH").length} | Security Flaws, Unpinned CI/CD Actions, Credential Leaks |\n`;
+    report += `| **MEDIUM** | ${allDisplayReviews.filter((r) => r.severity === "MEDIUM").length} | Logic Errors, Deprecated APIs, Concurrency Bugs |\n`;
+    report += `| **LOW** | ${allDisplayReviews.filter((r) => r.severity === "LOW").length} | Code Quality, Style Standards (PEP 8 / Strict Equality) |\n\n`;
+    report += `---\n\n## Detailed File-by-File Findings & Automated Corrections\n\n`;
+
+    allDisplayReviews.forEach((item, idx) => {
+      report += `### [${idx + 1}] ${item.title}\n`;
+      report += `- **File:** \`${item.file_path}\` (Line ${item.line_number})\n`;
+      report += `- **Severity:** \`${item.severity}\`\n`;
+      report += `- **Category:** \`${item.category}\`\n`;
+      report += `- **Explanation:** ${item.error_explanation}\n\n`;
+      report += `#### Offending / Buggy Code:\n\`\`\`\n${item.buggy_code}\n\`\`\`\n\n`;
+      report += `#### Production-Ready Corrected Code:\n\`\`\`\n${item.corrected_code}\n\`\`\`\n\n`;
+      if (item.unified_diff) {
+        report += `#### Git Unified Diff Patch:\n\`\`\`diff\n${item.unified_diff}\n\`\`\`\n\n`;
+      }
+      report += `---\n\n`;
+    });
+
+    const blob = new Blob([report], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `supplygraph-code-review-report.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleRunAdHocReview = async () => {
     if (!customCode.trim()) return;
     setIsReviewing(true);
@@ -643,6 +679,15 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
                     <span>Copy All Reviews</span>
                   </>
                 )}
+              </button>
+
+              <button
+                onClick={handleDownloadReport}
+                className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white transition-colors text-[10px] font-mono shadow-sm"
+                title="Download full Markdown Code Review Audit Report with errors, explanations, and corrected code"
+              >
+                <Download className="w-3 h-3 text-red-400" />
+                <span>Export Report (.md)</span>
               </button>
             </>
           )}
