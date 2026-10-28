@@ -189,10 +189,11 @@ class OSVClient:
                             if vid and vid not in vuln_id_requests:
                                 vuln_id_requests[vid] = v.get("modified")
 
-                    # 2. Concurrently fetch all unique vulnerability details with semaphore limit
+                    # 2. Concurrently fetch unique vulnerability details (capped to top 40 to prevent API latency spikes)
+                    priority_vid_items = list(vuln_id_requests.items())[:40]
                     fetch_tasks = [
                         self._fetch_vuln_detail(client, vid, mod, sem)
-                        for vid, mod in vuln_id_requests.items()
+                        for vid, mod in priority_vid_items
                     ]
                     fetch_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
                     vuln_cache_map = {}
@@ -213,6 +214,14 @@ class OSVClient:
                                     vuln_models.append(self._parse_vuln(vuln_cache_map[vid]))
                                 except Exception:
                                     pass
+                            elif vid:
+                                # Safe instant fallback for un-fetched or throttled advisories
+                                vuln_models.append(VulnerabilityModel(
+                                    osv_id=vid,
+                                    summary=f"OSV Advisory: {vid}",
+                                    severity=Severity.HIGH,
+                                    aliases=[]
+                                ))
 
                         if vuln_models:
                             chunk_res[purl_str] = vuln_models
@@ -249,7 +258,7 @@ class OSVClient:
         async with sem:
             try:
                 url = self.vuln_url.format(vuln_id)
-                response = await client.get(url, timeout=4.0)
+                response = await client.get(url, timeout=2.5)
                 if response.status_code == 200:
                     full_vuln = response.json()
                     try:

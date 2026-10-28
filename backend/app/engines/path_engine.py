@@ -1,7 +1,12 @@
 from app.models.core import AttackPath, ConfidenceModel, ImpactModel, SecurityGraph, EdgeType
 import networkx as nx
 from typing import List, Union
+from itertools import islice
 import uuid
+
+# Safety limits to prevent exponential combinatorial explosion in dense dependency DAGs
+MAX_PATHS_PER_PAIR = 5
+MAX_TOTAL_PATHS = 50
 
 class PathEngine:
     def find_attack_paths(
@@ -38,18 +43,26 @@ class PathEngine:
         depth_cutoff = max(1, min(20, cutoff))
         
         for origin in origin_node_ids:
+            if len(paths) >= MAX_TOTAL_PATHS:
+                break
             if not G.has_node(origin):
                 continue
             for target in target_node_ids:
+                if len(paths) >= MAX_TOTAL_PATHS:
+                    break
                 if not G.has_node(target):
                     continue
                     
                 try:
-                    simple_paths = list(nx.all_simple_paths(G, origin, target, cutoff=depth_cutoff))
-                except nx.NetworkXNoPath:
+                    # Bounded generator slice prevents exponential path explosions on dense subgraphs
+                    path_gen = nx.all_simple_paths(G, origin, target, cutoff=depth_cutoff)
+                    simple_paths = list(islice(path_gen, MAX_PATHS_PER_PAIR))
+                except (nx.NetworkXNoPath, nx.NodeNotFound, nx.NetworkXError):
                     continue
                     
                 for p in simple_paths:
+                    if len(paths) >= MAX_TOTAL_PATHS:
+                        break
                     path_edges = []
                     is_direct = False
                     is_transitive = False

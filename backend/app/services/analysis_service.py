@@ -166,7 +166,7 @@ class AnalysisService:
         raw_components = []
         # Concurrent fetching of discovered manifests (supports multi-module monorepos like knadh/koanf)
         lockfile_contents = await self._fetch_files_concurrently(
-            request.github_url, filtered_lockfiles[:35], request.branch, max_concurrency=15, timeout=8.0
+            request.github_url, filtered_lockfiles[:12], request.branch, max_concurrency=15, timeout=4.0
         )
         for lockfile, content in lockfile_contents.items():
             if content:
@@ -277,7 +277,7 @@ class AnalysisService:
             (first_party_ghsas_raw, dependabot_meta)
         ) = await asyncio.gather(
             self.osv_client.query_batch(purls),
-            self._fetch_files_concurrently(request.github_url, unique_files_to_fetch, request.branch, max_concurrency=15, timeout=6.0),
+            self._fetch_files_concurrently(request.github_url, unique_files_to_fetch, request.branch, max_concurrency=15, timeout=4.0),
             _fetch_ghsas_and_dependabot_async()
         )
         scan_metadata.osv_queried = True
@@ -1098,11 +1098,11 @@ class AnalysisService:
                 edge.data.is_attack_path = True
                 edge.animated = True
 
-        for vuln in all_vulnerabilities:
-            for edge in graph.edges:
-                if edge.source == vuln.osv_id or edge.target == vuln.osv_id:
-                    edge.data.is_attack_path = True
-                    edge.animated = True
+        vuln_osv_ids = {v.osv_id for v in all_vulnerabilities if v.osv_id}
+        for edge in graph.edges:
+            if edge.source in vuln_osv_ids or edge.target in vuln_osv_ids:
+                edge.data.is_attack_path = True
+                edge.animated = True
 
         # Containment recommendations
         for finding in findings:

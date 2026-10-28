@@ -186,7 +186,7 @@ class GitHubService:
         except Exception:
             return None
 
-    async def get_files_batch(self, repo_url: str, file_paths: List[str], ref: str = None, max_concurrency: int = 15, timeout: float = 8.0) -> dict:
+    async def get_files_batch(self, repo_url: str, file_paths: List[str], ref: str = None, max_concurrency: int = 15, timeout: float = 4.0) -> dict:
         """Fetch multiple files concurrently using httpx async client and fallback to get_file_content."""
         import asyncio
         import httpx
@@ -196,7 +196,8 @@ class GitHubService:
         if ref:
             branches = [ref]
         elif cached_branch:
-            branches = [cached_branch] + [b for b in ["main", "master", "HEAD"] if b != cached_branch]
+            # Query known branch first to avoid unnecessary 404 roundtrips
+            branches = [cached_branch]
         else:
             branches = ["main", "master", "HEAD"]
 
@@ -217,7 +218,7 @@ class GitHubService:
 
                     clean_path = path.lstrip('/')
                     async with sem:
-                        # 1. Try raw github first across branches concurrently
+                        # 1. Try raw github first across branches
                         try:
                             tasks = [
                                 client.get(f"https://raw.githubusercontent.com/{full_name}/{b}/{clean_path}")
@@ -275,13 +276,20 @@ class GitHubService:
 
         # If requesting root, perform high-speed recursive discovery for monorepos (e.g. knadh/koanf)
         if path == "":
-            branches_to_try = [ref] if ref else ["main", "master", "HEAD"]
+            cached_b = _REPO_BRANCH_CACHE.get(full_name)
+            if ref:
+                branches_to_try = [ref]
+            elif cached_b:
+                branches_to_try = [cached_b] + [b for b in ["main", "master", "HEAD"] if b != cached_b]
+            else:
+                branches_to_try = ["main", "master", "HEAD"]
+
             # 1. Direct Git Trees API via httpx (handles unauthenticated & authenticated with zero PyGithub overhead)
             import httpx
             for b in branches_to_try:
                 try:
                     tree_url = f"https://api.github.com/repos/{full_name}/git/trees/{b}?recursive=1"
-                    with httpx.Client(timeout=6.0, headers=headers) as client:
+                    with httpx.Client(timeout=3.0, headers=headers) as client:
                         resp = client.get(tree_url)
                         if resp.status_code == 200:
                             data = resp.json()
@@ -289,6 +297,7 @@ class GitHubService:
                             if tree_items:
                                 file_paths = [item["path"] for item in tree_items if item.get("type") == "blob"]
                                 if file_paths:
+                                    _REPO_BRANCH_CACHE[full_name] = b
                                     _LIST_CACHE[cache_key] = (now, file_paths)
                                     return file_paths
                 except Exception:
@@ -359,7 +368,7 @@ class GitHubService:
         import httpx
         url = f"https://api.github.com/repos/{full_name}/security-advisories"
         try:
-            with httpx.Client(timeout=5.0, headers=headers) as client:
+            with httpx.Client(timeout=2.5, headers=headers) as client:
                 resp = client.get(url)
                 if resp.status_code == 200:
                     data = resp.json()
@@ -386,7 +395,7 @@ class GitHubService:
         open_prs_count = 0
         search_url = f"https://api.github.com/search/issues?q=repo:{full_name}+is:pr+author:app/dependabot+is:open"
         try:
-            with httpx.Client(timeout=4.0, headers=headers) as client:
+            with httpx.Client(timeout=2.5, headers=headers) as client:
                 resp = client.get(search_url)
                 if resp.status_code == 200:
                     open_prs_count = resp.json().get("total_count", 0)

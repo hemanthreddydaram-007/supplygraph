@@ -60,20 +60,20 @@ class GeminiService:
         """
         prompt = self._build_prompt(analysis_response)
 
-        # Try AWS Bedrock (Claude 3.5) first
+        import asyncio
+        # Try AWS Bedrock (Claude 3.5) first with strict 4.0s timeout
         if self.bedrock_available:
             try:
-                result = await self._query_bedrock(prompt)
+                result = await asyncio.wait_for(self._query_bedrock(prompt), timeout=4.0)
                 if result:
                     return result
             except Exception as e:
-                logger.warning(f"Bedrock query failed, falling back to Gemini: {e}")
+                logger.warning(f"Bedrock query failed or timed out, falling back to Gemini: {e}")
 
-        # Try Gemini
+        # Try Gemini with strict 4.0s timeout
         if self.gemini_available:
             try:
-                import asyncio
-                result = await asyncio.wait_for(self._query_gemini(prompt), timeout=10.0)
+                result = await asyncio.wait_for(self._query_gemini(prompt), timeout=4.0)
                 if result:
                     return result
             except Exception as e:

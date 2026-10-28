@@ -69,16 +69,31 @@ class GraphEngine:
                     metadata={"summary": vuln.summary, "aliases": vuln.aliases}
                 ))
                 
-        # Link vulnerabilities to packages via findings
+        # Link vulnerabilities to packages via findings (O(1) indexed lookup)
+        active_vuln_ids = {vuln.osv_id for vuln in vulnerabilities if vuln.osv_id and G.has_node(vuln.osv_id)}
         for finding in findings:
             if finding.finding_type == FindingType.VULNERABLE:
-                vuln_node_ids = []
-                for vuln in vulnerabilities:
-                    if vuln.osv_id:
-                        if (vuln.osv_id in finding.title or 
-                            (finding.description and vuln.osv_id in finding.description) or
-                            any(vuln.osv_id in ev.description or (ev.raw_data and ev.raw_data.get("vuln_id") == vuln.osv_id) for ev in finding.evidence)):
-                            vuln_node_ids.append(vuln.osv_id)
+                vuln_node_ids = set()
+                # Fast check in evidence raw data
+                for ev in finding.evidence:
+                    if ev.raw_data:
+                        v_cand = ev.raw_data.get("vuln_id") or ev.raw_data.get("osv_id")
+                        if v_cand and v_cand in active_vuln_ids:
+                            vuln_node_ids.add(v_cand)
+                
+                # Check finding title prefix (e.g. "GHSA-xxxx: ...")
+                if finding.title:
+                    first_token = finding.title.split(":")[0].strip().strip("[]")
+                    if first_token in active_vuln_ids:
+                        vuln_node_ids.add(first_token)
+
+                # Fallback scan across active IDs only if not yet resolved
+                if not vuln_node_ids:
+                    f_title = finding.title or ""
+                    f_desc = finding.description or ""
+                    for v_id in active_vuln_ids:
+                        if v_id in f_title or (f_desc and v_id in f_desc):
+                            vuln_node_ids.add(v_id)
                         
                 target_node_id = str(finding.entity_id) if finding.entity_id else finding.origin_candidate
                 
