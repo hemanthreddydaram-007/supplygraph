@@ -78,7 +78,7 @@ class SBOMEngine:
         blast_radius: float
     ) -> str:
         """
-        Compute a deterministic Merkle-style root hash combining:
+        Compute a deterministic SHA-256 combined posture digest combining:
         repo_url + sbom_sha256 + blast_radius_score
         This represents the combined security posture fingerprint.
         """
@@ -103,7 +103,7 @@ class SBOMEngine:
         receipt_hash = "0x" + hashlib.sha256(receipt_payload.encode()).hexdigest()
 
         return {
-            "network": "Polygon Amoy Testnet (Chain ID: 80002)",
+            "network": "Polygon Amoy Testnet (Chain ID: 80002) [Deployment Staged]",
             "contract_address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
             "repository": repo_url,
             "sbom_sha256": "0x" + sbom_sha256,
@@ -111,11 +111,10 @@ class SBOMEngine:
             "blast_radius_score": blast_radius,
             "payload_hash": receipt_hash,
             "attestation_timestamp": timestamp,
-            "status": "ATTESTED",
+            "status": "LOCAL_VERIFIED (AMOY_DEPLOYMENT_STAGED)",
             "verification_note": (
-                "This attestation anchors the SBOM hash and security posture on Polygon Amoy Testnet. "
-                "The payload_hash is a deterministic SHA-256 of (repo|sbom_sha256|merkle_root|date) "
-                "and can be independently verified without a wallet."
+                "Deterministic SHA-256 posture digest combining repo, SBOM digest, and blast radius for tamper detection. "
+                "EVM smart contract is compiled and staged for on-chain anchoring to Polygon Amoy Testnet."
             ),
             "solidity_verification": (
                 f'keccak256(abi.encodePacked("{repo_url}", "{"0x" + sbom_sha256}", "{"0x" + merkle_root}"))'

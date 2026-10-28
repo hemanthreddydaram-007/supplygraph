@@ -255,8 +255,8 @@ export const OverviewDashboard = React.memo(function OverviewDashboard({ onGetSt
                 <th className="py-3.5 px-4 font-semibold text-red-400 bg-red-500/5">
                   SupplyGraph v3.0 (ASPM)
                 </th>
-                <th className="py-3.5 px-4 font-semibold">Traditional CVE Scanners (npm audit / Dependabot)</th>
-                <th className="py-3.5 px-4 font-semibold">Static SAST Tools (SonarQube / Snyk)</th>
+                <th className="py-3.5 px-4 font-semibold">Standard Dependency Scanners (e.g. basic npm audit / PR alerts)</th>
+                <th className="py-3.5 px-4 font-semibold">General SAST Tools (Source Code Analysis)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/60 font-sans">
@@ -267,18 +267,18 @@ export const OverviewDashboard = React.memo(function OverviewDashboard({ onGetSt
                 <td className="py-3.5 px-4 text-emerald-400 font-semibold bg-red-500/5">
                   ✅ Yes (Interactive React Flow)
                 </td>
-                <td className="py-3.5 px-4 text-zinc-500">❌ Flat text lists only</td>
-                <td className="py-3.5 px-4 text-zinc-500">❌ Flat alert lists only</td>
+                <td className="py-3.5 px-4 text-zinc-400">⚠️ Dependency tree list without visual blast radius paths</td>
+                <td className="py-3.5 px-4 text-zinc-400">⚠️ Code-level taint tracking without lockfile dependency DAG</td>
               </tr>
               <tr>
                 <td className="py-3.5 px-4 font-medium text-zinc-200">
                   Local Project Folder + Monorepo Upload
                 </td>
                 <td className="py-3.5 px-4 text-emerald-400 font-semibold bg-red-500/5">
-                  ✅ Yes (Zero-config folder upload)
+                  ✅ Yes (Zero-config folder upload: npm, poetry, pip, cargo, go)
                 </td>
-                <td className="py-3.5 px-4 text-amber-400/80">⚠️ CLI command line only</td>
-                <td className="py-3.5 px-4 text-amber-400/80">⚠️ Requires CI agent configuration</td>
+                <td className="py-3.5 px-4 text-zinc-400">⚠️ CLI command line only</td>
+                <td className="py-3.5 px-4 text-zinc-400">⚠️ Requires CI agent or project build configuration</td>
               </tr>
               <tr>
                 <td className="py-3.5 px-4 font-medium text-zinc-200">
@@ -287,38 +287,38 @@ export const OverviewDashboard = React.memo(function OverviewDashboard({ onGetSt
                 <td className="py-3.5 px-4 text-emerald-400 font-semibold bg-red-500/5">
                   ✅ Yes (Exact line fix + copyable patch)
                 </td>
-                <td className="py-3.5 px-4 text-zinc-500">❌ Version bump suggestions only</td>
-                <td className="py-3.5 px-4 text-amber-400/80">⚠️ Explanations without code rewrite</td>
+                <td className="py-3.5 px-4 text-zinc-400">⚠️ Automated version bump PRs without code rewrites</td>
+                <td className="py-3.5 px-4 text-zinc-400">⚠️ Explanations without unified dependency code patches</td>
               </tr>
               <tr>
                 <td className="py-3.5 px-4 font-medium text-zinc-200">
-                  5-Layer Detection (OSV + Typosquat + AST + CI/CD + Confusion)
+                  5-Layer Threat Detection (OSV + Typosquat + AST + CI/CD + Confusion)
                 </td>
                 <td className="py-3.5 px-4 text-emerald-400 font-semibold bg-red-500/5">
-                  ✅ Unified Engine
+                  ✅ Unified Hybrid Engine
                 </td>
-                <td className="py-3.5 px-4 text-zinc-500">❌ Advisory CVE database only</td>
-                <td className="py-3.5 px-4 text-amber-400/80">⚠️ Disjointed separate products</td>
+                <td className="py-3.5 px-4 text-zinc-400">⚠️ Advisory database matching + known malware feeds</td>
+                <td className="py-3.5 px-4 text-zinc-400">⚠️ Static code analysis rules (separate from registry data)</td>
               </tr>
               <tr>
                 <td className="py-3.5 px-4 font-medium text-zinc-200">
                   CycloneDX v1.5 Standard SBOM (Deterministic SHA-256)
                 </td>
                 <td className="py-3.5 px-4 text-emerald-400 font-semibold bg-red-500/5">
-                  ✅ Cryptographic SHA-256 Digest
+                  ✅ Cryptographic SHA-256 Digest (Staged Contract Anchoring)
                 </td>
-                <td className="py-3.5 px-4 text-zinc-500">❌ Mutable JSON files only</td>
-                <td className="py-3.5 px-4 text-zinc-500">❌ Basic manifest dump</td>
+                <td className="py-3.5 px-4 text-zinc-400">⚠️ Manifest export without linked posture checksum</td>
+                <td className="py-3.5 px-4 text-zinc-400">⚠️ Varies by enterprise tier configuration</td>
               </tr>
               <tr>
                 <td className="py-3.5 px-4 font-medium text-zinc-200">
                   Mathematical Blast Radius & Confidence Formulas
                 </td>
                 <td className="py-3.5 px-4 text-emerald-400 font-semibold bg-red-500/5">
-                  ✅ Quantified 0–100 Telemetry
+                  ✅ Quantified 0–100 Topological Scoring Formula
                 </td>
-                <td className="py-3.5 px-4 text-zinc-500">❌ Generic CVSS ratings only</td>
-                <td className="py-3.5 px-4 text-zinc-500">❌ Qualitative severity ratings</td>
+                <td className="py-3.5 px-4 text-zinc-400">⚠️ Standard CVSS v3.1 / EPSS severity scores</td>
+                <td className="py-3.5 px-4 text-zinc-400">⚠️ Qualitative severity / CWE ratings</td>
               </tr>
             </tbody>
           </table>

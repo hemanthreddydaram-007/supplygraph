@@ -8,69 +8,73 @@
 ---
 
 ### SLIDE 1: TITLE & LIVE DEPLOYMENT
-- **Title:** SupplyGraph — Zero-Trust Software Supply-Chain Attack Graph & On-Chain SBOM Firewall
+- **Title:** SupplyGraph — Zero-Trust Software Supply-Chain Attack Graph & Cryptographic SBOM Integrity Platform
 - **Track:** Blockchain & Cybersecurity (YUKTHI 2026)
 - **Live System URL:** https://supplygraph-five.vercel.app
 - **Team Tagline:** Syncing dependency intelligence, solving transitive blind spots, and scaling zero-trust CI/CD compliance.
 - **Key Badges:** 
-  - 100% Deterministic DAG Engine
-  - AWS Bedrock (Claude 3.5) & Gemini 1.5 Flash Bounded Triage
-  - Polygon Amoy Testnet Anchoring (Chain ID: 80002)
+  - 100% Deterministic DAG Engine with Bounded Traversal
+  - Dual AI Intelligence: AWS Bedrock (Claude 3.5 Sonnet) & Google Gemini 2.5 Flash Bounded Triage
+  - CycloneDX 1.5 Deterministic SHA-256 Digest (Polygon Amoy Smart Contract Staged)
+  - 152 Automated Passing Tests with Full Regression Gates
 
 ---
 
 ### SLIDE 2: THE PROBLEM STATEMENT
-- **800+ Hidden Transitive Dependencies:** Modern applications rely on hundreds of nested packages. Traditional CVE scanners produce flat alert fatigue without reachability context—failing to show if a deeply buried flaw touches internet-facing endpoints or deployments.
-- **Zero-Day Behavioral Blind Spots:** Advisory databases miss typosquatted packages (`reqeusts`), malicious `postinstall` AST backdoors (`eval`, `b64decode`, shell execution), dependency confusion, and unpinned `.github/workflows` context injections.
-- **Mutable Compliance Records:** Software Bill of Materials (SBOMs) remain static files vulnerable to tampering post-build, offering zero verifiable cryptographic authenticity during supply-chain compliance audits.
+- **800+ Hidden Transitive Dependencies:** Modern applications rely on hundreds of nested packages. Traditional CVE alerts often lack structural reachability context—making it hard to prioritize whether a deeply buried flaw propagates to internet-facing entry points or production assets.
+- **Supply-Chain Behavioral Blind Spots:** Advisory databases primarily catalog reported vulnerabilities. Emerging risks such as typosquatted package names (`reqeusts`), suspicious AST patterns (`eval`, `b64decode`, shell invocation), dependency confusion namespace collisions, and unpinned `.github/workflows` actions require proactive multi-layer inspection.
+- **Audit Verification & Compliance Gaps:** Software Bill of Materials (SBOMs) in standard deployments often lack a verifiable cryptographic integrity digest linked to the scanned posture, leaving audit trails prone to post-build modification.
 
 ---
 
-### SLIDE 3: OUR SOLUTION — SUPPLYGRAPH v2.0
-- **Multi-Ecosystem Attack Graph Engine:** Ingests live GitHub repositories, parses `package-lock.json` (v1–v3), `poetry.lock`, and `requirements.txt`, normalizes canonical PURLs, and constructs a NetworkX Directed Acyclic Graph (DAG).
-- **5-Layer Threat Detection Fabric:**
-  1. *OSV.dev Batch Intelligence:* Multi-ecosystem CVE matching with local caching.
-  2. *Typosquatting Engine:* Levenshtein distance matching against top ecosystem packages.
-  3. *Static AST Code Analyzer:* Detects `eval()`, `exec()`, `b64decode()`, and `subprocess(shell=True)`.
-  4. *Dependency Confusion Detector:* Identifies scoped and private namespace collision vulnerabilities.
-  5. *CI/CD Workflow Scanner:* Flags mutable GitHub Actions tags, branch script injection, and `write-all` permissions.
-- **Immutable Blockchain Attestation:** Generates standardized CycloneDX v1.5 SBOMs, computes a deterministic SHA-256 Merkle root, and anchors the security posture to Polygon Amoy Testnet.
+### SLIDE 3: OUR SOLUTION — SUPPLYGRAPH v2.0 / v3.0
+- **Multi-Ecosystem Attack Graph Engine:** Ingests live GitHub repositories and drag-and-drop folders, parses `package-lock.json` (v1–v3), `poetry.lock`, `requirements.txt`, `Cargo.lock`, and `go.mod`, normalizes canonical PURLs, and constructs a NetworkX Directed Acyclic Graph (DAG).
+- **5-Layer Hybrid Threat Detection Engine:**
+  1. *OSV.dev Batch Intelligence:* Multi-ecosystem vulnerability matching with chunked queries (CHUNK_SIZE=300, Semaphore=25) and local in-memory caching.
+  2. *Typosquatting Engine:* Levenshtein distance matching against top ecosystem packages with verified org whitelisting.
+  3. *Static AST Code Analyzer:* Detects suspicious patterns including `eval()`, `exec()`, `b64decode()`, and `subprocess(shell=True)`.
+  4. *Dependency Confusion Detector:* Identifies scoped and private namespace collision signals between internal and public registries.
+  5. *CI/CD Workflow Scanner:* Flags mutable GitHub Actions tags, potential script injection points, and unconstrained `write-all` permissions.
+- **Cryptographic SBOM Integrity & Attestation:** Generates standardized CycloneDX v1.5 SBOMs, computes a deterministic SHA-256 posture digest across components and blast radius, with smart contract attestation staged for Polygon Amoy Testnet.
 
 ---
 
 ### SLIDE 4: MATHEMATICAL SCORING & GRAPH ENGINE
-- **Reverse Reachability Traversal:** Inverts dependency trees via `networkx.all_simple_paths` to trace propagation from origin packages up to production services, public APIs, and containers.
+- **Reverse Reachability Traversal:** Inverts dependency trees via bounded `networkx.all_simple_paths` traversal (capped to 5 paths per root pair and 50 paths total) to trace topological structural propagation from origin packages to production assets.
 - **Heuristic Confidence Scoring Formula:**
   $$\mathcal{C} = 1 - \prod_{i=1}^n (1 - w_i \times r_i)$$
   *(Weights source reliability $r_i$ and evidence contribution $w_i$, with a 15% discount on synthetic indicators).*
 - **Quantified Blast Radius Formula:**
   $$\mathcal{B} = \min(100,\, 2P + 15S + 25A + 50D)$$
-  *(Where $P$ = Compromised Packages, $S$ = Internal Services, $A$ = Exposed APIs, $D$ = Production Deployments).*
+  *(Where $P$ = Compromised Packages, $S$ = Internal Services, $A$ = Exposed APIs, $D$ = Production Deployments. Quantifies topological graph impact for triage prioritization, distinct from runtime exploitability).*
 
 ---
 
 ### SLIDE 5: SYSTEM ARCHITECTURE & AWS INTEGRATION
 - **Frontend Layer:** Next.js 14, TypeScript, Tailwind CSS, custom React Flow canvas with topological DAG layout (Deployed on Vercel).
-- **Core Graph & Detector Backend:** Python FastAPI, NetworkX DAG Engine, AST & YAML Analyzers, 91 passing automated pytest suites.
-- **AI & Cloud Intelligence:** AWS Bedrock (Claude 3.5 Sonnet) & Google Gemini 1.5 Flash bounded by strict anti-hallucination graph payloads for CISO executive summaries.
-- **Web3 Trust Layer:** CycloneDX v1.5 SBOM Engine with deterministic SHA-256 digest + Polygon Amoy Testnet smart contract attestation receipt.
+- **Core Graph & Detector Backend:** Python FastAPI, NetworkX DAG Engine, AST & YAML Analyzers, 152 passing automated pytest suites.
+- **AI & Cloud Intelligence:** Dual-provider architecture featuring AWS Bedrock (Claude 3.5 Sonnet) & Google Gemini 2.5 Flash bounded by strict anti-hallucination graph payloads and 4-second fail-safe timeouts.
+- **Cryptographic Trust Layer:** CycloneDX v1.5 SBOM Engine with deterministic SHA-256 digest + Staged Polygon Amoy Testnet smart contract attestation receipt.
 
 ---
 
 ### SLIDE 6: LIVE PROTOTYPE PROOF (BENCHMARKS & SCENARIOS)
-- **Live Production Ingestion (`fractal-web`):** Parsed 357 components, isolated 12 GHSA vulnerabilities, calculated a 72/100 Blast Radius, and rendered one-click lockfile overrides in < 2.5 seconds.
+- **Live Latency Benchmarks:**
+  - Built-in Attack Scenarios: < 300 ms response time
+  - Local Project Folder Uploads: < 2.0 s total processing time
+  - Live Remote GitHub Repositories: < 8.0 s end-to-end (branch caching + bounded traversal)
 - **5 Built-In Attack Simulations:**
   - *Scenario A:* Transitive CVE propagation
   - *Scenario B:* Dependency Confusion & Scope hijacking
   - *Scenario C:* Malicious Post-Install AST backdoors
   - *Scenario D:* Depth-4 multi-hop attack chains
   - *Scenario E:* CI/CD Workflow script injection & permission leaks
-- **Engineering Rigor:** 91 automated tests verifying parser accuracy, graph determinism, and mathematical scoring bounds.
+- **Engineering Rigor:** 152 automated tests verifying parser accuracy, graph determinism, bounded traversal, and mathematical scoring bounds.
 
 ---
 
 ### SLIDE 7: ROADMAP TO PHYSICAL FINALE (OCT 30–31)
-- **Sprint 1 (Now Deployed):** Multi-lockfile ingestion, deterministic graph visualizer, 5-layer detector fabric, CycloneDX SBOM export, and Polygon blockchain attestation.
+- **Sprint 1 (Now Deployed):** Multi-lockfile ingestion, deterministic graph visualizer, 5-layer hybrid detector engine, CycloneDX 1.5 SBOM export with SHA-256 digest, and staged Polygon smart contract attestation.
 - **Sprint 2 (Finale Milestone):**
   1. *Automated GitHub Remediation Bot:* Automated pull requests applying one-click version overrides when Blast Radius > 50.
   2. *AWS Fargate Behavioral Sandbox:* Live ephemeral container sandbox intercepting outbound C2 network calls during package installation using YUKTHI AWS Cloud Credits.

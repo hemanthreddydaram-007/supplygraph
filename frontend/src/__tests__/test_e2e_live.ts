@@ -80,9 +80,9 @@ async function runE2ETests() {
       assert(res.status === 200, `Scenario ${sid} loads with HTTP 200`);
 
       const data: AnalysisResponse = await res.json();
-      assert(data.components && data.components.length > 0, `Scenario ${sid} returns components (${data.components?.length})`);
-      assert(data.graph && data.graph.nodes.length > 0, `Scenario ${sid} returns graph nodes (${data.graph.nodes.length})`);
-      assert(data.graph && data.graph.edges.length > 0, `Scenario ${sid} returns graph edges (${data.graph.edges.length})`);
+      assert(Boolean(data.components && data.components.length > 0), `Scenario ${sid} returns components (${data.components?.length})`);
+      assert(Boolean(data.graph && data.graph.nodes.length > 0), `Scenario ${sid} returns graph nodes (${data.graph.nodes.length})`);
+      assert(Boolean(data.graph && data.graph.edges.length > 0), `Scenario ${sid} returns graph edges (${data.graph.edges.length})`);
       assert(Number(data.scan?.blast_radius_score) >= 0, `Scenario ${sid} reports valid blast radius (${data.scan?.blast_radius_score})`);
       assert(
         Boolean(data.gemini_explanation && data.gemini_explanation.length > 50),
@@ -116,8 +116,8 @@ async function runE2ETests() {
 
     const scanData: AnalysisResponse = await res.json();
     assert(scanData.scan.status === "completed", "Scan status reports 'completed'");
-    assert(scanData.components && scanData.components.length >= 40, `Indexed ${scanData.components?.length} components in express`);
-    assert(scanData.graph && scanData.graph.nodes.length >= 40, `Constructed ${scanData.graph.nodes.length} nodes in DAG`);
+    assert(Boolean(scanData.components && scanData.components.length >= 40), `Indexed ${scanData.components?.length} components in express`);
+    assert(Boolean(scanData.graph && scanData.graph.nodes.length >= 40), `Constructed ${scanData.graph.nodes.length} nodes in DAG`);
     assert(Boolean(scanData.dependabot_benchmark), "Scan includes live DependabotBenchmark comparison");
 
     // Test First-Party GHSA Lookup on knadh/listmonk
@@ -253,8 +253,8 @@ async function runE2ETests() {
     assert(res.status === 200, "Folder upload analysis returned HTTP 200");
 
     const folderRes: AnalysisResponse = await res.json();
-    assert(folderRes.components && folderRes.components.length >= 2, `Parsed ${folderRes.components?.length} components from uploaded folder`);
-    assert(folderRes.findings && folderRes.findings.length > 0, `Identified ${folderRes.findings.length} findings (including unpinned action)`);
+    assert(Boolean(folderRes.components && folderRes.components.length >= 2), `Parsed ${folderRes.components?.length} components from uploaded folder`);
+    assert(Boolean(folderRes.findings && folderRes.findings.length > 0), `Identified ${folderRes.findings?.length} findings (including unpinned action)`);
     assert(Boolean(folderRes.scan?.blast_radius_score), "Computed Blast Radius for uploaded project folder");
   } catch (err: any) {
     assert(false, "Local project folder analysis succeeded", err.message);
