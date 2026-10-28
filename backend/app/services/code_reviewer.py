@@ -952,6 +952,75 @@ class CodeReviewerService:
                     )
                 )
 
+            # 12. Polyfill.io / Compromised CDN Script Inclusion (2024 Supply Chain Hijack)
+            if re.search(r'(?:https?:)?//(?:cdn\.)?polyfill\.io', raw_stripped, re.IGNORECASE) or re.search(r'(?:https?:)?//(?:bootcss\.com|bootcdn\.net)', raw_stripped, re.IGNORECASE):
+                new_lines = [
+                    f"{indent}// Corrected: Replace compromised polyfill.io CDN with official Cloudflare mirror",
+                    re.sub(r'https?://(?:cdn\.)?polyfill\.io/[^\s"\'>]+', 'https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js', line)
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="CRITICAL",
+                        category="Security Vulnerability",
+                        title="Compromised CDN Domain (Polyfill.io Supply Chain Breach)",
+                        error_explanation="The polyfill.io CDN domain was acquired by a rogue entity in 2024 and injected malware into client browsers. Immediately replace with official Cloudflare mirror 'cdnjs.cloudflare.com' or bundled core-js.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            # 13. External script missing Subresource Integrity (SRI)
+            if "<script" in raw_stripped and "src=" in raw_stripped and "integrity=" not in raw_stripped:
+                src_match = re.search(r'src=["\'](https?://[^"\']+)["\']', raw_stripped)
+                if src_match and not src_match.group(1).startswith(("http://localhost", "http://127.0.0.1")):
+                    orig_src = src_match.group(1)
+                    new_lines = [
+                        f"{indent}<!-- Corrected: Add Subresource Integrity (SRI) hash to prevent CDN tampering -->",
+                        line.replace(f'src="{orig_src}"', f'src="{orig_src}" integrity="sha384-<GENERATE_HASH>" crossorigin="anonymous"').replace(f"src='{orig_src}'", f"src='{orig_src}' integrity=\"sha384-<GENERATE_HASH>\" crossorigin=\"anonymous\"")
+                    ]
+                    diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                    reviews.append(
+                        CodeReviewItem(
+                            id=str(uuid.uuid4()),
+                            file_path=file_path,
+                            line_number=idx,
+                            severity="HIGH",
+                            category="Security Vulnerability",
+                            title="Missing Subresource Integrity (SRI) on External Script",
+                            error_explanation="Loading external scripts without `integrity=\"sha384-...\"` allows compromised CDNs or Man-in-the-Middle attackers to execute arbitrary malicious code in your users' browsers without detection.",
+                            buggy_code=line,
+                            corrected_code="\n".join(new_lines),
+                            unified_diff=diff
+                        )
+                    )
+
+            # 14. Web3 Wallet Drainer Pattern (Ledger Connect Kit / Lottie-Player)
+            if re.search(r'\b(?:setApprovalForAll|transferFrom)\s*\(\s*["\']0x[a-fA-F0-9]{40}["\']', raw_stripped, re.IGNORECASE) or (re.search(r'eth_sendTransaction', raw_stripped) and "drain" in raw_stripped.lower()):
+                new_lines = [
+                    f"{indent}// Corrected: Audit and restrict Web3 transaction requests and token approvals",
+                    f"{indent}await verifyRecipientAddress(targetContract);"
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="CRITICAL",
+                        category="Security Vulnerability",
+                        title="Web3 Cryptocurrency Wallet Drainer Pattern",
+                        error_explanation="Directly executing high-privilege ERC-20 token approvals (`setApprovalForAll`) or unverified transaction dispatch matches patterns from 2023 Ledger Connect Kit and 2024 Lottie-Player supply chain attacks.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
         return reviews
 
     # ============================================================
@@ -1230,6 +1299,75 @@ class CodeReviewerService:
                     )
                 )
 
+            # 12. Polyfill.io / Compromised CDN Script Inclusion (2024 Supply Chain Hijack)
+            if re.search(r'(?:https?:)?//(?:cdn\.)?polyfill\.io', raw_stripped, re.IGNORECASE) or re.search(r'(?:https?:)?//(?:bootcss\.com|bootcdn\.net)', raw_stripped, re.IGNORECASE):
+                new_lines = [
+                    f"{indent}// Corrected: Replace compromised polyfill.io CDN with official Cloudflare mirror",
+                    re.sub(r'https?://(?:cdn\.)?polyfill\.io/[^\s"\'>]+', 'https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js', line)
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="CRITICAL",
+                        category="Security Vulnerability",
+                        title="Compromised CDN Domain (Polyfill.io Supply Chain Breach)",
+                        error_explanation="The polyfill.io CDN domain was acquired by a rogue entity in 2024 and injected malware into client browsers. Immediately replace with official Cloudflare mirror 'cdnjs.cloudflare.com' or bundled core-js.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
+            # 13. External script missing Subresource Integrity (SRI)
+            if "<script" in raw_stripped and "src=" in raw_stripped and "integrity=" not in raw_stripped:
+                src_match = re.search(r'src=["\'](https?://[^"\']+)["\']', raw_stripped)
+                if src_match and not src_match.group(1).startswith(("http://localhost", "http://127.0.0.1")):
+                    orig_src = src_match.group(1)
+                    new_lines = [
+                        f"{indent}<!-- Corrected: Add Subresource Integrity (SRI) hash to prevent CDN tampering -->",
+                        line.replace(f'src="{orig_src}"', f'src="{orig_src}" integrity="sha384-<GENERATE_HASH>" crossorigin="anonymous"').replace(f"src='{orig_src}'", f"src='{orig_src}' integrity=\"sha384-<GENERATE_HASH>\" crossorigin=\"anonymous\"")
+                    ]
+                    diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                    reviews.append(
+                        CodeReviewItem(
+                            id=str(uuid.uuid4()),
+                            file_path=file_path,
+                            line_number=idx,
+                            severity="HIGH",
+                            category="Security Vulnerability",
+                            title="Missing Subresource Integrity (SRI) on External Script",
+                            error_explanation="Loading external scripts without `integrity=\"sha384-...\"` allows compromised CDNs or Man-in-the-Middle attackers to execute arbitrary malicious code in your users' browsers without detection.",
+                            buggy_code=line,
+                            corrected_code="\n".join(new_lines),
+                            unified_diff=diff
+                        )
+                    )
+
+            # 14. Web3 Wallet Drainer Pattern (Ledger Connect Kit / Lottie-Player)
+            if re.search(r'\b(?:setApprovalForAll|transferFrom)\s*\(\s*["\']0x[a-fA-F0-9]{40}["\']', raw_stripped, re.IGNORECASE) or (re.search(r'eth_sendTransaction', raw_stripped) and "drain" in raw_stripped.lower()):
+                new_lines = [
+                    f"{indent}// Corrected: Audit and restrict Web3 transaction requests and token approvals",
+                    f"{indent}await verifyRecipientAddress(targetContract);"
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="CRITICAL",
+                        category="Security Vulnerability",
+                        title="Web3 Cryptocurrency Wallet Drainer Pattern",
+                        error_explanation="Directly executing high-privilege ERC-20 token approvals (`setApprovalForAll`) or unverified transaction dispatch matches patterns from 2023 Ledger Connect Kit and 2024 Lottie-Player supply chain attacks.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
         return reviews
 
     # ============================================================
@@ -1339,14 +1477,65 @@ class CodeReviewerService:
                     )
                 )
 
+            # Insecure Codecov bash uploader pipe (Codecov 2021 Breach)
+            if re.search(r'(?:curl\s+[^|\n]*(?:https?://)?codecov\.io/bash\s*\|\s*bash|bash\s+<\s*\(\s*curl\s+[^)]*codecov\.io/bash\s*\))', stripped, re.IGNORECASE):
+                leading_indent = line[:len(line) - len(line.lstrip())]
+                new_lines = [
+                    f"{leading_indent}# Corrected: Use official codecov-action pinned to immutable commit SHA (mitigates 2021 Codecov breach)",
+                    f"{leading_indent}- name: Upload coverage to Codecov",
+                    f"{leading_indent}  uses: codecov/codecov-action@015ff539bb73772273d524247214d05e1242179e # v5.0.7",
+                    f"{leading_indent}  with:",
+                    f"{leading_indent}    token: ${{{{ secrets.CODECOV_TOKEN }}}}"
+                ]
+                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
+                reviews.append(
+                    CodeReviewItem(
+                        id=str(uuid.uuid4()),
+                        file_path=file_path,
+                        line_number=idx,
+                        severity="HIGH",
+                        category="CI/CD Security Hardening",
+                        title="Insecure Codecov Bash Uploader Pipe (Codecov 2021 Breach)",
+                        error_explanation="Piping the Codecov bash script directly to shell was the root cause of the April 2021 Codecov supply chain breach, where attackers modified the hosted script to harvest CI secrets. Replace with official `codecov/codecov-action` pinned to a verified SHA.",
+                        buggy_code=line,
+                        corrected_code="\n".join(new_lines),
+                        unified_diff=diff
+                    )
+                )
+
         return reviews
 
     # ============================================================
-    # JSON CODE REVIEWER (package.json overrides)
+    # JSON CODE REVIEWER (package.json overrides & lifecycle hooks)
     # ============================================================
     def _review_json(self, file_path: str, content: str) -> List[CodeReviewItem]:
         reviews: List[CodeReviewItem] = []
         if file_path.endswith("package.json"):
+            # Check for dangerous lifecycle scripts (ua-parser-js / coa trojan vector)
+            try:
+                import json
+                pkg_data = json.loads(content)
+                scripts = pkg_data.get("scripts", {})
+                for hook in ["preinstall", "install", "postinstall"]:
+                    cmd = scripts.get(hook, "")
+                    if isinstance(cmd, str) and cmd:
+                        if any(k in cmd.lower() for k in ["curl", "wget", "powershell", "certutil", ".bat", ".sh", "xmrig"]):
+                            reviews.append(
+                                CodeReviewItem(
+                                    id=str(uuid.uuid4()),
+                                    file_path=file_path,
+                                    line_number=1,
+                                    severity="CRITICAL",
+                                    category="Security Vulnerability",
+                                    title=f"Dangerous Package Lifecycle Script in `{hook}` (ua-parser-js Vector)",
+                                    error_explanation=f"The `{hook}` lifecycle script executes external shell commands ('{cmd}'). In the 2021 ua-parser-js, coa, and rc attacks, compromised packages used lifecycle hooks to install Trojans and cryptominers during 'npm install'.",
+                                    buggy_code=f'"{hook}": "{cmd}"',
+                                    corrected_code=f'// Remove "{hook}" or run npm install with --ignore-scripts'
+                                )
+                            )
+            except Exception:
+                pass
+
             if "overrides" not in content and "resolutions" not in content:
                 reviews.append(
                     CodeReviewItem(

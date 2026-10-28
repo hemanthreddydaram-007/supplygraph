@@ -28,6 +28,7 @@ from app.detectors.typosquatting import TyposquattingDetector
 from app.detectors.ast_analyzer import ASTAnalyzer
 from app.detectors.cicd_analyzer import CICDAnalyzer
 from app.detectors.confusion_detector import DependencyConfusionDetector
+from app.detectors.historic_attacks import HistoricAttackDetector
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ class AnalysisService:
         self.ast_analyzer = ASTAnalyzer()
         self.cicd_analyzer = CICDAnalyzer()
         self.confusion_detector = DependencyConfusionDetector()
+        self.historic_detector = HistoricAttackDetector()
 
     async def _fetch_files_concurrently(
         self, repo_url: str, paths: List[str], ref: Optional[str] = None, max_concurrency: int = 8, timeout: float = 4.0
@@ -472,6 +474,47 @@ class AnalysisService:
             except Exception as e:
                 logger.warning(f"CI/CD analysis pipeline failed: {e}")
 
+        # --- STEP 8.5: Historic Supply Chain Attack Detection (2018-2024+) ---
+        historic_count = 0
+        historic_attack_names: List[str] = []
+        try:
+            historic_ev_all: List[EvidenceItem] = []
+            # 1. Check known compromised package releases from historic attacks
+            historic_ev_all.extend(self.historic_detector.check_components(sbom.components))
+
+            # 2. Check manifest lifecycle scripts (ua-parser-js / coa vector)
+            for lf, lf_content in lockfile_contents.items():
+                if lf.endswith("package.json") and lf_content:
+                    historic_ev_all.extend(
+                        self.historic_detector.check_manifest_lifecycle_scripts(lf, lf_content)
+                    )
+
+            # 3. Check downloaded source files for semantic attack signatures (Polyfill, Log4Shell, Drainers, etc.)
+            source_map = {f: downloaded_files_map[f] for f in unique_files_to_fetch if f in downloaded_files_map}
+            for sf, sf_content in source_map.items():
+                if sf_content and len(sf_content) < 100_000:
+                    historic_ev_all.extend(
+                        self.historic_detector.check_source_code(sf, sf_content)
+                    )
+
+            # 4. Check CI/CD workflows for Codecov bash and SolarWinds tampering
+            for wf_file in workflow_files:
+                wf_content = downloaded_files_map.get(wf_file)
+                if wf_content:
+                    historic_ev_all.extend(
+                        self.historic_detector.check_cicd_workflow(wf_file, wf_content)
+                    )
+
+            if historic_ev_all:
+                historic_findings = self.historic_detector.create_findings(historic_ev_all, scan_id)
+                historic_count = len(historic_findings)
+                historic_attack_names = list(set(
+                    f.metadata.get("attack_name", f.title) for f in historic_findings if f.metadata
+                ))
+                findings.extend(historic_findings)
+        except Exception as e:
+            logger.warning(f"Historic attack detection failed: {e}")
+
         # Deduplicate final findings across all detectors
         unique_findings = []
         seen_finding_keys: Set[str] = set()
@@ -722,6 +765,8 @@ class AnalysisService:
             "ast_count": total_ast,
             "cicd_count": total_cicd,
             "confusion_count": confusion_count,
+            "historic_attack_count": historic_count,
+            "historic_attacks_detected": historic_attack_names,
             "sbom_sha256": "0x" + sbom_sha256,
             "merkle_root": "0x" + merkle_root,
             "polygon_attestation": polygon_attestation,
@@ -1058,6 +1103,41 @@ class AnalysisService:
             except Exception as e:
                 logger.debug(f"CI/CD analyze failed for {wf_path}: {e}")
 
+        # Historic Supply Chain Attack Detection (2018-2024+)
+        historic_count = 0
+        historic_attack_names: List[str] = []
+        try:
+            historic_ev_all: List[EvidenceItem] = []
+            # 1. Components
+            historic_ev_all.extend(self.historic_detector.check_components(sbom.components))
+
+            # 2. Package.json manifests
+            for p, content in files_map.items():
+                if p.endswith("package.json") and content:
+                    historic_ev_all.extend(
+                        self.historic_detector.check_manifest_lifecycle_scripts(p, content)
+                    )
+                # 3. Source files
+                if content and len(content) < 100_000:
+                    historic_ev_all.extend(
+                        self.historic_detector.check_source_code(p, content)
+                    )
+                # 4. CI/CD workflows
+                if ('.github/workflows/' in p or p.startswith('.github/workflows/')) and (p.endswith('.yml') or p.endswith('.yaml')):
+                    historic_ev_all.extend(
+                        self.historic_detector.check_cicd_workflow(p, content)
+                    )
+
+            if historic_ev_all:
+                historic_findings = self.historic_detector.create_findings(historic_ev_all, scan_id)
+                historic_count = len(historic_findings)
+                historic_attack_names = list(set(
+                    f.metadata.get("attack_name", f.title) for f in historic_findings if f.metadata
+                ))
+                findings.extend(historic_findings)
+        except Exception as e:
+            logger.warning(f"Historic attack detection in folder failed: {e}")
+
         # Deduplicate findings
         unique_findings = []
         seen_keys: Set[str] = set()
@@ -1167,6 +1247,8 @@ class AnalysisService:
             "ast_count": total_ast,
             "cicd_count": total_cicd,
             "confusion_count": confusion_count,
+            "historic_attack_count": historic_count,
+            "historic_attacks_detected": historic_attack_names,
             "sbom_sha256": "0x" + sbom_sha256,
             "merkle_root": "0x" + merkle_root,
             "polygon_attestation": polygon_attestation,

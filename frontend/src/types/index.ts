@@ -91,6 +91,8 @@ export interface DetectorBreakdown {
   ast_count: number;
   cicd_count: number;
   confusion_count: number;
+  historic_attack_count?: number;
+  historic_attacks_detected?: string[];
   sbom_sha256?: string;
   merkle_root?: string;
   polygon_attestation?: PolygonAttestation;

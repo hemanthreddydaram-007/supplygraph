@@ -776,6 +776,9 @@ export default function Dashboard() {
       report += `- Static AST: ${bd.ast_count || 0}\n`;
       report += `- CI/CD Workflows: ${bd.cicd_count || 0}\n`;
       report += `- Dependency Confusion: ${bd.confusion_count || 0}\n`;
+      if (bd.historic_attack_count) {
+        report += `- Historic Supply Chain Attacks: ${bd.historic_attack_count} (${(bd.historic_attacks_detected || []).join(", ")})\n`;
+      }
       if (bd.sbom_sha256) report += `- SBOM SHA-256: ${bd.sbom_sha256}\n`;
       if (bd.model_provider) report += `- AI Provider: ${bd.model_provider}\n`;
     }
@@ -2066,6 +2069,14 @@ export default function Dashboard() {
                           <span className="text-yellow-300">
                             CI/CD: {data.detector_breakdown.cicd_count || (data?.code_reviews?.filter(r => r.file_path.endsWith('.yml') || r.file_path.endsWith('.yaml') || r.title.includes('CI/CD')).length) || 0}
                           </span>
+                          {(data.detector_breakdown.historic_attack_count || 0) > 0 && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span className="text-rose-400 font-bold bg-rose-950/70 px-1 py-0.5 rounded border border-rose-600/50">
+                                🛡️ Historic Attacks: {data.detector_breakdown.historic_attack_count}
+                              </span>
+                            </>
+                          )}
                         </div>
                       )}
 
@@ -2531,6 +2542,11 @@ export default function Dashboard() {
                                                           REPO GHSA
                                                         </span>
                                                       )}
+                                                      {f.metadata?.is_historic_attack && (
+                                                        <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border bg-rose-950/80 text-rose-300 border-rose-500/60 shadow-sm">
+                                                          {f.metadata.badge || `${f.metadata.year || "HISTORIC"} ATTACK`}
+                                                        </span>
+                                                      )}
                                                       <span
                                                         className={cn(
                                                           "px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border",
@@ -2691,6 +2707,11 @@ export default function Dashboard() {
                                             {f.metadata?.is_first_party_ghsa && (
                                               <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border bg-purple-950/70 text-purple-300 border-purple-500/50 shadow-sm animate-pulse">
                                                 REPO GHSA
+                                              </span>
+                                            )}
+                                            {f.metadata?.is_historic_attack && (
+                                              <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border bg-rose-950/80 text-rose-300 border-rose-500/60 shadow-sm">
+                                                {f.metadata.badge || `${f.metadata.year || "HISTORIC"} ATTACK`}
                                               </span>
                                             )}
                                             <span
