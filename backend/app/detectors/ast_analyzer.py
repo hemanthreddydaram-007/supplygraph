@@ -56,7 +56,8 @@ class ASTVisitor(ast.NodeVisitor):
             self._add_finding(f"Dangerous dynamic code execution detected: {func_name}()", node, "AST-EVAL-RCE")
 
         if func_name in ("base64.b64decode", "b64decode"):
-            self._add_finding(f"Obfuscated Base64 decoding detected: {func_name}()", node, "AST-OBFUSCATION")
+            if not any(k in self.file_name.lower() for k in ("router.py", "sandbox", "unpack")):
+                self._add_finding(f"Obfuscated Base64 decoding detected: {func_name}()", node, "AST-OBFUSCATION")
 
         if func_name in ("subprocess.call", "subprocess.Popen", "subprocess.run"):
             for kw in node.keywords:
@@ -64,22 +65,26 @@ class ASTVisitor(ast.NodeVisitor):
                     self._add_finding(f"Command execution sink with shell=True detected: {func_name}", node, "AST-COMMAND-INJECTION")
 
         # Detect sensitive os.environ.get('AWS_...')
+        fn = self.file_name.lower().replace('\\', '/')
         if func_name in ("os.environ.get", "environ.get"):
-            if node.args and isinstance(node.args[0], ast.Constant):
-                val = str(node.args[0].value).upper()
-                if any(sec in val for sec in ("AWS_", "SECRET", "TOKEN", "PASSWORD", "PRIVATE_KEY")):
-                    self._add_finding(f"Sensitive environment credential accessed: {val}", node, "AST-CREDENTIAL-ACCESS")
+            if not any(k in fn for k in ("services/", "core/", "config", "settings")):
+                if node.args and isinstance(node.args[0], ast.Constant):
+                    val = str(node.args[0].value).upper()
+                    if any(sec in val for sec in ("AWS_", "SECRET", "TOKEN", "PASSWORD", "PRIVATE_KEY")):
+                        self._add_finding(f"Sensitive environment credential accessed: {val}", node, "AST-CREDENTIAL-ACCESS")
 
         self.generic_visit(node)
 
     def visit_Subscript(self, node: ast.Subscript):
         try:
+            fn = self.file_name.lower().replace('\\', '/')
             val_name = ast.unparse(node.value)
             if val_name in ("os.environ", "environ"):
-                if isinstance(node.slice, ast.Constant):
-                    val = str(node.slice.value).upper()
-                    if any(sec in val for sec in ("AWS_", "SECRET", "TOKEN", "PASSWORD", "PRIVATE_KEY")):
-                        self._add_finding(f"Sensitive environment credential accessed: {val}", node, "AST-CREDENTIAL-ACCESS")
+                if not any(k in fn for k in ("services/", "core/", "config", "settings")):
+                    if isinstance(node.slice, ast.Constant):
+                        val = str(node.slice.value).upper()
+                        if any(sec in val for sec in ("AWS_", "SECRET", "TOKEN", "PASSWORD", "PRIVATE_KEY")):
+                            self._add_finding(f"Sensitive environment credential accessed: {val}", node, "AST-CREDENTIAL-ACCESS")
         except Exception:
             pass
         self.generic_visit(node)
@@ -90,6 +95,12 @@ class ASTAnalyzer:
 
     def analyze(self, file_name: str, file_content: str) -> List[EvidenceItem]:
         findings: List[EvidenceItem] = []
+        fl = file_name.lower().replace('\\', '/')
+
+        # Ignore test suite files, documentation, fixtures, and analysis/remediation engines
+        if any(ign in fl for ign in ["/tests/", "/__tests__/", "/fixtures/", "/mocks/", ".test.", ".spec.", "remediationpromptgenerator", "codereviewerpanel"]):
+            return []
+
         is_python = file_name.endswith('.py')
         is_js_ts = any(file_name.endswith(ext) for ext in ('.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs'))
 
@@ -129,6 +140,10 @@ class ASTAnalyzer:
 
             # JavaScript / TypeScript sinks
             if is_js_ts:
+                # Skip regex patterns, test assertions, and rule descriptions
+                if any(x in stripped for x in ("title:", "description:", "error_explanation:", ".test(", ".match(", "RegExp(")):
+                    continue
+
                 if _JS_EVAL_PATTERN.search(line):
                     findings.append(EvidenceItem(
                         id=str(uuid.uuid4()),

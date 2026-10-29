@@ -194,7 +194,7 @@ def get_demo_code_reviews(scenario_id: str) -> List[CodeReviewItem]:
                 category="Security Vulnerability",
                 title="Exposed AWS Credentials in CI/CD Workflow File",
                 error_explanation="Hardcoded AWS access credentials were saved in the workflow environment block rather than in GitHub Encrypted Secrets.",
-                buggy_code="env:\n  AWS_ACCESS_KEY_ID: AKIAIOSFODNN7EXAMPLE\n  AWS_SECRET_ACCESS_KEY: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+                buggy_code="env:\n  AWS_ACCESS_KEY_ID: DEMO_AWS_ACCESS_KEY_SAMPLE\n  AWS_SECRET_ACCESS_KEY: DEMO_AWS_SECRET_KEY_SAMPLE",
                 corrected_code="# Corrected: Use repository encrypted secrets\nenv:\n  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}\n  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}"
             ),
             CodeReviewItem(

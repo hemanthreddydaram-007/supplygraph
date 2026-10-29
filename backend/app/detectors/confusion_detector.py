@@ -36,7 +36,7 @@ KNOWN_PUBLIC_PACKAGES: Set[str] = {
     "dargs", "import-local", "dot-prop", "cross-spawn", "kind-of", "find-up", "locate-path",
     "p-locate", "p-limit", "p-try", "path-exists", "execa", "strip-ansi", "string-width",
     "wrap-ansi", "cliui", "escalade", "get-caller-file", "require-directory", "y18n",
-    "ansi-regex", "ansi-styles", "color-convert", "color-name", "picocolors"
+    "ansi-regex", "ansi-styles", "color-convert", "color-name", "picocolors", "internal-slot"
 }
 
 # Explicit Private/Corporate Scopes
