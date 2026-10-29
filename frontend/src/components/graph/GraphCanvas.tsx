@@ -243,7 +243,7 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
     });
 
     if (directThreats.size === 0) {
-      return new Set(safeNodes.map(n => n.id));
+      return new Set<string>();
     }
 
     // 2. Build bi-directional adjacency map
@@ -361,7 +361,7 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
     if (filter === "package") {
       rawNodes = packageOnlyNodes;
     } else if (filter === "detailed") {
-      rawNodes = safeNodes.filter(n => threatNodeIds.has(n.id));
+      rawNodes = threatNodeIds.size > 0 ? safeNodes.filter(n => threatNodeIds.has(n.id)) : safeNodes;
     } else {
       rawNodes = prioritizedAllNodes;
     }
@@ -439,39 +439,26 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
     return safeEdges
       .filter(e => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
       .map(e => {
-        const isAttack =
+        const isVulnerabilityPath =
           Boolean(e.data?.is_attack_path) ||
           e.data?.edge_type === "AFFECTS" ||
-          (threatNodeIds.has(e.source) && threatNodeIds.has(e.target));
-
-        let animate = false;
-        if (isAttack) {
-          if (filter === "detailed" || filter === "package") {
-            if (animatedCount < 40) {
-              animate = true;
-              animatedCount++;
-            }
-          } else {
-            // "all" view - disable if > 100 edges, otherwise cap at 40
-            if (safeEdges.length <= 100 && animatedCount < 40) {
-              animate = true;
-              animatedCount++;
-            }
-          }
-        }
+          e.data?.edge_type === "PROPAGATES_TO" ||
+          (threatNodeIds.size > 0 && threatNodeIds.has(e.source) && threatNodeIds.has(e.target));
 
         return {
           id: e.id,
           source: e.source,
           target: e.target,
-          animated: animate,
+          animated: isVulnerabilityPath,
           label: e.data?.label,
           style: {
-            stroke: isAttack ? "#ef4444" : "#334155",
-            strokeWidth: isAttack ? 2.5 : 1.2,
+            // Linear (solid) line for normal dependency link, dashed line for vulnerability path
+            stroke: isVulnerabilityPath ? "#ef4444" : "#475569",
+            strokeWidth: isVulnerabilityPath ? 2.5 : 1.2,
+            strokeDasharray: isVulnerabilityPath ? "6 4" : undefined,
           },
           labelStyle: {
-            fill: isAttack ? "#fca5a5" : "#71717a",
+            fill: isVulnerabilityPath ? "#fca5a5" : "#71717a",
             fontSize: 9,
             fontFamily: "monospace",
           },
@@ -480,13 +467,13 @@ const GraphCanvasInner = React.memo(function GraphCanvasInner({
           labelBgBorderRadius: 4,
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            width: isAttack ? 14 : 10,
-            height: isAttack ? 14 : 10,
-            color: isAttack ? "#ef4444" : "#334155",
+            width: isVulnerabilityPath ? 14 : 10,
+            height: isVulnerabilityPath ? 14 : 10,
+            color: isVulnerabilityPath ? "#ef4444" : "#475569",
           },
         };
       });
-  }, [safeEdges, visibleNodes, threatNodeIds, filter]);
+  }, [safeEdges, visibleNodes, threatNodeIds]);
 
   // Keep visibleNodesRef in sync on every render
   useEffect(() => {
