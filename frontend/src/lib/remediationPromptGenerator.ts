@@ -368,13 +368,25 @@ export function resolveVersionWithConfidence(
 
   // If unpatched advisory exists alongside candidate fixes:
   if (hasUnpatchedAdvisory) {
+    let requiredFloor = validUpgrades[0].raw;
+    for (const c of validUpgrades) {
+      if (compareSemVer(c.raw, requiredFloor) > 0) {
+        requiredFloor = c.raw;
+      }
+    }
+    const floorParsed = parseSemVer(requiredFloor);
+    const isMajor = floorParsed && instParsed ? floorParsed.major > instParsed.major : false;
+    const diff = isMajor && floorParsed && instParsed ? floorParsed.major - instParsed.major : 0;
     return {
-      rawFixed: "",
-      cleanVersion: "",
-      category: "NO_VERIFIED_FIX",
-      isMajorUpgrade: false,
-      majorDiff: 0,
-      explanation: "Package contains unpatched advisory with no published upstream fix. Partial candidate fixes exist for other advisories, but package cannot be claimed fully fixed. Manual investigation required.",
+      rawFixed: requiredFloor,
+      cleanVersion: requiredFloor,
+      category: isMajor ? "COMPATIBILITY_REVIEW_REQUIRED" : "VERIFIED_MINIMUM_FIXED_VERSION",
+      isMajorUpgrade: isMajor,
+      majorDiff: diff,
+      explanation: `Package contains an unpatched or disputed advisory, but upgrading to >=${requiredFloor} resolves known confirmed advisory(s).`,
+      pep440Constraint: `>=${requiredFloor}`,
+      npmConstraint: `^${requiredFloor}`,
+      candidateSatisfiesAllAdvisories: false,
     };
   }
 

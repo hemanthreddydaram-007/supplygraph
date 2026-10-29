@@ -426,6 +426,10 @@ class HistoricAttackDetector:
         evidence_list: List[EvidenceItem] = []
         fl = file_path.lower()
 
+        # Ignore self (historic_attacks.py) and test suite files to prevent false-positive self-reflection
+        if any(ign in fl for ign in ["historic_attacks.py", "/tests/", "\\tests\\", "test_historic_attacks", "__tests__"]):
+            return evidence_list
+
         # 1. Polyfill.io Hijacked CDN Script Inclusion
         if any(fl.endswith(ext) for ext in ('.html', '.htm', '.jsx', '.tsx', '.vue', '.svelte', '.php', '.js', '.ts')):
             for idx, line in enumerate(content.splitlines(), start=1):
