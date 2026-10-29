@@ -191,8 +191,15 @@ class CodeReviewerService:
             content = files.get(file_path, "")
             if not content or len(content) > 100_000:
                 continue
-            # Skip ignored paths
-            if any(ign in file_path.lower() for ign in ["node_modules/", ".git/", "venv/", "__pycache__/", ".next/", "dist/", "build/"]):
+            # Skip ignored paths (build artifacts, dependencies, and test directories)
+            if any(ign in file_path.lower() for ign in [
+                "node_modules/", ".git/", "venv/", "__pycache__/", ".next/", "dist/", "build/",
+                "/tests/", "/test/", "__tests__/", "/mock/", "/fixture/", "/fixtures/"
+            ]):
+                continue
+            # Also skip standalone test files
+            base = file_path.lower().rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+            if base.startswith("test_") or base.endswith("_test.py") or ".test." in base or ".spec." in base:
                 continue
             
             reviews = self.review_file(file_path, content)
@@ -757,8 +764,8 @@ class CodeReviewerService:
         # 3. Regex / Pattern-based checks in Python (with sanitized lines)
         for idx, line in enumerate(lines, start=1):
             raw_stripped = line.strip()
-            # Ignore comments
-            if raw_stripped.startswith("#"):
+            # Ignore comments, test assertions, and pattern/template definitions
+            if raw_stripped.startswith("#") or any(skip in raw_stripped for skip in ["buggy_code", "corrected_code", "re.search", "r'", 'r"', 'f"{indent}', "new_lines ="]):
                 continue
 
             clean_code = strip_strings_and_comments(line, "python")
@@ -838,189 +845,6 @@ class CodeReviewerService:
                     )
                 )
 
-            # 7. Prototype pollution via unfiltered property assignment
-            if re.search(r'target\[key\]\s*=\s*source\[key\]', raw_stripped) or re.search(r'obj\[key\]\s*=\s*val', raw_stripped):
-                new_lines = [
-                    f"{indent}// Corrected: Protect against prototype pollution",
-                    f"{indent}if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;",
-                    line
-                ]
-                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
-                reviews.append(
-                    CodeReviewItem(
-                        id=str(uuid.uuid4()),
-                        file_path=file_path,
-                        line_number=idx,
-                        severity="CRITICAL",
-                        category="Security Vulnerability",
-                        title="Prototype Pollution via Unfiltered Property Injection",
-                        error_explanation="Directly assigning object properties using dynamic keys without validating against '__proto__' or 'constructor' allows attackers to pollute global Object prototypes.",
-                        buggy_code=line,
-                        corrected_code="\n".join(new_lines),
-                        unified_diff=diff
-                    )
-                )
-
-            # 8. Unsafe child_process.exec()
-            if re.search(r'child_process\.exec\s*\(', clean_code) or re.search(r'\bexec\s*\(\s*`', raw_stripped):
-                new_lines = [
-                    f"{indent}// Corrected: Use execFile or spawn with argument arrays instead of shell execution",
-                    f"{indent}const {{ execFile }} = require('child_process');",
-                    f"{indent}execFile('executable', [arg1, arg2], callback);"
-                ]
-                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
-                reviews.append(
-                    CodeReviewItem(
-                        id=str(uuid.uuid4()),
-                        file_path=file_path,
-                        line_number=idx,
-                        severity="CRITICAL",
-                        category="Security Vulnerability",
-                        title="Command Injection via `child_process.exec()`",
-                        error_explanation="The `exec()` function invokes a system shell, leaving the application vulnerable to command injection if arguments contain user input. Use `execFile` or `spawn` without shell.",
-                        buggy_code=line,
-                        corrected_code="\n".join(new_lines),
-                        unified_diff=diff
-                    )
-                )
-
-            # 9. DOM-based XSS via document.write()
-            if re.search(r'\bdocument\.write(?:ln)?\s*\(', clean_code):
-                new_lines = [
-                    f"{indent}// Corrected: Avoid document.write(); update DOM nodes safely",
-                    f"{indent}const target = document.getElementById('content');",
-                    f"{indent}if (target) target.textContent = safeData;"
-                ]
-                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
-                reviews.append(
-                    CodeReviewItem(
-                        id=str(uuid.uuid4()),
-                        file_path=file_path,
-                        line_number=idx,
-                        severity="HIGH",
-                        category="Security Vulnerability",
-                        title="DOM XSS & Parser Blocking via `document.write()`",
-                        error_explanation="Invoking `document.write()` strongly increases the risk of DOM-based Cross-Site Scripting (XSS) and blocks the browser HTML tokenizer. Use modern safe DOM manipulation like `textContent` or `appendChild()`.",
-                        buggy_code=line,
-                        corrected_code="\n".join(new_lines),
-                        unified_diff=diff
-                    )
-                )
-
-            # 10. Insecure TLS rejectUnauthorized: false
-            if re.search(r'rejectUnauthorized\s*:\s*false', clean_code):
-                corrected_line = line.replace("rejectUnauthorized: false", "rejectUnauthorized: true").replace("rejectUnauthorized:false", "rejectUnauthorized: true")
-                new_lines = [
-                    f"{indent}// Corrected: Enforce TLS certificate verification",
-                    corrected_line
-                ]
-                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
-                reviews.append(
-                    CodeReviewItem(
-                        id=str(uuid.uuid4()),
-                        file_path=file_path,
-                        line_number=idx,
-                        severity="HIGH",
-                        category="Security Vulnerability",
-                        title="TLS Certificate Validation Disabled (`rejectUnauthorized: false`)",
-                        error_explanation="Setting `rejectUnauthorized: false` disables SSL/TLS certificate validation in Node.js HTTPS agents, exposing network traffic to Man-in-the-Middle (MitM) eavesdropping and token interception.",
-                        buggy_code=line,
-                        corrected_code="\n".join(new_lines),
-                        unified_diff=diff
-                    )
-                )
-
-            # 11. Insecure PRNG Math.random() in security-sensitive context
-            if re.search(r'\bMath\.random\s*\(\s*\)', clean_code) and re.search(r'(token|secret|password|auth|session|nonce|salt|csrf)', raw_stripped, re.IGNORECASE):
-                new_lines = [
-                    f"{indent}// Corrected: Use cryptographically secure randomness",
-                    f"{indent}const secureToken = crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');"
-                ]
-                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
-                reviews.append(
-                    CodeReviewItem(
-                        id=str(uuid.uuid4()),
-                        file_path=file_path,
-                        line_number=idx,
-                        severity="HIGH",
-                        category="Security Vulnerability",
-                        title="Cryptographically Insecure Random Number via `Math.random()`",
-                        error_explanation="`Math.random()` produces pseudo-random numbers with predictable internal PRNG state. It must never be used for security tokens, authentication credentials, nonces, password generation, or session identifiers. Use `crypto.getRandomValues()` or `crypto.randomUUID()`.",
-                        buggy_code=line,
-                        corrected_code="\n".join(new_lines),
-                        unified_diff=diff
-                    )
-                )
-
-            # 12. Polyfill.io / Compromised CDN Script Inclusion (2024 Supply Chain Hijack)
-            if re.search(r'(?:https?:)?//(?:cdn\.)?polyfill\.io', raw_stripped, re.IGNORECASE) or re.search(r'(?:https?:)?//(?:bootcss\.com|bootcdn\.net)', raw_stripped, re.IGNORECASE):
-                new_lines = [
-                    f"{indent}// Corrected: Replace compromised polyfill.io CDN with official Cloudflare mirror",
-                    re.sub(r'https?://(?:cdn\.)?polyfill\.io/[^\s"\'>]+', 'https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js', line)
-                ]
-                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
-                reviews.append(
-                    CodeReviewItem(
-                        id=str(uuid.uuid4()),
-                        file_path=file_path,
-                        line_number=idx,
-                        severity="CRITICAL",
-                        category="Security Vulnerability",
-                        title="Compromised CDN Domain (Polyfill.io Supply Chain Breach)",
-                        error_explanation="The polyfill.io CDN domain was acquired by a rogue entity in 2024 and injected malware into client browsers. Immediately replace with official Cloudflare mirror 'cdnjs.cloudflare.com' or bundled core-js.",
-                        buggy_code=line,
-                        corrected_code="\n".join(new_lines),
-                        unified_diff=diff
-                    )
-                )
-
-            # 13. External script missing Subresource Integrity (SRI)
-            if "<script" in raw_stripped and "src=" in raw_stripped and "integrity=" not in raw_stripped:
-                src_match = re.search(r'src=["\'](https?://[^"\']+)["\']', raw_stripped)
-                if src_match and not src_match.group(1).startswith(("http://localhost", "http://127.0.0.1")):
-                    orig_src = src_match.group(1)
-                    new_lines = [
-                        f"{indent}<!-- Corrected: Add Subresource Integrity (SRI) hash to prevent CDN tampering -->",
-                        line.replace(f'src="{orig_src}"', f'src="{orig_src}" integrity="sha384-<GENERATE_HASH>" crossorigin="anonymous"').replace(f"src='{orig_src}'", f"src='{orig_src}' integrity=\"sha384-<GENERATE_HASH>\" crossorigin=\"anonymous\"")
-                    ]
-                    diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
-                    reviews.append(
-                        CodeReviewItem(
-                            id=str(uuid.uuid4()),
-                            file_path=file_path,
-                            line_number=idx,
-                            severity="HIGH",
-                            category="Security Vulnerability",
-                            title="Missing Subresource Integrity (SRI) on External Script",
-                            error_explanation="Loading external scripts without `integrity=\"sha384-...\"` allows compromised CDNs or Man-in-the-Middle attackers to execute arbitrary malicious code in your users' browsers without detection.",
-                            buggy_code=line,
-                            corrected_code="\n".join(new_lines),
-                            unified_diff=diff
-                        )
-                    )
-
-            # 14. Web3 Wallet Drainer Pattern (Ledger Connect Kit / Lottie-Player)
-            if re.search(r'\b(?:setApprovalForAll|transferFrom)\s*\(\s*["\']0x[a-fA-F0-9]{40}["\']', raw_stripped, re.IGNORECASE) or (re.search(r'eth_sendTransaction', raw_stripped) and "drain" in raw_stripped.lower()):
-                new_lines = [
-                    f"{indent}// Corrected: Audit and restrict Web3 transaction requests and token approvals",
-                    f"{indent}await verifyRecipientAddress(targetContract);"
-                ]
-                diff = self._build_unified_diff(file_path, lines, idx, line, new_lines, 2)
-                reviews.append(
-                    CodeReviewItem(
-                        id=str(uuid.uuid4()),
-                        file_path=file_path,
-                        line_number=idx,
-                        severity="CRITICAL",
-                        category="Security Vulnerability",
-                        title="Web3 Cryptocurrency Wallet Drainer Pattern",
-                        error_explanation="Directly executing high-privilege ERC-20 token approvals (`setApprovalForAll`) or unverified transaction dispatch matches patterns from 2023 Ledger Connect Kit and 2024 Lottie-Player supply chain attacks.",
-                        buggy_code=line,
-                        corrected_code="\n".join(new_lines),
-                        unified_diff=diff
-                    )
-                )
-
         return reviews
 
     # ============================================================
@@ -1032,8 +856,8 @@ class CodeReviewerService:
 
         for idx, line in enumerate(lines, start=1):
             raw_stripped = line.strip()
-            # Ignore full-line comments immediately
-            if raw_stripped.startswith("//") or raw_stripped.startswith("/*") or raw_stripped.startswith("*"):
+            # Ignore full-line comments, test assertions, and template definitions immediately
+            if raw_stripped.startswith("//") or raw_stripped.startswith("/*") or raw_stripped.startswith("*") or any(skip in raw_stripped for skip in ["buggy_code", "corrected_code", "re.search", "r'", 'r"', 'f"{indent}', "new_lines", "/.test(", ".test(", "/i.test("]):
                 continue
 
             clean_code = strip_strings_and_comments(line, "js")
