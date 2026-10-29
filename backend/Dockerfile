@@ -21,6 +21,12 @@ RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 # Copy the application code
 COPY . .
 
+# Create a dedicated non-root user and enforce least-privilege runtime
+RUN groupadd -r nonroot && useradd -r -g nonroot -s /bin/false nonroot \
+    && chown -R nonroot:nonroot /app
+
+USER nonroot:nonroot
+
 # Expose the port the app runs on
 EXPOSE 8000
 
