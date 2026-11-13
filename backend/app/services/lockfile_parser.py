@@ -12,15 +12,58 @@ import toml
 import re
 
 
+def normalize_pypi_name(name: str) -> str:
+    """Normalizes PyPI package names per PEP 503."""
+    return re.sub(r"[-_.]+", "-", str(name)).lower()
+
+
 def _dedupe_components(components: List[SBOMComponent]) -> List[SBOMComponent]:
-    """Deduplicates components by PURL, preserving direct dependencies over transitive."""
-    unique_map: Dict[str, SBOMComponent] = {}
+    """
+    Deduplicates components preserving direct dependencies over transitive.
+    For PyPI (Python), only a single version can exist in an environment:
+    unifies duplicates by normalized package name to the single highest minimum version constraint.
+    """
+    unique_map: Dict[Any, SBOMComponent] = {}
     for comp in components:
-        if comp.purl not in unique_map:
-            unique_map[comp.purl] = comp
+        is_pypi = (comp.ecosystem == Ecosystem.PYPI) or (
+            hasattr(comp.ecosystem, "value") and str(comp.ecosystem.value).lower() == "pypi"
+        )
+        if is_pypi:
+            key = ("pypi", normalize_pypi_name(comp.name))
         else:
-            if not unique_map[comp.purl].is_direct and comp.is_direct:
-                unique_map[comp.purl] = comp
+            key = comp.purl
+
+        if key not in unique_map:
+            unique_map[key] = comp
+        else:
+            existing = unique_map[key]
+            if is_pypi:
+                try:
+                    from packaging.version import parse as parse_version
+                    ev = parse_version(str(existing.version).lstrip("v^~>=<").strip())
+                    cv = parse_version(str(comp.version).lstrip("v^~>=<").strip())
+                    if cv > ev:
+                        is_dir = existing.is_direct or comp.is_direct
+                        min_depth = min(getattr(existing, 'depth', 1), getattr(comp, 'depth', 1))
+                        is_dev = existing.is_dev and comp.is_dev
+                        comp.is_direct = is_dir
+                        comp.is_transitive = not is_dir
+                        comp.depth = min_depth
+                        comp.is_dev = is_dev
+                        unique_map[key] = comp
+                    else:
+                        if comp.is_direct:
+                            existing.is_direct = True
+                            existing.is_transitive = False
+                            existing.depth = min(getattr(existing, 'depth', 1), getattr(comp, 'depth', 1))
+                        if not comp.is_dev:
+                            existing.is_dev = False
+                except Exception:
+                    if not existing.is_direct and comp.is_direct:
+                        unique_map[key] = comp
+            else:
+                if not existing.is_direct and comp.is_direct:
+                    unique_map[key] = comp
     return list(unique_map.values())
 
 
@@ -481,7 +524,9 @@ class LockfileParser:
             ],
         }
 
-        direct_components = []
+        # Map of direct components normalized by PEP 503 name
+        resolved_components: Dict[str, SBOMComponent] = {}
+
         for line in lines:
             line = line.split('#')[0].strip()
             line = line.split(';')[0].strip()
@@ -503,9 +548,10 @@ class LockfileParser:
                     version = match.group(2).strip()
 
             if name and version:
-                is_dev = name.lower() in pypi_dev_packages
+                norm_name = normalize_pypi_name(name)
+                is_dev = norm_name in pypi_dev_packages or name.lower() in pypi_dev_packages
                 purl_obj = PURL(ecosystem=Ecosystem.PYPI, name=name, version=version)
-                direct_comp = SBOMComponent(
+                new_comp = SBOMComponent(
                     bom_ref=purl_obj.canonical,
                     name=name,
                     version=version,
@@ -516,20 +562,46 @@ class LockfileParser:
                     depth=1,
                     is_dev=is_dev
                 )
-                components.append(direct_comp)
-                direct_components.append(direct_comp)
+                if norm_name not in resolved_components:
+                    resolved_components[norm_name] = new_comp
+                else:
+                    try:
+                        from packaging.version import parse as parse_version
+                        if parse_version(version) > parse_version(resolved_components[norm_name].version):
+                            resolved_components[norm_name] = new_comp
+                    except Exception:
+                        pass
 
-        # Expand transitive dependency tree for discovered packages
-        resolved_purls = set(c.purl for c in components)
-        queue = list(direct_components)
+        # Expand transitive dependency tree for discovered packages (Single Version Resolution)
+        queue = list(resolved_components.values())
 
         while queue:
             curr = queue.pop(0)
-            dep_key = curr.name.lower()
-            if dep_key in pypi_transitive_map:
-                for child_name, child_ver, is_child_dev, child_depth in pypi_transitive_map[dep_key]:
-                    child_purl = PURL(ecosystem=Ecosystem.PYPI, name=child_name, version=child_ver).canonical
-                    if child_purl not in resolved_purls:
+            dep_key = normalize_pypi_name(curr.name)
+            # Find matching transitive entries by PEP 503 normalized key
+            matched_children = []
+            for t_key, t_children in pypi_transitive_map.items():
+                if normalize_pypi_name(t_key) == dep_key:
+                    matched_children = t_children
+                    break
+
+            if matched_children:
+                for child_name, child_ver, is_child_dev, child_depth in matched_children:
+                    child_norm = normalize_pypi_name(child_name)
+                    if child_norm in resolved_components:
+                        # Existing package already in environment: unify to single highest version constraint
+                        existing_child = resolved_components[child_norm]
+                        try:
+                            from packaging.version import parse as parse_version
+                            if parse_version(child_ver) > parse_version(existing_child.version):
+                                purl_obj = PURL(ecosystem=Ecosystem.PYPI, name=child_name, version=child_ver)
+                                existing_child.version = child_ver
+                                existing_child.purl = purl_obj.canonical
+                                existing_child.bom_ref = purl_obj.canonical
+                        except Exception:
+                            pass
+                    else:
+                        child_purl = PURL(ecosystem=Ecosystem.PYPI, name=child_name, version=child_ver).canonical
                         child_comp = SBOMComponent(
                             bom_ref=child_purl,
                             name=child_name,
@@ -542,11 +614,10 @@ class LockfileParser:
                             is_dev=is_child_dev or curr.is_dev,
                             parent_bom_ref=curr.bom_ref
                         )
-                        components.append(child_comp)
-                        resolved_purls.add(child_purl)
+                        resolved_components[child_norm] = child_comp
                         queue.append(child_comp)
 
-        return _dedupe_components(components)
+        return _dedupe_components(list(resolved_components.values()))
 
     def _parse_pipfile_lock(self, content: str) -> List[SBOMComponent]:
         try:

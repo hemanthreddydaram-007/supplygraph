@@ -12,7 +12,7 @@ from app.models.core import (
     AnalysisRequest, AnalysisResponse, ScanMetadata, ScanStatus,
     FindingModel, FindingType, Severity, EvidenceItem, EvidenceClassification,
     EvidenceSource, PURL, AssetModel, RepositoryModel, FolderAnalysisRequest, CodeReviewItem,
-    DependabotBenchmark
+    DependabotBenchmark, Ecosystem
 )
 from app.engines.confidence import compute_confidence, ConfidenceFactor, compute_blast_radius
 from app.services.github_service import GitHubService
@@ -182,16 +182,48 @@ class AnalysisService:
                     logger.warning(f"Error parsing lockfile {lockfile}: {pe}")
 
         # --- STEP 2: Deduplicate components & build SBOM ---
-        # Deduplicate components by (ecosystem, name, version), prioritizing direct dependencies
+        # Deduplicate components, enforcing single version resolution for PyPI
         unique_components_map = {}
         for comp in raw_components:
             eco_val = comp.ecosystem.value if comp.ecosystem else "unknown"
-            key = (eco_val, comp.name.lower(), comp.version or "")
+            is_pypi = (comp.ecosystem == Ecosystem.PYPI) or (str(eco_val).lower() == "pypi")
+            if is_pypi:
+                norm_name = re.sub(r"[-_.]+", "-", comp.name).lower()
+                key = ("pypi", norm_name)
+            else:
+                key = (eco_val.lower(), comp.name.lower(), comp.version or "")
+
             if key not in unique_components_map:
                 unique_components_map[key] = comp
             else:
-                if not unique_components_map[key].is_direct and comp.is_direct:
-                    unique_components_map[key] = comp
+                existing = unique_components_map[key]
+                if is_pypi:
+                    try:
+                        from packaging.version import parse as parse_version
+                        ev = parse_version(str(existing.version).lstrip("v^~>=<").strip())
+                        cv = parse_version(str(comp.version).lstrip("v^~>=<").strip())
+                        if cv > ev:
+                            is_dir = existing.is_direct or comp.is_direct
+                            min_depth = min(getattr(existing, 'depth', 1), getattr(comp, 'depth', 1))
+                            is_dev = existing.is_dev and comp.is_dev
+                            comp.is_direct = is_dir
+                            comp.is_transitive = not is_dir
+                            comp.depth = min_depth
+                            comp.is_dev = is_dev
+                            unique_components_map[key] = comp
+                        else:
+                            if comp.is_direct:
+                                existing.is_direct = True
+                                existing.is_transitive = False
+                                existing.depth = min(getattr(existing, 'depth', 1), getattr(comp, 'depth', 1))
+                            if not comp.is_dev:
+                                existing.is_dev = False
+                    except Exception:
+                        if not existing.is_direct and comp.is_direct:
+                            unique_components_map[key] = comp
+                else:
+                    if not existing.is_direct and comp.is_direct:
+                        unique_components_map[key] = comp
 
         # Sort direct dependencies first across 100% of discovered components (no hardcoded truncation)
         deduped_components = sorted(
@@ -901,16 +933,48 @@ class AnalysisService:
                     except Exception:
                         pass
 
-        # Deduplicate components
+        # Deduplicate components, enforcing single version resolution for PyPI
         unique_components_map = {}
         for comp in raw_components:
             eco_val = comp.ecosystem.value if comp.ecosystem else "unknown"
-            key = (eco_val, comp.name.lower(), comp.version or "")
+            is_pypi = (comp.ecosystem == Ecosystem.PYPI) or (str(eco_val).lower() == "pypi")
+            if is_pypi:
+                norm_name = re.sub(r"[-_.]+", "-", comp.name).lower()
+                key = ("pypi", norm_name)
+            else:
+                key = (eco_val.lower(), comp.name.lower(), comp.version or "")
+
             if key not in unique_components_map:
                 unique_components_map[key] = comp
             else:
-                if not unique_components_map[key].is_direct and comp.is_direct:
-                    unique_components_map[key] = comp
+                existing = unique_components_map[key]
+                if is_pypi:
+                    try:
+                        from packaging.version import parse as parse_version
+                        ev = parse_version(str(existing.version).lstrip("v^~>=<").strip())
+                        cv = parse_version(str(comp.version).lstrip("v^~>=<").strip())
+                        if cv > ev:
+                            is_dir = existing.is_direct or comp.is_direct
+                            min_depth = min(getattr(existing, 'depth', 1), getattr(comp, 'depth', 1))
+                            is_dev = existing.is_dev and comp.is_dev
+                            comp.is_direct = is_dir
+                            comp.is_transitive = not is_dir
+                            comp.depth = min_depth
+                            comp.is_dev = is_dev
+                            unique_components_map[key] = comp
+                        else:
+                            if comp.is_direct:
+                                existing.is_direct = True
+                                existing.is_transitive = False
+                                existing.depth = min(getattr(existing, 'depth', 1), getattr(comp, 'depth', 1))
+                            if not comp.is_dev:
+                                existing.is_dev = False
+                    except Exception:
+                        if not existing.is_direct and comp.is_direct:
+                            unique_components_map[key] = comp
+                else:
+                    if not existing.is_direct and comp.is_direct:
+                        unique_components_map[key] = comp
 
         deduped_components = sorted(
             unique_components_map.values(),
