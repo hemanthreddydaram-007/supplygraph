@@ -534,8 +534,9 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
           <div className="p-4 border-t border-zinc-800/80 space-y-3 bg-zinc-900/30">
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
-                <label className="block text-[11px] font-mono text-zinc-400 mb-1">Language</label>
+                <label htmlFor="reviewer-language-select" className="block text-[11px] font-mono text-zinc-400 mb-1">Language</label>
                 <select
+                  id="reviewer-language-select"
                   value={language}
                   onChange={(e) => {
                     setLanguage(e.target.value);
@@ -554,8 +555,9 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono text-zinc-400 mb-1">File Path Mock</label>
+                <label htmlFor="reviewer-filepath-input" className="block text-[11px] font-mono text-zinc-400 mb-1">File Path Mock</label>
                 <input
+                  id="reviewer-filepath-input"
                   type="text"
                   value={filePath}
                   onChange={(e) => setFilePath(e.target.value)}
@@ -565,8 +567,9 @@ export const CodeReviewerPanel = React.memo(function CodeReviewerPanel({
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono text-zinc-400 mb-1">Code Snippet to Inspect</label>
+              <label htmlFor="reviewer-snippet-textarea" className="block text-[11px] font-mono text-zinc-400 mb-1">Code Snippet to Inspect</label>
               <textarea
+                id="reviewer-snippet-textarea"
                 rows={4}
                 value={customCode}
                 onChange={(e) => setCustomCode(e.target.value)}

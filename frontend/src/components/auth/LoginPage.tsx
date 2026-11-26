@@ -433,14 +433,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             {/* Full Name field in Sign Up mode */}
             {authMode === "signup" && (
               <div>
-                <label className="block text-xs font-mono font-medium text-zinc-300 mb-1">
+                <label htmlFor="auth-full-name" className="block text-xs font-mono font-medium text-zinc-300 mb-1">
                   Full Name
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-500">
-                    <User className="w-4 h-4" />
+                    <User className="w-4 h-4" aria-hidden="true" />
                   </div>
                   <input
+                    id="auth-full-name"
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
@@ -454,7 +455,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             {/* Email Field with Gmail quick appender */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-mono font-medium text-zinc-300">
+                <label htmlFor="auth-email" className="text-xs font-mono font-medium text-zinc-300">
                   Gmail or Email Address
                 </label>
                 <button
@@ -468,9 +469,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-500">
-                  <Mail className="w-4 h-4" />
+                  <Mail className="w-4 h-4" aria-hidden="true" />
                 </div>
                 <input
+                  id="auth-email"
                   type="email"
                   value={email}
                   onChange={(e) => {
@@ -486,7 +488,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             {/* Password Field with Show/Hide toggle */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-mono font-medium text-zinc-300">
+                <label htmlFor="auth-password" className="text-xs font-mono font-medium text-zinc-300">
                   Password
                 </label>
                 {authMode === "signin" && (
@@ -505,9 +507,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-500">
-                  <Lock className="w-4 h-4" />
+                  <Lock className="w-4 h-4" aria-hidden="true" />
                 </div>
                 <input
+                  id="auth-password"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => {
@@ -519,10 +522,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-200"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
                 </button>
               </div>
             </div>
@@ -530,14 +534,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             {/* Confirm Password in Sign Up mode */}
             {authMode === "signup" && (
               <div>
-                <label className="block text-xs font-mono font-medium text-zinc-300 mb-1">
+                <label htmlFor="auth-confirm-password" className="block text-xs font-mono font-medium text-zinc-300 mb-1">
                   Confirm Password
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-500">
-                    <Lock className="w-4 h-4" />
+                    <Lock className="w-4 h-4" aria-hidden="true" />
                   </div>
                   <input
+                    id="auth-confirm-password"
                     type={showPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
@@ -606,13 +611,20 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       {/* GOOGLE SIGN IN MODAL */}
       {/* =================================================================== */}
       {showGoogleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Google account sign-in"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150"
+        >
           <div className="bg-[#181a20] border border-zinc-700/80 rounded-2xl max-w-md w-full p-6 text-zinc-100 shadow-2xl space-y-5 relative">
             <button
+              type="button"
               onClick={() => setShowGoogleModal(false)}
+              aria-label="Close Google sign-in modal"
               className="absolute top-4 right-4 text-zinc-400 hover:text-white"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5" aria-hidden="true" />
             </button>
 
             {/* Google Header */}
@@ -684,9 +696,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
             {/* Custom Google Account Input */}
             <div className="pt-2 border-t border-zinc-800 space-y-2">
-              <label className="text-xs font-mono text-zinc-400">Or enter any Google/Gmail address:</label>
+              <label htmlFor="auth-google-custom-email" className="text-xs font-mono text-zinc-400">Or enter any Google/Gmail address:</label>
               <div className="flex space-x-2">
                 <input
+                  id="auth-google-custom-email"
                   type="email"
                   value={googleCustomEmail}
                   onChange={(e) => setGoogleCustomEmail(e.target.value)}
@@ -715,13 +728,20 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       {/* GITHUB SIGN IN MODAL */}
       {/* =================================================================== */}
       {showGithubModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="GitHub account sign-in"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150"
+        >
           <div className="bg-[#161b22] border border-zinc-700 rounded-2xl max-w-md w-full p-6 text-zinc-100 shadow-2xl space-y-5 relative">
             <button
+              type="button"
               onClick={() => setShowGithubModal(false)}
+              aria-label="Close GitHub sign-in modal"
               className="absolute top-4 right-4 text-zinc-400 hover:text-white"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5" aria-hidden="true" />
             </button>
 
             {/* GitHub Header */}
@@ -754,9 +774,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
             {/* Username Input */}
             <div className="space-y-1.5">
-              <label className="text-xs font-mono text-zinc-300">GitHub Username or Organization</label>
+              <label htmlFor="auth-github-username" className="text-xs font-mono text-zinc-300">GitHub Username or Organization</label>
               <div className="flex space-x-2">
                 <input
+                  id="auth-github-username"
                   type="text"
                   value={githubUsername}
                   onChange={(e) => setGithubUsername(e.target.value)}

@@ -437,21 +437,23 @@ export const SandboxPanel = React.memo(function SandboxPanel({
             </div>
 
             <div className="flex items-center space-x-2">
-              <span className="text-[10px] font-mono text-zinc-500 shrink-0">Target File:</span>
+              <label htmlFor="sandbox-target-file" className="text-[10px] font-mono text-zinc-400 shrink-0">Target File:</label>
               <input
+                id="sandbox-target-file"
                 type="text"
                 value={targetFile}
                 onChange={(e) => setTargetFile(e.target.value)}
                 className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px] font-mono text-zinc-200 focus:outline-none focus:border-red-500/50 w-56"
                 placeholder="e.g. exploit.py"
               />
-              <span className="text-[9.5px] font-mono text-zinc-500">
+              <span className="text-[9.5px] font-mono text-zinc-400">
                 (Simulates gVisor runsc / seccomp-bpf interception)
               </span>
             </div>
 
             <div className="relative rounded-lg border border-zinc-800 bg-black overflow-hidden shadow-inner">
               <textarea
+                aria-label="Custom script to execute in sandbox"
                 value={customCode}
                 onChange={(e) => setCustomCode(e.target.value)}
                 rows={7}
