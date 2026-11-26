@@ -1,5 +1,24 @@
 # SupplyGraph - Universal Static AST & Code Security Analyzer
-# Analyzes Python (AST), JavaScript, TypeScript (AST patterns), detecting RCE, injection sinks, and hardcoded secrets.
+#
+# ROOT CHALLENGE ADDRESSED (Layer 2 — AI-Accelerated Risk Introduction):
+#   AI coding assistants (GitHub Copilot, ChatGPT, Gemini) introduce a consistent class
+#   of security vulnerabilities in generated boilerplate code that standard CVE scanners
+#   completely miss because they only check package manifests, not source code.
+#
+# CORE OBJECTIVE: Objective 2 — AI-Specific Security Scanning
+#   Detect the exact anti-patterns AI tools introduce:
+#   Python: eval(), exec(), pickle.loads(), subprocess(shell=True), credential access
+#   JS/TS:  prototype pollution (__proto__), XSS (dangerouslySetInnerHTML),
+#           command injection (child_process.exec), eval()
+#   All:    hardcoded AWS keys, GitHub PATs, OpenAI API keys, JWT secrets
+#
+# USER NEED ADDRESSED:
+#   Developer Need 3: "Tell me what's wrong with my AI-generated code, not just my packages"
+#
+# EVIDENCE CLASSIFICATION:
+#   Python AST findings → parsed via Python stdlib `ast.NodeVisitor` (ast.parse)
+#   JS/TS findings      → token-sanitized regex patterns (classification=HEURISTIC)
+#   Secret patterns     → compiled regex scan across source files (classification=HEURISTIC)
 from app.models.core import EvidenceItem, EvidenceClassification, EvidenceSource, SourceLocation
 import ast
 import re

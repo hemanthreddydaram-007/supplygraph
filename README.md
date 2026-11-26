@@ -2,247 +2,209 @@
 
 # SupplyGraph
 
-**Zero-Trust Application Security Posture Management (ASPM) & Supply-Chain Attack Graph**
+**Zero-Trust Software Supply-Chain Attack Graph, AI Code Reviewer & Cryptographic SBOM Platform**
 
-*Stop software supply-chain threats before production deployment with deterministic reachability analysis, AST code review, and isolated sandbox detonation.*
+*Stop software supply-chain threats before production deployment with deterministic NetworkX reachability graphs, Python AST & token-sanitized static code review, isolated behavioral sandbox detonation, and CycloneDX SHA-256 posture attestation.*
 
 [![Live Platform](https://img.shields.io/badge/Live%20Platform-supplygraph--five.vercel.app-6366f1?style=for-the-badge&logo=vercel)](https://supplygraph-five.vercel.app)
 [![Target Event](https://img.shields.io/badge/Event-YUKTHI%202026%20Hackathon-f59e0b?style=for-the-badge)](https://supplygraph-five.vercel.app)
-[![Track](https://img.shields.io/badge/Track-Cybersecurity%20%26%20ASPM-10b981?style=for-the-badge)](https://supplygraph-five.vercel.app)
+[![Track](https://img.shields.io/badge/Track-Blockchain%20%26%20Cybersecurity-10b981?style=for-the-badge)](https://supplygraph-five.vercel.app)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Next.js](https://img.shields.io/badge/Next.js-14%20App%20Router-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Next.js](https://img.shields.io/badge/Next.js-15%20App%20Router-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
 ---
 
-### [🌐 Access Live Platform](https://supplygraph-five.vercel.app) • [📐 System Architecture](docs/architecture.md) • [📋 Evidence Dossier](docs/EVIDENCE.md) • [⚡ API Contracts](docs/api-contract.md) • [🧪 Demo Scenarios Guide](docs/demo-scenarios.md) • [🎯 Problem Statement Alignment](docs/PROBLEM_STATEMENT_ALIGNMENT.md)
+### [🌐 Live Platform](https://supplygraph-five.vercel.app) • [🎯 Problem Statement Alignment](docs/PROBLEM_STATEMENT_ALIGNMENT.md) • [📐 Architecture](docs/architecture.md) • [📋 Evidence Dossier](docs/EVIDENCE.md) • [⚡ API Contracts](docs/api-contract.md) • [🧪 Demo Scenarios](docs/demo-scenarios.md)
 
 </div>
 
 ---
 
-## 🌐 Live Platform Access
-
-SupplyGraph is fully deployed and accessible in production without any local environment installation:
+## 🌐 Live Platform — Zero Setup Required
 
 <div align="center">
 
 ### 👉 **[https://supplygraph-five.vercel.app](https://supplygraph-five.vercel.app)**
 
-*Zero setup required • Instant Evaluator Fast-Pass enabled*
+*Deployed Next.js Frontend (Vercel) + FastAPI Security Engine (Render) • Instant direct dashboard access (no login gate)*
 
 </div>
 
-### Evaluation & Access Details:
-- **Instant Login:** Click the **⚡ YUKTHI 2026 Judge Fast-Pass** button on the login screen for 1-click evaluator access with pre-configured permissions.
-- **Social Login:** Authenticate using Google OAuth, GitHub, or direct evaluator credentials.
-- **Preloaded Demos:** All 5 deterministic scenarios (Scenarios A through E) and repository analysis features are instantly testable on the live cloud environment.
-- **REST API Docs:** Interactive OpenAPI swagger contracts are available at `https://supplygraph-five.vercel.app/api/docs`.
+- **Direct Access:** Open [supplygraph-five.vercel.app](https://supplygraph-five.vercel.app) and click **Get Started — Scan Project** or launch any of the 5 preloaded scenarios (`A`–`E`) directly.
+- **Dual Ingestion:** Scan any public **GitHub URL** or upload a **local project folder** directly from the browser.
+- **Interactive API Docs:** OpenAPI/Swagger UI exposed by the FastAPI backend at `/api/docs`.
 
 ---
 
-## 💡 Executive Summary & Problem Statement
+## 🚨 Root Challenge
 
-Modern web and cloud applications are built from hundreds of open-source packages and dependencies across **npm, Python (PyPI), Go, and GitHub Actions workflows**. While modular ecosystems accelerate development, managing their security has grown exponentially difficult due to deep, multi-tier transitive nesting and modern automated development workflows.
+> **The core problem SupplyGraph targets:**
+> *Modern applications and AI-assisted codebases pull hundreds of transitive open-source dependencies across npm, PyPI, Go, Cargo, and GitHub Actions—yet traditional security tools emit flat, disconnected CVE alerts without showing whether a flaw is structurally reachable to production assets, whether AI-generated boilerplate contains insecure code patterns, whether package install hooks execute malicious payloads, or whether the resulting SBOM audit trail is tamper-evident.*
 
-### ⚠️ The Problem Statement: AI-Generated Web Applications & Supply-Chain Blindspots
-Today, a rapidly growing number of students, builders, and developers build complete websites and applications using AI coding assistants. While generative AI significantly accelerates prototyping and feature delivery, AI-generated codebases frequently introduce critical security vulnerabilities and architectural errors:
-- **Vulnerable & Outdated Dependencies:** AI models often suggest packages with known CVEs, unpatched transitive dependencies, or outdated library versions without verifying upstream security status.
-- **Hallucinated & Typosquatted Packages:** Generative AI can hallucinate package names or suggest internal modules that leave projects vulnerable to typosquatting, package hijacking, and dependency confusion attacks.
-- **Silent Security Flaws:** AI-generated boilerplate code frequently includes insecure defaults, such as unsanitized input parsing, insecure deserialization (`pickle.loads`), prototype pollution, hardcoded tokens, or overly permissive CI/CD workflow configurations (`permissions: write-all`).
-- **Absence of Reachability Verification:** Developers often deploy AI-generated applications directly to production without knowing which imported packages are actually reachable and active in executable paths.
+Software supply chains break down across **four interconnected root failure modes**:
 
-### 🔍 The Reachability Problem
-In modern software projects, dependencies frequently nest several levels deep. Security teams and developers are often faced with thousands of reported CVE alerts, but lack critical operational context:
-- **Which vulnerabilities are active and reachable** through executable call paths from application entrypoints?
-- **Which findings are dormant** (e.g., dead code, uncalled utilities, development-only artifacts) that do not threaten production?
-- **How can issues be fixed safely** without breaking live backend APIs or forcing major version jumps?
-
-### The SupplyGraph Approach
-**SupplyGraph** is an Application Security Posture Management (ASPM) platform that treats your software supply chain as a **deterministic Directed Acyclic Graph (DAG)**. It maps relationships from user-facing entry points all the way down to nested packages, quantifies operational impact using a mathematically grounded **Blast Radius Score (0–100)**, generates **surgical line-level code patches**, and inspects untrusted lifecycle hooks inside an **isolated container sandbox**.
+1. **Transitive Dependency Blindness & Alert Fatigue:** Flat dependency scanners list CVEs without multi-hop call-path reachability, leaving teams unable to separate reachable threats from dormant packages.
+2. **AI-Generated Code & Hallucinated Package Risks:** Developers using AI coding assistants often ship insecure boilerplate (`eval()`, `exec()`, `pickle.loads()`, `subprocess(..., shell=True)`, prototype pollution, XSS sinks, hardcoded tokens) or pull typosquatted / dependency-confused package names.
+3. **Install-Time & CI/CD Execution Blindspots:** Compromised `preinstall`/`postinstall` lifecycle scripts, compiled binaries, and misconfigured CI/CD workflows (unpinned third-party actions, `permissions: write-all`, `curl | bash`) execute outside static manifest checks.
+4. **Mutable Audit & SBOM Trails:** Standard JSON SBOMs lack deterministic cryptographic integrity fingerprints and tamper-evident attestation for downstream verification.
 
 ---
 
-## 🏆 Why SupplyGraph Stands Apart: Key Advantages
+## 👥 User Needs
 
-SupplyGraph advances supply-chain defense through several core architectural innovations:
+SupplyGraph addresses the concrete workflows of three primary user personas:
 
-```
-┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   CORE ARCHITECTURAL STRENGTHS                                    │
-├──────────────────────────┬──────────────────────────┬─────────────────────────┬──────────────────┤
-│ 🗺️ Multi-Hop Reachability│ 🎯 Quantified Blast Radius│ 🔍 Surgical AI Patching │ 💥 Sandbox Guard │
-│ Reverse BFS DAG maps call│ Mathematical impact      │ Line-level unified diffs│ Dynamic container│
-│ paths to vulnerable code │ scoring (0-100)          │ prevent API breaks      │ stops hook traps │
-└──────────────────────────┴──────────────────────────┴─────────────────────────┴──────────────────┘
-```
+### 👨‍💻 Need 1 — The Developer / Student Builder
+> *"I scaffolded my project with AI and installed dozens of packages. Which alerts actually threaten my app, and how do I patch them without breaking my API?"*
 
-1. **Code-Aware Multi-Hop Graph Traversal vs. Isolated Manifest Checking**
-   - Traditional security tools evaluate packages in flat, isolated lists.
-   - **SupplyGraph's Advantage:** Employs NetworkX server-side topological sort and reverse BFS graph algorithms. It maps exact multi-hop call paths from application controllers down to deeply nested libraries, clearly distinguishing reachable attack paths from unreachable code.
+| User Need | How SupplyGraph Solves It |
+|-----------|---------------------------|
+| Know which transitive CVEs actually connect to services/APIs | NetworkX Reverse DAG & bounded path traversal traces origin packages to downstream assets (`PathEngine`) |
+| Detect insecure patterns & hardcoded secrets in source code | Python stdlib `ast.parse()` + token-sanitized regex engine (`ASTAnalyzer` & `CodeReviewerService`) |
+| Catch fake, typosquatted, or hijacked package names | Levenshtein similarity ($\ge 0.85$) typosquatting detector + scoped private-namespace confusion detector |
+| Fix vulnerabilities with minimal, non-breaking changes | Line-level code review diffs (`CodeReviewItem`) + Gemini 2.5 Flash / Bedrock Claude 3.5 remediation |
+| Audit GitHub Actions & GitLab CI pipelines | YAML workflow auditor flagging unpinned action tags, script injection, and `write-all` permissions |
 
-2. **Quantified Blast Radius Algorithm vs. Generic Severity Labels**
-   - Rather than relying solely on abstract high/medium tags, SupplyGraph evaluates risk using an objective mathematical formula normalized from **0.0 to 100.0**:
-     $$\text{Blast Radius} = \min(100.0, \; 2P + 15S + 25A + 50D)$$
-     *(Where $P$ = number of distinct reachable dependency paths (transitive depth), $S$ = 1 if the affected graph reaches sensitive assets (0 otherwise), $A$ = 1 if an affected path reaches an administrative-context asset (0 otherwise), and $D$ = 1 only when a direct-exploit condition is supported by evidence (0 otherwise). Score is capped at 100.)*
+### 🛡️ Need 2 — The Security Reviewer / Hackathon Evaluator
+> *"I need to inspect a project's attack surface quickly, verify that findings are backed by real evidence, and test suspicious install hooks safely."*
 
-3. **Surgical Line-Level Code Auto-Patching vs. Breaking Major Version Jumps**
-   - Upgrading an entire major package version often introduces breaking API changes and downtime.
-   - **SupplyGraph's Advantage:** The AI Code Reviewer pinpoints the exact file and line numbers where vulnerable methods are invoked, producing surgical unified git diffs that correct the specific vulnerable lines while preserving backward compatibility.
+| User Need | How SupplyGraph Solves It |
+|-----------|---------------------------|
+| Visual attack-surface comprehension in seconds | Interactive React Flow (`@xyflow/react`) DAG canvas highlighting attack propagation paths |
+| Quantitative triage priority instead of vague severity tags | Deterministic Blast-Radius formula $B = \min(100, 2P + 15S + 25A + 50D)$ and Confidence Index $C = 1 - \prod(1 - w_i r_i)$ |
+| Verifiable, non-hallucinated findings | Strict evidence classification (`FACT`, `HEURISTIC`, `SIMULATED`) backed by OSV.dev advisories |
+| Reproducible testing without setup | 5 deterministic preloaded demo scenarios (`A`–`E`) + 188 automated pytest tests |
+| Safe inspection of dangerous install scripts & binaries | Dual-mode sandbox (`--network none`, 512 MB RAM, 10s watchdog in Docker; sanitized restricted subprocess fallback) + static PE/ELF/WASM string extraction |
 
-4. **Dynamic Container Detonation Sandbox vs. Static Metadata Scans**
-   - Malicious packages often hide dangerous payloads inside lifecycle hooks (`preinstall`, `postinstall`).
-   - **SupplyGraph's Advantage:** Features an isolated execution sandbox with zero unauthorized outbound network egress. It intercepts unauthorized external downloaders (`curl | bash`), detects token exfiltration attempts, and detains processes safely.
+### 🏢 Need 3 — The DevSecOps / Compliance Team
+> *"We need standardized SBOM artifacts, cryptographic integrity fingerprints, and delta posture tracking across releases."*
 
-5. **Multi-Ecosystem Unified Monorepo Observability**
-   - Simultaneously indexes npm (`package-lock.json`), PyPI (`requirements.txt`, `poetry.lock`), Go (`go.mod`), and GitHub Actions workflows (`.github/workflows/*.yml`), providing a single pane of glass across frontend, backend, and CI/CD pipelines.
-
-6. **Deterministic Cryptographic Verification**
-   - Automatically exports standard CycloneDX v1.5 JSON Software Bill of Materials (SBOM) with SHA-256 integrity digests for verifiable compliance.
-
----
-
-## 🧪 Comprehensive Scenario Guide (5 Preloaded Evaluator Modes)
-
-SupplyGraph features 5 preloaded real-world scenarios accessible from the header dropdown (`Scenario A` through `Scenario E`). Here is what each scenario demonstrates:
-
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                        PRELOADED DETERMINISTIC SECURITY SCENARIOS                      │
-├────────────┬─────────────────────────────┬─────────────────┬───────────────────────────┤
-│ Scenario   │ Title                       │ Ecosystem       │ Threat Vector             │
-├────────────┼─────────────────────────────┼─────────────────┼───────────────────────────┤
-│ Scenario A │ Transitive CVE              │ Java / npm      │ Deep Log4j RCE Call Path  │
-│ Scenario B │ Dependency Confusion        │ Private npm     │ Internal Namespace Spoof  │
-│ Scenario C │ Malicious Post-Install      │ npm Hooks       │ Exfiltration C2 Beacon    │
-│ Scenario D │ Deep Chain (Depth 4)        │ Multi-tier JS   │ 4-Hop Transitive Exploit  │
-│ Scenario E │ CI/CD Workflow Leak         │ GitHub Actions  │ Unpinned Runner Poisoning │
-└────────────┴─────────────────────────────┴─────────────────┴───────────────────────────┘
-```
-
-### 🔗 Scenario A: Transitive CVE (Transitive Exploit Chain)
-- **The Threat:** Models a severe remote code execution (RCE) vector introduced via a transitive dependency (e.g., `log4j-core:2.14.1` / `mixin-deep:1.3.1`).
-- **What SupplyGraph Demonstrates:**
-  - Connects the application root entrypoint through intermediate service layers (`demo-app` → `lodash@4.17.20` → `mixin-deep@1.3.1`).
-  - Graph nodes highlight the reachability path in animated red, verifying that untrusted user inputs reach the vulnerable component.
-  - Computes a contextual Blast Radius score of **85.0/100** and provides non-breaking lockfile override recommendations in the Executive AI panel.
-
-### 🎭 Scenario B: Dependency Confusion (Internal Namespace Hijacking)
-- **The Threat:** Simulates a dependency confusion vulnerability in a private corporate module (`@corp-internal/auth-token`).
-- **What SupplyGraph Demonstrates:**
-  - Identifies that private organization packages lack scoped registry configuration (`.npmrc`), allowing public registries to be probed.
-  - Explains how external attackers publish identical package names with higher version numbers (`99.0.0`), tricking build runners into pulling untrusted code.
-  - Generates a Blast Radius score of **78.5/100** with step-by-step containment instructions to enforce scoped registry routing.
-
-### 💀 Scenario C: Malicious Post-Install (Lifecycle Hook Injection)
-- **The Threat:** Examines a compromised package (`flatmap-stream:0.1.1`) where malicious code is embedded directly within package lifecycle scripts.
-- **What SupplyGraph Demonstrates:**
-  - AST static pattern detection flags unauthorized subprocess calls (`curl -sSL ... | bash`) intended to harvest environment variables and developer credentials.
-  - Allows 1-click execution inside the **Dynamic Detonation Sandbox**, demonstrating zero-egress network containment and process termination with watchdog violation logs.
-  - Computes a critical Blast Radius of **92.0/100**.
-
-### 🕸️ Scenario D: Deep Chain (Transitive Depth 4 Propagation)
-- **The Threat:** Illustrates vulnerability propagation across an extended, 4-tier dependency hierarchy (`app` → `service` → `middleware` → `utility` → `compromised-core`).
-- **What SupplyGraph Demonstrates:**
-  - Highlights why flat dependency tools fail: leaf packages appear disconnected without full structural mapping.
-  - SupplyGraph's reverse BFS engine traces all 4 intermediate hops, calculating exact reachability and proving how a vulnerability at depth 4 affects the root service.
-  - Computes an operational Blast Radius of **74.0/100**.
-
-### ⚙️ Scenario E: CI/CD Workflow Leak (GitHub Actions Runner Hardening)
-- **The Threat:** Audits build automation pipelines (`.github/workflows/*.yml`) for unpinned third-party actions (`actions/checkout@v2`) and excessive runner privileges (`permissions: write-all`).
-- **What SupplyGraph Demonstrates:**
-  - Flags that mutable branch or tag references can be compromised upstream to execute unauthorized code on privileged build runners.
-  - In the **AI Code Reviewer**, displays a surgical unified git diff enforcing immutable 40-character commit SHA pinning (`actions/checkout@11bd71...`) and least-privilege token permissions (`contents: read`).
-  - Computes a risk score of **81.0/100**.
+| User Need | How SupplyGraph Solves It |
+|-----------|---------------------------|
+| Standardized compliance SBOM for every scan | CycloneDX v1.5 JSON SBOM generated via `SBOMEngine` (embedded in `/scan` and served at `GET /api/v1/sbom/cyclonedx`) |
+| Cryptographic tamper detection & blockchain readiness | Deterministic SHA-256 SBOM digest + composite posture fingerprint + staged Polygon Amoy smart contract (`contracts/SupplyGraphAttestation.sol`) |
+| Track regressions between two scans or commits | `POST /api/v1/compare` computes dependency, finding, confidence, and Blast-Radius deltas |
+| Scan local/private codebases without pushing to GitHub | `POST /api/v1/analyze/folder` accepts browser-uploaded folder trees |
 
 ---
 
-## 🔬 Real-World Repository Deep Dive: `knadh/listmonk`
+## 🎯 Core Objectives
 
-SupplyGraph was validated against the high-performance open-source mailing and newsletter manager **[knadh/listmonk](https://github.com/knadh/listmonk)** (Go + Vue monorepo):
+SupplyGraph delivers **six verifiable engineering objectives**:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│             knadh/listmonk — SupplyGraph Audit              │
-├──────────────────────────┬──────────────────────────────────┤
-│ Scanned Submodules       │ 35 modules across Go & frontend  │
-│ Total Components         │ 94 direct and transitive packages│
-│ Security Findings        │ 21 CVE & CI/CD workflow issues   │
-│ Computed Blast Radius    │ 60.0 / 100 (Prioritized)         │
-│ Unified Git Diff Patches │ 3 surgical non-breaking diffs    │
-│ Sandbox Interceptions    │ 8 hook safety violations caught  │
-└──────────────────────────┴──────────────────────────────────┘
-```
-
-When scanning a complex monorepo like `listmonk`, SupplyGraph unifies dependencies across Go backend manifests, npm frontend packages, and GitHub Actions automation, providing actionable containment steps within seconds.
+1. **Objective 1 — Multi-Ecosystem Supply-Chain Attack Graph & Reachability:**
+   Ingests `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `package.json`, `requirements.txt`, `poetry.lock`, `Pipfile.lock`, `go.mod`, `Cargo.lock`, `Cargo.toml`, and CI/CD YAML workflows into canonical PURLs (`pkg:...`), condenses dependency cycles via Tarjan SCC, and builds a deterministic NetworkX DAG with bounded reverse-reachability paths.
+2. **Objective 2 — 5-Layer Threat Detection Engine:**
+   Combines (1) **OSV.dev** batch CVE intelligence with SemVer matching, (2) **Typosquatting** heuristics ($\ge 0.85$ similarity), (3) **Dependency Confusion** detection, (4) **Static AST & Token-Sanitized Code Analysis**, and (5) **CI/CD Workflow Security Auditing** (plus historic supply-chain attack matching).
+3. **Objective 3 — Closed-Form Heuristic Risk & Confidence Scoring:**
+   - **Blast Radius:** $B = \min(100, 2P + 15S + 25A + 50D)$ at scan summary level, where $P$ = affected packages (`package_count`), $S$ = exposed services (`service_count`), $A$ = exposed APIs (`api_count`), and $D$ = production deployments (`production_deployment_count`).
+   - **Confidence Index:** $C = 1 - \prod_{i=1}^{n}(1 - w_i \cdot r_i)$ combining evidence weight $w_i$ and source reliability $r_i$ (with synthetic discount applied to simulated signals).
+4. **Objective 4 — Isolated Lifecycle Hook & Artifact Sandbox:**
+   Detonates untrusted `preinstall`/`install`/`postinstall` hooks and test scripts inside a dual-mode sandbox (Docker `--network none`, `--memory=512m`, `--cpus=1.0`, 10s watchdog; restricted sanitized subprocess fallback stripping `AWS_*`/`GITHUB_*`/`DATABASE_*` credentials and blocking `..` path traversal) plus static PE/ELF/WASM binary inspection.
+5. **Objective 5 — Line-Level Code Review & AI Remediation:**
+   Tier 1 deterministic Python `ast.parse()` + token-sanitized JS/TS/Go/Rust pattern scanner returns exact `file_path`, `line_number`, `buggy_code`, and `corrected_code` items; Tier 2 executive briefings and remediation context use **Google Gemini 2.5 Flash** with **AWS Bedrock (Claude 3.5 Sonnet)** and deterministic summary fallbacks.
+6. **Objective 6 — Cryptographic SBOM Integrity & Blockchain Attestation:**
+   Produces CycloneDX v1.5 JSON SBOMs with deterministic SHA-256 digests (`compute_sbom_sha256`) and posture fingerprints (`compute_merkle_root`), backed by a Solidity smart contract (`contracts/SupplyGraphAttestation.sol`) and deployment scripts (`scripts/deploy_amoy.py`, `scripts/verify_attestation.py`) staged for **Polygon Amoy Testnet (Chain ID: 80002)**. *(Honestly labeled as deployment staged/pending until broadcast with testnet POL.)*
 
 ---
 
-## 🏛️ System Architecture & Dataflow
+## ⚙️ System Architecture & 5-Layer Pipeline
 
 ```mermaid
 flowchart TD
-    subgraph INGESTION["1. Multi-Ecosystem Ingestion"]
-        A1["GitHub Repository / Folder"] --> B1["Manifest & Workflow Ingestion"]
-        B1 --> |npm| M1["package-lock.json / package.json"]
-        B1 --> |PyPI| M2["requirements.txt / poetry.lock"]
-        B1 --> |Go| M3["go.mod"]
-        B1 --> |CI/CD| M4[".github/workflows/*.yml"]
+    subgraph INGESTION["1. Multi-Ecosystem Ingestion (Objective 1)"]
+        A1["GitHub Repo URL / Local Folder Upload"] --> B1["Lockfile & Workflow Parser"]
+        B1 --> |npm| M1["package-lock.json / yarn.lock / pnpm-lock.yaml"]
+        B1 --> |PyPI| M2["requirements.txt / poetry.lock / Pipfile.lock"]
+        B1 --> |Go & Rust| M3["go.mod / Cargo.lock"]
+        B1 --> |CI/CD| M4[".github/workflows/*.yml / .gitlab-ci.yml"]
     end
 
-    subgraph THREAT_ENGINE["2. 5-Layer Threat Detection Engine"]
-        M1 & M2 & M3 --> D1["OSV.dev Batch Vulnerability Ingestion"]
-        M1 & M2 --> D2["Typosquatting & Scope Confusion Engine"]
-        M4 --> D3["CI/CD Runner & Action Pinning Auditor"]
-        A1 --> D4["Tree-Sitter AST Static Code Pattern Scanner"]
+    subgraph THREAT_ENGINE["2. 5-Layer Threat Detection Engine (Objective 2)"]
+        M1 & M2 & M3 --> D1["OSV.dev Batch CVE Lookup"]
+        M1 & M2 --> D2["Typosquatting & Dependency Confusion"]
+        M4 --> D3["CI/CD Action Pinning & Permissions Auditor"]
+        A1 --> D4["Python stdlib AST + Token-Sanitized Pattern Scanner"]
     end
 
-    subgraph GRAPH_ENGINE["3. Graph Theory & Reachability Engine"]
-        D1 & D2 & D3 & D4 --> G1["NetworkX Directed Graph (DAG)"]
-        G1 --> G2["Reverse BFS Reachability Traversal"]
-        G2 --> G3["Blast Radius Scoring (0-100)"]
+    subgraph GRAPH_ENGINE["3. Graph & Scoring Engine (Objectives 1 & 3)"]
+        D1 & D2 & D3 & D4 --> G1["NetworkX DAG + Tarjan SCC Layout"]
+        G1 --> G2["Bounded Path Traversal (PathEngine)"]
+        G2 --> G3["Blast Radius B = min(100, 2P+15S+25A+50D) & Confidence C"]
     end
 
-    subgraph DEFENSE["4. Defense & Remediation Layer"]
-        G3 --> R1["AI Code Reviewer (Unified Git Diffs)"]
-        G3 --> R2["Autonomous Executive AI Briefings"]
-        G3 --> R3["Dynamic Detonation Sandbox (Hooks Quarantine)"]
-        G3 --> R4["CycloneDX v1.5 SBOM (SHA-256 Digest)"]
+    subgraph DEFENSE["4. Remediation, Sandbox & Integrity (Objectives 4, 5 & 6)"]
+        G3 --> R1["Code Reviewer (Line-Level Fixes & Diffs)"]
+        G3 --> R2["AI Briefing (Gemini 2.5 Flash / Bedrock Fallback)"]
+        G3 --> R3["Isolated Detonation Sandbox & Static Binary Inspector"]
+        G3 --> R4["CycloneDX v1.5 SBOM + SHA-256 (Polygon Amoy Contract Staged)"]
     end
 
-    subgraph UI["5. Enterprise ASPM User Interface"]
-        R1 & R2 & R3 & R4 --> UI1["Next.js 14 Dashboard"]
-        UI1 --> UI2["React Flow Animated Attack Graph Canvas"]
-        UI1 --> UI3["Interactive Findings & Sandbox Terminal"]
+    subgraph UI["5. Interactive ASPM UI"]
+        R1 & R2 & R3 & R4 --> UI1["Next.js 15 Dashboard"]
+        UI1 --> UI2["React Flow Attack Graph (@xyflow/react)"]
+        UI1 --> UI3["Code Reviewer, Sandbox Terminal & SBOM Modal"]
     end
 ```
 
 ---
 
-## 💻 Tech Stack & Open Standards
+## 🧪 5 Preloaded Deterministic Scenarios
 
-- **Frontend:** Next.js 14 (App Router), React 18, React Flow (`@xyflow/react`), Tailwind CSS, Lucide Icons, TypeScript.
-- **Backend:** FastAPI, Python 3.11+, NetworkX, Pydantic v2, Uvicorn, Tree-sitter.
-- **Vulnerability Intelligence:** OSV.dev REST API, GitHub Advisory Database (GHSA), National Vulnerability Database (NVD).
-- **Execution Containment:** Ephemeral sandbox container wrapper with network interface restriction and syscall inspection.
-- **Standards:** CycloneDX v1.5 JSON SBOM, SHA-256 cryptographic verification.
+Every scenario is deterministic and independently testable from the dashboard or `POST /api/v1/analyze/demo`:
+
+| Scenario | Title (JSON Spec / UI) | Target Packages / Files | Root Challenge Demonstrated |
+|:--------:|:------------------------|:------------------------|:----------------------------|
+| **A** | Vulnerable Transitive Dependency *(Transitive CVE)* | `lodash@4.17.20` → `mixin-deep@1.3.1` (`GHSA-4xc9-xhrj-v574`) | Transitive CVE reachability & non-breaking lockfile override |
+| **B** | Typosquatting *(Dependency Confusion)* | `requets` vs `requests` (`reqeusts`) | Hallucinated / typosquatted dependencies (similarity $\ge 0.85$) |
+| **C** | Compromised Update *(Malicious Post-Install)* | `data-parser@1.2.0 → 1.3.0` + lifecycle hook | Obfuscated update AST signals & clearly labeled `SIMULATED` runtime / hook detonation |
+| **D** | Multi-Level Supply-Chain Propagation *(Deep Chain)* | `malicious-logger@0.9.1` → `pkg-c` → `pkg-b` → `pkg-a` → `app` → Service → API → Prod | 4-hop propagation & Blast-Radius scoring (`B = 94` in scenario fixture) |
+| **E** | CI/CD Risk *(CI/CD Workflow Leak)* | `.github/workflows/deploy.yml` (`curl \| bash`, `write-all`, unpinned action) | CI/CD runner hardening & least-privilege YAML patches |
+
+---
+
+## 📊 Verified Benchmarks & Test Evidence
+
+Full reproducible methodology and artifacts live in **[docs/EVIDENCE.md](docs/EVIDENCE.md)** and **[evidence/benchmark-summary.md](evidence/benchmark-summary.md)**:
+
+- **Automated Backend Tests:** `pytest tests/` → **188 passed, 0 failed** (full integration + unit suite).
+- **Wasmtime Worked Math Example (`bytecodealliance/wasmtime`):** 94 package PURLs, 16 findings; $P=16, S=1, A=0, D=0 \implies B = 2(16) + 15(1) = \mathbf{47/100}$, $C = \mathbf{0.88}$.
+- **Axios Static Rule Triage (`axios/axios`):** 60 candidate findings evaluated against labeled ground truth → 56 True Positives, 4 False Positives (**93.3% precision**; recall unmeasured); median scan latency $p50 = 14.2\text{ ms/file}$, $p95 = 38.0\text{ ms/file}$.
+- **Next.js Graph Scaling (`vercel/next.js`):** 500 package components → 633 DAG nodes, 891 edges (1.80s build, 142.4 MB peak RAM).
 
 ---
 
 ## 🔌 API Reference Summary
 
-| Endpoint | Method | Description |
-|:---|:---:|:---|
-| `/api/v1/scan` | `POST` | Ingests a repository URL and executes the 5-layer supply chain analysis pipeline. *(Also accessible as `/api/v1/analyze`.)* |
-| `/api/v1/scenarios/{scenario_id}` | `GET` | Fetches preloaded evaluation scenario data via `/api/v1/analyze/demo` (`A`–`E`). |
-| `/api/v1/sandbox/detonate` | `POST` | Executes and monitors package lifecycle hooks inside the isolated container sandbox. *(Also accessible as `/api/v1/execute/sandbox` with `mode=detonate`.)* |
-| `/api/v1/sbom/cyclonedx` | `GET` | Generates standardized CycloneDX v1.5 JSON SBOM with deterministic SHA-256 digest. *(Also embedded in every `/scan` response.)* |
-| `/api/v1/review/repository` | `POST` | Performs exhaustive line-level AI code review across all source files of a repository. |
-| `/api/v1/compare` | `POST` | Compares two scan results and reports dependency / finding deltas and Blast-Radius change. |
-| `/api/v1/health` | `GET` | System health check and upstream service availability probe. |
+Full OpenAPI documentation is available at `/api/docs` on the FastAPI backend (see **[docs/api-contract.md](docs/api-contract.md)**):
 
-For full payload contracts and schema models, see **[docs/api-contract.md](docs/api-contract.md)**.
+| Endpoint | Method | Purpose |
+|:---------|:------:|:--------|
+| `/api/v1/scan` | `POST` | Canonical entry point — executes the full 5-layer analysis pipeline (alias for `/api/v1/analyze`) |
+| `/api/v1/analyze` | `POST` | Primary GitHub repository analysis endpoint |
+| `/api/v1/analyze/folder` | `POST` | Analyzes uploaded local project directories offline |
+| `/api/v1/analyze/demo` | `POST` | Loads deterministic evaluation scenarios (`A`–`E`) |
+| `/api/v1/sandbox/detonate` | `POST` | Detonates package lifecycle hooks in the isolated sandbox (alias for `/api/v1/execute/sandbox` in `detonate` mode) |
+| `/api/v1/execute/sandbox` | `POST` | Runs `detonate`, `test`, or `auto` sandbox execution / static binary inspection |
+| `/api/v1/sbom/cyclonedx` | `GET` | Generates CycloneDX v1.5 JSON SBOM for `?github_url=...` |
+| `/api/v1/review/code` | `POST` | Reviews an individual code snippet with line-level fix suggestions |
+| `/api/v1/review/repository` | `POST` | Scans repository source files and returns `CodeReviewItem[]` + Markdown report |
+| `/api/v1/compare` | `POST` | Computes dependency, finding, confidence, and Blast-Radius deltas between two scans |
+| `/api/v1/health` | `GET` | System health check and version status |
+
+---
+
+## 💻 Tech Stack
+
+- **Frontend:** Next.js 15 (App Router), React 18, `@xyflow/react` (React Flow), Recharts, Tailwind CSS, Lucide Icons, TypeScript
+- **Backend:** FastAPI, Python 3.11+, NetworkX 3.3, Pydantic v2, Uvicorn, HTTPX
+- **Static Analysis:** Python stdlib `ast.parse()` (`ASTVisitor`) + Token-Sanitized Pattern Engine (JS/TS/Go/Rust) + YAML CI/CD Analyzer
+- **Vulnerability Intelligence:** OSV.dev REST API (`api.osv.dev/v1`)
+- **AI Triage Layer:** Google Gemini 2.5 Flash (`google-generativeai`) + AWS Bedrock Claude 3.5 Sonnet fallback + deterministic fallback
+- **Sandbox & Binary Analysis:** Docker (`--network none`, `--memory=512m`, `--cpus=1.0`, 10s watchdog) with sanitized subprocess fallback + static PE/ELF/WASM inspection
+- **Standards & Blockchain:** CycloneDX v1.5 JSON SBOM (`cyclonedx-python-lib`), SHA-256 digests, Solidity contract (`contracts/SupplyGraphAttestation.sol`) staged for Polygon Amoy Testnet
 
 ---
 
@@ -250,52 +212,47 @@ For full payload contracts and schema models, see **[docs/api-contract.md](docs/
 
 ```
 supplygraph/
-├── frontend/                     # Next.js 14 App Router Frontend
-│   ├── src/
-│   │   ├── app/                  # Application routes & layout
-│   │   ├── components/           # React UI components
-│   │   │   ├── auth/             # Authentication & Judge Fast-Pass
-│   │   │   ├── dashboard/        # ASPM Overview Dashboard
-│   │   │   ├── graph/            # React Flow interactive graph canvas
-│   │   │   ├── reviewer/         # AI Code Reviewer unified git diffs
-│   │   │   └── sandbox/          # Detonation Sandbox terminal & logs
-│   │   └── lib/                  # Client utilities & state management
-│   └── public/                   # Static branding assets and documentation
-├── backend/                      # FastAPI Python Backend
+├── frontend/                     # Next.js 15 App Router Frontend (Vercel)
+│   └── src/
+│       ├── app/                  # Main workspace & routes
+│       ├── components/
+│       │   ├── dashboard/        # Overview Dashboard
+│       │   ├── graph/            # React Flow attack graph canvas
+│       │   ├── reviewer/         # Code Reviewer panel & diffs
+│       │   └── sandbox/          # Detonation Sandbox terminal & logs
+│       └── lib/                  # API client & remediation prompt generator
+├── backend/                      # FastAPI Python Backend (Render)
 │   ├── app/
-│   │   ├── api/                  # REST API route handlers
-│   │   ├── detectors/            # 5-Layer threat detectors & AST scanners
-│   │   ├── graph/                # NetworkX DAG builder & BFS algorithms
-│   │   ├── sandbox/              # Subprocess execution containment sandbox
-│   │   ├── sbom/                 # CycloneDX v1.5 generator & SHA-256
-│   │   └── services/             # OSV.dev client & AI briefing engines
-│   └── tests/                    # Backend unit & integration test suites
-├── docs/                         # In-depth architectural & evidence documents
-│   ├── architecture.md           # Full system design and component breakdown
-│   ├── api-contract.md           # Complete OpenAPI specification
-│   ├── demo-scenarios.md         # Scenario walkthroughs and attack proofs
-│   ├── detection.md              # Threat detection algorithms and heuristics
-│   └── EVIDENCE.md               # Forensic evidence & validation dossier
-└── README.md                     # Project documentation
+│   │   ├── api/                  # REST API route handlers (/scan, /analyze, /sandbox, /sbom)
+│   │   ├── detectors/            # AST, CI/CD, Typosquatting, Confusion & Historic detectors
+│   │   ├── engines/              # GraphEngine, PathEngine, Confidence & Containment engines
+│   │   ├── execution/            # SecureSandboxRunner, DetonationService & ExecutionRouter
+│   │   ├── graph/                # Tarjan SCC layout & schema
+│   │   └── services/             # AnalysisService, OSVClient, SBOMEngine, CodeReviewer, GeminiService
+│   └── tests/                    # 188 unit & integration tests
+├── contracts/                    # Solidity attestation smart contract (Polygon Amoy staged)
+├── scripts/                      # Amoy deployment & attestation verification scripts
+├── evidence/                     # Benchmark telemetry, claim audit & implementation inventory
+├── docs/                         # Architecture, API contract, EVIDENCE.md & PROBLEM_STATEMENT_ALIGNMENT.md
+└── README.md
 ```
 
 ---
 
-## 🔒 Security & Evidence Integrity Principles
+## 🔒 Honesty-First Evidence Standards
 
-SupplyGraph enforces a strict **honesty-first evidence standard**:
-1. **No Hallucinated Findings:** Every reported vulnerability maps to verified OSV.dev CVE/GHSA intelligence or deterministic AST syntax patterns.
-2. **Honest Metric Boundaries:** Blast Radius scores reflect quantifiable parameters (dependency depth, path count, CVSS severity) rather than opaque arbitrary scores.
-3. **Safe Execution Guarantee:** No untrusted repository code is ever executed directly on host runners; all dynamic inspections are strictly restricted to the sandboxed containment environment.
+1. **Verifiable Evidence Only:** Every vulnerability finding maps to an OSV.dev advisory or explicit AST/pattern match with `FACT`, `HEURISTIC`, or `SIMULATED` classification.
+2. **Calibrated Precision & Explicit Limitations:** Heuristic confidence and Blast-Radius scores are explicitly labeled as heuristic estimates—not probabilities of compromise—and static precision (`93.3%` on Axios triage) is reported without claiming zero false positives.
+3. **Clear Sandbox & Blockchain Boundaries:** Dual-mode sandbox limitations (Docker vs. restricted subprocess fallback) and staged Polygon Amoy contract status (`Deployment Pending`) are transparently documented.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+MIT License — see the [LICENSE](LICENSE) file for details.
 
 ---
 
 <div align="center">
-<b>SupplyGraph</b> • Built for <b>YUKTHI 2026 Hackathon</b> • Mohan Babu University • Cybersecurity & ASPM Track
+<b>SupplyGraph</b> • Built for <b>YUKTHI 2026 Hackathon</b> • Mohan Babu University • Blockchain &amp; Cybersecurity Track
 </div>

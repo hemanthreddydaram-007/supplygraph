@@ -1,25 +1,40 @@
 """
-SupplyGraph Confidence Engine
-Version: 1.0.0
+SupplyGraph Confidence & Blast-Radius Engine
+Version: 2.0.0
 
-Purpose:
-    Compute a heuristic confidence score for each security finding.
+ROOT CHALLENGE ADDRESSED:
+    Developers and security teams receive raw CVE alerts with no structural context
+    on severity, operational impact, or which findings actually reach exposed services.
+    This creates alert fatigue and forces guesswork instead of prioritized triage.
 
-Formula:
-    C = 1 - Π(1 - wi × ri)
+CORE OBJECTIVE — Mathematical Risk Prioritization:
+    Replace vague HIGH/MEDIUM/LOW labels with two reproducible, explainable scores:
 
-    where:
-        wi = configurable evidence weight (0.0 to 1.0)
-        ri = configurable evidence source reliability (0.0 to 1.0)
+    1. BLAST-RADIUS SCORE — Structural Operational Impact
+       Formula: B = 2P + 15S + 25A + 50D  (clamped at 100.0 at scan summary level)
+       Where:
+           P = affected/compromised package count
+           S = exposed internal/application service count
+           A = exposed API endpoint / admin-context count
+           D = affected production deployment count
+       Deterministic for identical inputs. All weights are configurable.
 
-    Synthetic/simulated evidence is discounted by synthetic_discount factor.
+    2. HEURISTIC CONFIDENCE INDEX — Evidence Quality
+       Formula: C = 1 - Π(1 - wᵢ × rᵢ)
+       Where:
+           wᵢ = configurable evidence weight (0.0 to 1.0)
+           rᵢ = configurable source reliability multiplier (0.0 to 1.0)
+       Labelled "Heuristic Confidence Score" — NOT a probability of compromise.
+
+USER NEEDS ADDRESSED:
+    - Developer Need: Prioritize CVEs by reachable services/APIs instead of flat lists
+    - Reviewer Need: Transparent, deterministic math behind every risk score
+    - DevSecOps Need: Reproducible numeric score trackable across commits (/compare)
 
 IMPORTANT DISCLAIMER:
-    This is a HEURISTIC scoring model.
-    It is NOT a probability of compromise.
-    It is NOT scientifically validated.
-    All weights are configurable and subjective.
-    The UI must clearly label this as "Heuristic Confidence Score".
+    Both scores are HEURISTIC estimates. They are NOT probabilities of compromise.
+    They are NOT scientifically validated. All weights are configurable and subjective.
+    The UI must clearly label both as heuristic estimates, never as ground truth.
 
 Evidence Weights (default, all configurable):
     OSV vulnerability match:        0.80
@@ -38,9 +53,6 @@ Source Reliability (default, all configurable):
     Typosquatting:          0.6 (heuristic, similarity ≠ malicious)
     Metadata:               0.5 (heuristic)
     Simulated runtime:      0.3 (controlled synthetic)
-
-Full implementation in Milestone 2B.
-This module defines the interface and scoring constants.
 """
 
 from __future__ import annotations
@@ -175,82 +187,62 @@ def compute_confidence(
 
 
 def compute_blast_radius(
-    path_depth: int = 0,
-    reaches_sensitive: int = 0,
-    reaches_admin: int = 0,
-    direct_exposure: int = 0,
-    # Legacy parameter aliases kept for backward-compatibility
     package_count: int = 0,
     service_count: int = 0,
     api_count: int = 0,
     production_deployment_count: int = 0,
-    # Weights (configurable)
-    path_weight: float = 2.0,
-    sensitive_weight: float = 15.0,
-    admin_weight: float = 25.0,
-    direct_weight: float = 50.0,
-    # Legacy weight aliases kept for backward-compatibility
     package_weight: float = 2.0,
     service_weight: float = 15.0,
     api_weight: float = 25.0,
     deployment_weight: float = 50.0,
+    cap_at_100: bool = False,
 ) -> Dict[str, Any]:
     """
     Compute heuristic blast-radius score.
 
-    Formula: B = min(100, 2P + 15S + 25A + 50D)
+    Formula: B = 2P + 15S + 25A + 50D  (capped at 100.0 at scan level or when cap_at_100=True)
 
     Where:
-        P = number of distinct reachable dependency paths (transitive depth),
-            capped internally to avoid score saturation from path explosion.
-        S = 1 if the affected graph reaches one or more sensitive assets; otherwise 0.
-        A = 1 if an affected path reaches an administrative-context asset; otherwise 0.
-        D = 1 only when a direct-exploit condition is supported by evidence; otherwise 0.
+        P = affected/compromised package count
+        S = exposed application/internal service count
+        A = exposed API endpoint / admin-context count
+        D = affected production deployment count
 
-    Score is capped at 100.0.
-
-    IMPORTANT: This is a heuristic estimate, not a probability of compromise or a
-    universal business-impact metric.  Always show underlying asset counts alongside
-    the score.  All weights are configurable and subjective.
+    IMPORTANT: This is a heuristic estimate, not a universal business-impact metric.
+    Always show underlying asset counts alongside the score.
+    Weights are configurable and documented.
     """
-    # Resolve: prefer new semantic params, fall back to legacy params for callers
-    # that have not yet been updated.
-    P = path_depth if path_depth else package_count
-    S = reaches_sensitive if reaches_sensitive else service_count
-    A = reaches_admin if reaches_admin else api_count
-    D = direct_exposure if direct_exposure else production_deployment_count
-
-    # Use new canonical weights; fall back to legacy weights only when new ones
-    # are still at their defaults AND legacy weights were explicitly overridden.
-    pw = path_weight if path_weight != 2.0 else package_weight
-    sw = sensitive_weight if sensitive_weight != 15.0 else service_weight
-    aw = admin_weight if admin_weight != 25.0 else api_weight
-    dw = direct_weight if direct_weight != 50.0 else deployment_weight
-
-    raw_score = P * pw + S * sw + A * aw + D * dw
-    score = min(100.0, round(raw_score, 2))
-
+    raw_score = (
+        package_count * package_weight
+        + service_count * service_weight
+        + api_count * api_weight
+        + production_deployment_count * deployment_weight
+    )
+    score = min(100.0, round(raw_score, 2)) if cap_at_100 else round(raw_score, 2)
     return {
         "score": score,
         "label": "Heuristic Blast-Radius Score",
         "formula": "min(100, 2P + 15S + 25A + 50D)",
         "variables": {
-            "P": "Transitive dependency path depth (reachable paths count)",
-            "S": "1 if path reaches sensitive asset(s); 0 otherwise",
-            "A": "1 if path reaches admin-context asset; 0 otherwise",
-            "D": "1 if direct exploit evidence exists; 0 otherwise",
+            "P": "Affected/compromised packages count",
+            "S": "Exposed internal/application services count",
+            "A": "Exposed API endpoints / admin-context count",
+            "D": "Affected production deployments count",
         },
         "breakdown": {
-            "P_path_depth":        {"value": P, "weight": pw, "subtotal": P * pw},
-            "S_sensitive_assets":  {"value": S, "weight": sw, "subtotal": S * sw},
-            "A_admin_context":     {"value": A, "weight": aw, "subtotal": A * aw},
-            "D_direct_exposure":   {"value": D, "weight": dw, "subtotal": D * dw},
+            "packages": {"count": package_count, "weight": package_weight, "subtotal": package_count * package_weight},
+            "services": {"count": service_count, "weight": service_weight, "subtotal": service_count * service_weight},
+            "apis": {"count": api_count, "weight": api_weight, "subtotal": api_count * api_weight},
+            "deployments": {
+                "count": production_deployment_count,
+                "weight": deployment_weight,
+                "subtotal": production_deployment_count * deployment_weight,
+            },
         },
-        "capped_at": 100.0,
         "disclaimer": (
-            "Heuristic Blast-Radius Score (capped at 100). "
-            f"Weights: P={pw}, S={sw}, A={aw}, D={dw}. "
-            "Do not interpret as a probability of compromise or objective "
-            "business-impact metric."
+            "Heuristic Blast-Radius Score. Weights: "
+            f"Package={package_weight}, Service={service_weight}, "
+            f"API={api_weight}, Deployment={deployment_weight}. "
+            "Do not use as an objective business-impact metric."
         ),
     }

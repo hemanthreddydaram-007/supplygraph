@@ -1,4 +1,18 @@
 # SupplyGraph - Main FastAPI Application
+#
+# ROOT CHALLENGE:
+#   Developers using AI coding assistants routinely deploy applications to production
+#   without visibility into which open-source dependencies carry exploitable vulnerabilities,
+#   which are reachable through real call paths, or which contain malicious lifecycle hooks.
+#
+# CORE OBJECTIVES SERVED BY THIS MODULE:
+#   - Objective 6: Unified multi-ecosystem observability (single entry-point /api/v1/scan)
+#   - All objectives: API gateway routing all analysis, sandbox, SBOM, and review endpoints
+#
+# USER NEEDS ADDRESSED:
+#   - Developer Need: One scan covers npm, PyPI, Go, GitHub Actions
+#   - Reviewer Need: Instant access via /api/docs OpenAPI Swagger UI
+#   - DevSecOps Need: REST API for CI/CD pipeline integration
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings

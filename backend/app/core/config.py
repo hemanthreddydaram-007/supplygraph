@@ -77,17 +77,9 @@ class Settings(BaseSettings):
 
     # ============================================================
     # BLAST RADIUS WEIGHTS
-    # Align with formula: B = min(100, 2P + 15S + 25A + 50D)
-    # P = path depth (reachable dependency paths)
-    # S = reaches sensitive assets (binary flag: 0 or 1)
-    # A = reaches admin-context asset (binary flag: 0 or 1)
-    # D = direct exploit evidence (binary flag: 0 or 1)
+    # Formula: B = min(100, 2P + 15S + 25A + 50D)
+    # P = affected packages, S = exposed services, A = APIs, D = production deployments
     # ============================================================
-    blast_radius_path_weight: float = 2.0        # weight for P
-    blast_radius_sensitive_weight: float = 15.0  # weight for S
-    blast_radius_admin_weight: float = 25.0      # weight for A
-    blast_radius_direct_weight: float = 50.0     # weight for D
-    # Legacy aliases kept for backward compatibility
     blast_radius_package_weight: float = 2.0
     blast_radius_service_weight: float = 15.0
     blast_radius_api_weight: float = 25.0
