@@ -16,7 +16,7 @@
 
 ---
 
-### [🌐 Access Live Platform](https://supplygraph-five.vercel.app) • [📐 System Architecture](docs/architecture.md) • [📋 Evidence Dossier](docs/EVIDENCE.md) • [⚡ API Contracts](docs/api-contract.md) • [🧪 Demo Scenarios Guide](docs/demo-scenarios.md)
+### [🌐 Access Live Platform](https://supplygraph-five.vercel.app) • [📐 System Architecture](docs/architecture.md) • [📋 Evidence Dossier](docs/EVIDENCE.md) • [⚡ API Contracts](docs/api-contract.md) • [🧪 Demo Scenarios Guide](docs/demo-scenarios.md) • [🎯 Problem Statement Alignment](docs/PROBLEM_STATEMENT_ALIGNMENT.md)
 
 </div>
 
@@ -85,7 +85,7 @@ SupplyGraph advances supply-chain defense through several core architectural inn
 2. **Quantified Blast Radius Algorithm vs. Generic Severity Labels**
    - Rather than relying solely on abstract high/medium tags, SupplyGraph evaluates risk using an objective mathematical formula normalized from **0.0 to 100.0**:
      $$\text{Blast Radius} = \min(100.0, \; 2P + 15S + 25A + 50D)$$
-     *(Where $P$ = transitive package depth, $S$ = CVSS severity, $A$ = verified reachable attack paths, and $D$ = direct external exposure).*
+     *(Where $P$ = number of distinct reachable dependency paths (transitive depth), $S$ = 1 if the affected graph reaches sensitive assets (0 otherwise), $A$ = 1 if an affected path reaches an administrative-context asset (0 otherwise), and $D$ = 1 only when a direct-exploit condition is supported by evidence (0 otherwise). Score is capped at 100.)*
 
 3. **Surgical Line-Level Code Auto-Patching vs. Breaking Major Version Jumps**
    - Upgrading an entire major package version often introduces breaking API changes and downtime.
@@ -234,10 +234,12 @@ flowchart TD
 
 | Endpoint | Method | Description |
 |:---|:---:|:---|
-| `/api/v1/scan` | `POST` | Ingests a repository URL and executes the 5-layer supply chain analysis pipeline. |
-| `/api/v1/scenarios/{scenario_id}` | `GET` | Fetches preloaded evaluation scenario data (`A`, `B`, `C`, `D`, `E`). |
-| `/api/v1/sandbox/detonate` | `POST` | Executes and monitors package lifecycle hooks inside the isolated container sandbox. |
-| `/api/v1/sbom/cyclonedx` | `GET` | Generates standardized CycloneDX v1.5 JSON SBOM with deterministic SHA-256 digest. |
+| `/api/v1/scan` | `POST` | Ingests a repository URL and executes the 5-layer supply chain analysis pipeline. *(Also accessible as `/api/v1/analyze`.)* |
+| `/api/v1/scenarios/{scenario_id}` | `GET` | Fetches preloaded evaluation scenario data via `/api/v1/analyze/demo` (`A`–`E`). |
+| `/api/v1/sandbox/detonate` | `POST` | Executes and monitors package lifecycle hooks inside the isolated container sandbox. *(Also accessible as `/api/v1/execute/sandbox` with `mode=detonate`.)* |
+| `/api/v1/sbom/cyclonedx` | `GET` | Generates standardized CycloneDX v1.5 JSON SBOM with deterministic SHA-256 digest. *(Also embedded in every `/scan` response.)* |
+| `/api/v1/review/repository` | `POST` | Performs exhaustive line-level AI code review across all source files of a repository. |
+| `/api/v1/compare` | `POST` | Compares two scan results and reports dependency / finding deltas and Blast-Radius change. |
 | `/api/v1/health` | `GET` | System health check and upstream service availability probe. |
 
 For full payload contracts and schema models, see **[docs/api-contract.md](docs/api-contract.md)**.

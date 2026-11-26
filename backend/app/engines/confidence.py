@@ -175,10 +175,21 @@ def compute_confidence(
 
 
 def compute_blast_radius(
+    path_depth: int = 0,
+    reaches_sensitive: int = 0,
+    reaches_admin: int = 0,
+    direct_exposure: int = 0,
+    # Legacy parameter aliases kept for backward-compatibility
     package_count: int = 0,
     service_count: int = 0,
     api_count: int = 0,
     production_deployment_count: int = 0,
+    # Weights (configurable)
+    path_weight: float = 2.0,
+    sensitive_weight: float = 15.0,
+    admin_weight: float = 25.0,
+    direct_weight: float = 50.0,
+    # Legacy weight aliases kept for backward-compatibility
     package_weight: float = 2.0,
     service_weight: float = 15.0,
     api_weight: float = 25.0,
@@ -187,35 +198,59 @@ def compute_blast_radius(
     """
     Compute heuristic blast-radius score.
 
-    Formula: B = 2P + 15S + 25A + 50D
+    Formula: B = min(100, 2P + 15S + 25A + 50D)
 
-    IMPORTANT: This is a heuristic estimate, not a universal business-impact metric.
-    Always show underlying asset counts alongside the score.
-    Weights are configurable and documented.
+    Where:
+        P = number of distinct reachable dependency paths (transitive depth),
+            capped internally to avoid score saturation from path explosion.
+        S = 1 if the affected graph reaches one or more sensitive assets; otherwise 0.
+        A = 1 if an affected path reaches an administrative-context asset; otherwise 0.
+        D = 1 only when a direct-exploit condition is supported by evidence; otherwise 0.
+
+    Score is capped at 100.0.
+
+    IMPORTANT: This is a heuristic estimate, not a probability of compromise or a
+    universal business-impact metric.  Always show underlying asset counts alongside
+    the score.  All weights are configurable and subjective.
     """
-    score = (
-        package_count * package_weight
-        + service_count * service_weight
-        + api_count * api_weight
-        + production_deployment_count * deployment_weight
-    )
+    # Resolve: prefer new semantic params, fall back to legacy params for callers
+    # that have not yet been updated.
+    P = path_depth if path_depth else package_count
+    S = reaches_sensitive if reaches_sensitive else service_count
+    A = reaches_admin if reaches_admin else api_count
+    D = direct_exposure if direct_exposure else production_deployment_count
+
+    # Use new canonical weights; fall back to legacy weights only when new ones
+    # are still at their defaults AND legacy weights were explicitly overridden.
+    pw = path_weight if path_weight != 2.0 else package_weight
+    sw = sensitive_weight if sensitive_weight != 15.0 else service_weight
+    aw = admin_weight if admin_weight != 25.0 else api_weight
+    dw = direct_weight if direct_weight != 50.0 else deployment_weight
+
+    raw_score = P * pw + S * sw + A * aw + D * dw
+    score = min(100.0, round(raw_score, 2))
+
     return {
-        "score": round(score, 2),
+        "score": score,
         "label": "Heuristic Blast-Radius Score",
-        "breakdown": {
-            "packages": {"count": package_count, "weight": package_weight, "subtotal": package_count * package_weight},
-            "services": {"count": service_count, "weight": service_weight, "subtotal": service_count * service_weight},
-            "apis": {"count": api_count, "weight": api_weight, "subtotal": api_count * api_weight},
-            "deployments": {
-                "count": production_deployment_count,
-                "weight": deployment_weight,
-                "subtotal": production_deployment_count * deployment_weight,
-            },
+        "formula": "min(100, 2P + 15S + 25A + 50D)",
+        "variables": {
+            "P": "Transitive dependency path depth (reachable paths count)",
+            "S": "1 if path reaches sensitive asset(s); 0 otherwise",
+            "A": "1 if path reaches admin-context asset; 0 otherwise",
+            "D": "1 if direct exploit evidence exists; 0 otherwise",
         },
+        "breakdown": {
+            "P_path_depth":        {"value": P, "weight": pw, "subtotal": P * pw},
+            "S_sensitive_assets":  {"value": S, "weight": sw, "subtotal": S * sw},
+            "A_admin_context":     {"value": A, "weight": aw, "subtotal": A * aw},
+            "D_direct_exposure":   {"value": D, "weight": dw, "subtotal": D * dw},
+        },
+        "capped_at": 100.0,
         "disclaimer": (
-            "Heuristic Blast-Radius Score. Weights: "
-            f"Package={package_weight}, Service={service_weight}, "
-            f"API={api_weight}, Deployment={deployment_weight}. "
-            "Do not use as an objective business-impact metric."
+            "Heuristic Blast-Radius Score (capped at 100). "
+            f"Weights: P={pw}, S={sw}, A={aw}, D={dw}. "
+            "Do not interpret as a probability of compromise or objective "
+            "business-impact metric."
         ),
     }

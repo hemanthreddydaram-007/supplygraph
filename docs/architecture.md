@@ -353,11 +353,13 @@ The engine finds all paths from the origin candidate to application-level nodes 
 | **Outputs** | Blast radius score (numeric), affected asset list |
 | **Key Technologies** | NetworkX reachability analysis, weighted scoring formula |
 
-**Formula**: `B = 2P + 15S + 25A + 50D`
-- `P` = number of affected packages
-- `S` = number of affected services
-- `A` = number of affected API endpoints
-- `D` = number of affected production deployments
+**Formula**: `B = min(100, 2P + 15S + 25A + 50D)`
+- `P` = number of distinct reachable dependency paths (transitive depth count), capped to prevent score saturation
+- `S` = 1 if the affected graph reaches one or more configured sensitive assets; 0 otherwise
+- `A` = 1 if an affected path reaches an administrative-context asset; 0 otherwise
+- `D` = 1 only when a direct-exploit condition is supported by evidence; 0 otherwise
+
+Score is capped at 100.0. All variables are binary flags (0 or 1) except P which is an integer path count. These are heuristic weights — not probabilities or business-impact metrics.
 
 ---
 
